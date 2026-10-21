@@ -24,6 +24,9 @@ public:
         web = std::make_unique<WebServer> (*engine, port);
         web->start();
 
+        // Healthy for a minute: an update (if one was just installed) is accepted, no rollback needed
+        juce::Timer::callAfterDelay (60000, [] { HostEngine::dataDir().getChildFile ("update-pending").deleteFile(); });
+
         juce::Logger::writeToLog ("LiveHost running - open http://<this-pi>:" + juce::String (port));
     }
 

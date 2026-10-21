@@ -5,8 +5,11 @@ Built with JUCE. Runs your own Linux ARM64 VST3 plugins, one chain per channel.
 
 ## Build (no compiling on the Pi)
 
-Push to `main`. GitHub Actions builds on an ARM64 runner and uploads
-`livehost-linux-arm64.tar.gz` (Actions tab > latest run > Artifacts).
+Push to `main`. GitHub Actions builds on an ARM64 runner and publishes a **Release** (repo page > Releases)
+containing:
+- `livehost-build-N.zip` - the update package (also works for a fresh install)
+- `livehost-linux-arm64.tar.gz` - the same files as a tarball
+
 GitHub's free ARM64 runners are only available for **public** repositories.
 
 ## Install on the Pi
@@ -31,6 +34,17 @@ sets up a virtual screen and browser viewer (port 6080) for plugin windows.
 Then open `http://<pi-hostname>.local:8080` from any device. The browser asks for the password
 (user name can be left blank). To change it later: `sudo /opt/livehost/set-password.sh`.
 
+## Updating (offline, from the web page)
+
+1. Download `livehost-build-N.zip` from the repo's Releases page on any computer.
+2. Open the Setup tab > System > **Install update** and upload the zip.
+
+LiveHost checks the zip (ARM64 program, checksum, compatible installer), keeps the old version as
+`LiveHost.prev`, installs the new one and restarts. Presets, uploaded plugins and the password are kept.
+If the new version fails to start 3 times in a row, the old one is restored automatically and the page
+shows a notice. If an update says it needs the newer installer, unzip it on the Pi and run
+`sudo ./install-pi.sh <user>` again.
+
 ## Using it (everything from the web page)
 
 **Mixer tab**
@@ -45,7 +59,7 @@ Then open `http://<pi-hostname>.local:8080` from any device. The browser asks fo
 - Audio device, sample rate and buffer size (start at 48000 Hz / 64) and channel count.
 - **Plugins on this Pi**: upload a `.zip` of a plugin's `.vst3` folder. LiveHost unpacks it, checks it is a
   Linux ARM64 build (`Contents/aarch64-linux/*.so`), and scans it. Delete uploaded plugins here too.
-- **System**: restart LiveHost, reboot or shut down the Pi.
+- **System**: restart LiveHost, reboot or shut down the Pi, and install updates.
 
 With one channel the output feeds both L and R. With more, channel N goes to output N.
 Data lives in `~/.livehost` (audio setup, plugin list, `plugins/`, `last.json`, `presets/`, `auth.json`).

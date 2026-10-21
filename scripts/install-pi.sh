@@ -28,8 +28,10 @@ apt-get install -y libasound2 2>/dev/null || apt-get install -y libasound2t64
 
 echo "== Installing to /opt/livehost"
 mkdir -p /opt/livehost
-cp -r "$HERE/LiveHost" "$HERE/web" "$HERE/set-password.sh" /opt/livehost/
-chmod +x /opt/livehost/LiveHost /opt/livehost/set-password.sh
+cp -r "$HERE/LiveHost" "$HERE/web" "$HERE/set-password.sh" "$HERE/run.sh" "$HERE/INSTALLER_LEVEL" /opt/livehost/
+chmod +x /opt/livehost/LiveHost /opt/livehost/set-password.sh /opt/livehost/run.sh
+# The app owns its folder so it can install offline updates from the web page
+chown -R "$USER_NAME:$(id -gn "$USER_NAME")" /opt/livehost
 
 echo "== Real-time limits for the audio group"
 usermod -aG audio "$USER_NAME"
@@ -127,7 +129,7 @@ User=${USER_NAME}
 Environment=HOME=/home/${USER_NAME}
 ${DISPLAY_LINES}
 WorkingDirectory=/opt/livehost
-ExecStart=/opt/livehost/LiveHost --port 8080
+ExecStart=/opt/livehost/run.sh --port 8080
 Restart=always
 RestartSec=2
 LimitRTPRIO=95

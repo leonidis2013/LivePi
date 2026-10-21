@@ -1,4 +1,10 @@
 #include "WebServer.h"
+#include "Updater.h"
+#include <atomic>
+
+#ifndef LIVEHOST_BUILD_STR
+ #define LIVEHOST_BUILD_STR "dev"
+#endif
 
 using namespace juce;
 
@@ -214,6 +220,9 @@ void WebServer::setupRoutes()
     {
         auto* o = new DynamicObject();
         o->setProperty ("passwordSet", authHash.isNotEmpty());
+        const String build (LIVEHOST_BUILD_STR);
+        o->setProperty ("version", build == "dev" ? build : "build " + build);
+        o->setProperty ("rolledBack", HostEngine::dataDir().getChildFile ("rolled-back").existsAsFile());
         reply (res, var (o));
     });
 
@@ -326,6 +335,61 @@ void WebServer::setupRoutes()
     });
 
     // System
+    // Offline update: upload livehost-build-N.zip from GitHub
+    svr.Post ("/api/system/update", [] (const httplib::Request& req, httplib::Response& res)
+    {
+        static std::atomic<bool> busy { false };
+        if (busy.exchange (true))
+        {
+            reply (res, errVar ("An update is already in progress."));
+            return;
+        }
+        struct Release { ~Release() { busy = false; } } release;
+
+        auto it = req.files.find ("file");
+        if (it == req.files.end())
+        {
+            reply (res, errVar ("No file received."));
+            return;
+        }
+
+        auto staging = HostEngine::dataDir().getChildFile ("staging").getChildFile (Uuid().toString());
+        staging.createDirectory();
+
+        auto zip = staging.getChildFile ("update.zip");
+        if (! zip.replaceWithData (it->second.content.data(), it->second.content.size()))
+        {
+            staging.deleteRecursively();
+            reply (res, errVar ("Could not save the upload (disk full?)."));
+            return;
+        }
+
+        auto unpacked = staging.getChildFile ("unpacked");
+        auto e = extractZipSafely (zip, unpacked);
+
+        String version;
+        if (e.isEmpty())
+        {
+            auto exe = File::getSpecialLocation (File::currentExecutableFile);
+            e = Updater::apply (unpacked, exe.getParentDirectory(), exe.getFileName(), HostEngine::dataDir(), version);
+        }
+        staging.deleteRecursively();
+
+        if (e.isNotEmpty())
+        {
+            reply (res, errVar (e));
+            return;
+        }
+
+        auto* o = new DynamicObject();
+        o->setProperty ("ok", true);
+        o->setProperty ("version", version);
+        reply (res, var (o));
+
+        // systemd (via run.sh) starts the new version
+        MessageManager::callAsync ([] { Timer::callAfterDelay (1500, [] { JUCEApplicationBase::quit(); }); });
+    });
+
     svr.Post ("/api/system/restart", [] (const httplib::Request&, httplib::Response& res)
     {
         res.set_content ("{\"ok\":true}", "application/json");

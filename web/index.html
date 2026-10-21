@@ -133,6 +133,15 @@
       <button id="sysOff" class="danger">Shut down Pi</button>
     </div>
     <div class="note">After a restart or reboot, wait about 30 seconds and this page reconnects.</div>
+    <h2 style="margin-top:14px">Update</h2>
+    <div id="ver" class="note"></div>
+    <div id="rolled" class="note bad hide">The last update did not start and was rolled back automatically.</div>
+    <div class="row">
+      <input id="updFile" type="file" accept=".zip" class="grow">
+      <button id="updGo">Install update</button>
+    </div>
+    <div id="updStat" class="note"></div>
+    <div class="note">Download <b>livehost-build-N.zip</b> from your GitHub repo (Releases, or Actions &gt; Artifacts) and upload it here. Presets, plugins and password are kept. If the new version fails to start, the old one is restored automatically.</div>
   </div>
 </section>
 
@@ -421,7 +430,31 @@ $('upGo').onclick = () => {
 };
 
 async function sys(what, msg) { if (!confirm(msg)) return; const r = await api('/api/system/' + what, {}); if (r.ok) toast('Command sent. Wait about 30 seconds.'); }
-$('sysRestart').onclick = () => sys('restart', 'Restart LiveHost? Audio stops for a few seconds.');
+function waitForRestart() {
+  setTimeout(function poll() {
+    fetch('/api/info', { cache: 'no-store' })
+      .then(r => { if (r.ok) location.reload(); else setTimeout(poll, 2000); })
+      .catch(() => setTimeout(poll, 2000));
+  }, 6000);
+}
+$('updGo').onclick = () => {
+  const f = $('updFile').files[0];
+  if (!f) return toast('Choose the update .zip first');
+  if (!confirm('Install this update? LiveHost restarts and audio stops for a few seconds.')) return;
+  const fd = new FormData(); fd.append('file', f, f.name);
+  const x = new XMLHttpRequest();
+  x.open('POST', '/api/system/update'); x.setRequestHeader('X-LiveHost', '1');
+  x.upload.onprogress = e => { if (e.lengthComputable) $('updStat').textContent = e.loaded < e.total ? `Uploading… ${Math.round(e.loaded / e.total * 100)}%` : 'Checking and installing…'; };
+  x.onload = () => {
+    let j = {}; try { j = JSON.parse(x.responseText); } catch (e) {}
+    if (j.ok) { $('updStat').textContent = 'Installed ' + (j.version || 'update') + '. Restarting…'; waitForRestart(); }
+    else { $('updStat').textContent = j.error || ('Update failed (' + x.status + ')'); $('updGo').disabled = false; }
+  };
+  x.onerror = () => { $('updStat').textContent = 'Upload failed (connection lost)'; $('updGo').disabled = false; };
+  $('updGo').disabled = true; $('updStat').textContent = 'Uploading…';
+  x.send(fd);
+};
+$('sysRestart').onclick =() => sys('restart', 'Restart LiveHost? Audio stops for a few seconds.');
 $('sysReboot').onclick = () => sys('reboot', 'Reboot the Pi? Audio stops until it is back (about 30 seconds).');
 $('sysOff').onclick = () => sys('shutdown', 'Shut down the Pi? You will need to power it back on by hand.');
 
@@ -443,6 +476,8 @@ async function refresh() {
   plugins = (await api('/api/plugins')).plugins || [];
   const info = await api('/api/info');
   $('nopw').classList.toggle('hide', info.passwordSet !== false);
+  $('ver').textContent = 'Version: ' + (info.version || 'unknown');
+  $('rolled').classList.toggle('hide', !info.rolledBack);
   loadInstalled();
   await refresh();
   setInterval(refresh, 1500);

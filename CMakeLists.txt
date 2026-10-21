@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.22)
-project(LiveHost VERSION 0.2.0 LANGUAGES C CXX)
+project(LiveHost VERSION 0.3.0 LANGUAGES C CXX)
+
+# Build label shown on the web page (CI passes the run number)
+set(LIVEHOST_BUILD "dev" CACHE STRING "Build label")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -39,7 +42,8 @@ target_compile_definitions(LiveHost PRIVATE
   JUCE_PLUGINHOST_LADSPA=0
   JUCE_ALSA=1
   JUCE_JACK=1
-  JUCE_STRICT_REFCOUNTEDPOINTER=1)
+  JUCE_STRICT_REFCOUNTEDPOINTER=1
+  LIVEHOST_BUILD_STR="${LIVEHOST_BUILD}")
 
 target_link_libraries(LiveHost PRIVATE
   juce::juce_audio_utils

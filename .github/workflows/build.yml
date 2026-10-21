@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write   # lets the build publish a Release with the update zip
+
 jobs:
   linux-arm64:
     # 22.04 so the binary runs on Raspberry Pi OS Bookworm (older glibc) as well as newer
@@ -16,13 +19,13 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake ninja-build pkg-config \
+          sudo apt-get install -y build-essential cmake ninja-build pkg-config zip \
             libasound2-dev libjack-jackd2-dev libfreetype-dev libfontconfig1-dev \
             libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxext-dev \
             libgl1-mesa-dev
 
       - name: Configure
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DLIVEHOST_BUILD=${{ github.run_number }}
 
       - name: Build
         run: |
@@ -41,14 +44,34 @@ jobs:
       - name: Package
         run: |
           BIN=$(find build -name LiveHost -type f -perm -u+x | head -n1)
-          mkdir -p dist/livehost
-          cp "$BIN" dist/livehost/LiveHost
-          cp -r web dist/livehost/web
-          cp scripts/install-pi.sh scripts/set-password.sh dist/livehost/
-          chmod +x dist/livehost/install-pi.sh dist/livehost/set-password.sh dist/livehost/LiveHost
+          D=dist/livehost
+          mkdir -p $D
+          cp "$BIN" $D/LiveHost
+          cp -r web $D/web
+          cp scripts/install-pi.sh scripts/set-password.sh scripts/run.sh INSTALLER_LEVEL $D/
+          chmod +x $D/install-pi.sh $D/set-password.sh $D/run.sh $D/LiveHost
+          echo "build ${{ github.run_number }} (${GITHUB_SHA::7})" > $D/VERSION
+          printf '{ "build": "%s", "installerLevel": %s, "sha256": "%s" }\n' \
+            "${{ github.run_number }}" "$(tr -d '[:space:]' < INSTALLER_LEVEL)" "$(sha256sum $D/LiveHost | cut -d' ' -f1)" > $D/manifest.json
+          # One package for both uses: upload it on the Setup tab to update, or unzip it for a fresh install
+          (cd dist && zip -qr ../livehost-build-${{ github.run_number }}.zip livehost)
           tar czf livehost-linux-arm64.tar.gz -C dist livehost
+          ls -la *.zip *.tar.gz
 
       - uses: actions/upload-artifact@v4
         with:
-          name: livehost-linux-arm64
-          path: livehost-linux-arm64.tar.gz
+          name: livehost-build-${{ github.run_number }}
+          path: |
+            livehost-build-${{ github.run_number }}.zip
+            livehost-linux-arm64.tar.gz
+
+      - name: Publish release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "build-${{ github.run_number }}" \
+            "livehost-build-${{ github.run_number }}.zip" livehost-linux-arm64.tar.gz \
+            --title "LiveHost build ${{ github.run_number }}" \
+            --notes "Update an installed Pi: upload livehost-build-${{ github.run_number }}.zip on the Setup tab. Fresh install: unzip it and run sudo ./install-pi.sh." \
+            --target "${{ github.sha }}"
