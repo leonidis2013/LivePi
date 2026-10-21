@@ -25,7 +25,18 @@ jobs:
         run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build build
+        run: |
+          set +e
+          cmake --build build -- -k 0 > build.log 2>&1
+          rc=$?
+          if [ $rc -ne 0 ]; then
+            # Show the first errors as annotations so they are visible on the run summary page
+            grep -E "error:|undefined reference|ld returned|FAILED:" build.log | head -10 | while IFS= read -r line; do
+              echo "::error::$(echo "$line" | cut -c1-450)"
+            done
+            tail -60 build.log
+          fi
+          exit $rc
 
       - name: Package
         run: |
