@@ -115,6 +115,8 @@ namespace
 
 WebServer::WebServer (HostEngine& e, int portToUse) : engine (e), port (portToUse)
 {
+    internet = std::make_unique<InternetMonitor> (std::vector<InternetMonitor::Target> {
+        { "deb.debian.org", 443 }, { "archive.raspberrypi.com", 443 } });
     loadAuth();
     setupRoutes();
 }
@@ -335,6 +337,53 @@ void WebServer::setupRoutes()
     });
 
     // System
+    // Operating system updates (apt), run by a root helper installed by install-pi.sh
+    svr.Get ("/api/os/status", [this] (const httplib::Request&, httplib::Response& res)
+    {
+        reply (res, OsStatus::read (File (OsStatus::stateDir), File (OsStatus::helperPath).existsAsFile(),
+                                    internet->isKnown(), internet->isOnline()));
+    });
+
+    auto osAction = [this] (const char* verb)
+    {
+        return [this, verb] (const httplib::Request&, httplib::Response& res)
+        {
+            if (! File (OsStatus::helperPath).existsAsFile())
+            {
+                reply (res, errVar ("OS updates are not set up on this Pi. Re-run the installer (sudo ./install-pi.sh)."));
+                return;
+            }
+            if (! internet->isOnline())
+            {
+                reply (res, errVar ("No internet access"));
+                return;
+            }
+
+            ChildProcess p;
+            if (! p.start (StringArray { "sudo", "-n", OsStatus::helperPath, verb }))
+            {
+                reply (res, errVar ("Could not start the update helper."));
+                return;
+            }
+            auto output = p.readAllProcessOutput().trim();
+            p.waitForProcessToFinish (15000);
+            const auto code = p.getExitCode();
+
+            if (code == 3)
+                reply (res, errVar ("An OS update is already running."));
+            else if (code != 0)
+                reply (res, errVar ("Could not start the update" + (output.isEmpty() ? String() : ": " + output)));
+            else
+            {
+                auto* o = new DynamicObject();
+                o->setProperty ("ok", true);               // the page then polls /api/os/status
+                reply (res, var (o));
+            }
+        };
+    };
+    svr.Post ("/api/system/os/check", osAction ("check"));
+    svr.Post ("/api/system/os/upgrade", osAction ("upgrade"));
+
     // Offline update: upload livehost-build-N.zip from GitHub
     svr.Post ("/api/system/update", [] (const httplib::Request& req, httplib::Response& res)
     {

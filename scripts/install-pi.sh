@@ -53,9 +53,14 @@ systemctl disable --now pulseaudio.service pulseaudio.socket 2>/dev/null || true
 systemctl --global disable pulseaudio.service pulseaudio.socket 2>/dev/null || true
 systemctl disable --now bluetooth.service 2>/dev/null || true
 
-echo "== Allow the web page to reboot / shut down the Pi"
+echo "== OS update helper (apt) for the web page"
+install -m 755 -o root -g root "$HERE/livehost-os" "$HERE/livehost-os-job" /usr/local/sbin/
+mkdir -p /var/lib/livehost-os
+chmod 755 /var/lib/livehost-os
+
+echo "== Allow the web page to reboot / shut down the Pi and run OS updates"
 cat > /etc/sudoers.d/livehost <<EOF
-${USER_NAME} ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff
+${USER_NAME} ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/local/sbin/livehost-os check, /usr/local/sbin/livehost-os upgrade
 EOF
 chmod 440 /etc/sudoers.d/livehost
 visudo -c -f /etc/sudoers.d/livehost >/dev/null || { echo "sudoers check failed, removing rule"; rm -f /etc/sudoers.d/livehost; }

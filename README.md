@@ -59,7 +59,8 @@ shows a notice. If an update says it needs the newer installer, unzip it on the 
 - Audio device, sample rate and buffer size (start at 48000 Hz / 64) and channel count.
 - **Plugins on this Pi**: upload a `.zip` of a plugin's `.vst3` folder. LiveHost unpacks it, checks it is a
   Linux ARM64 build (`Contents/aarch64-linux/*.so`), and scans it. Delete uploaded plugins here too.
-- **System**: restart LiveHost, reboot or shut down the Pi, and install updates.
+- **System**: restart LiveHost, reboot or shut down the Pi, install LiveHost updates, and update the Pi's operating system (apt-get update / upgrade).
+  The OS update buttons are grayed out with "No internet access" when the Pi cannot reach its package servers.
 
 With one channel the output feeds both L and R. With more, channel N goes to output N.
 Data lives in `~/.livehost` (audio setup, plugin list, `plugins/`, `last.json`, `presets/`, `auth.json`).

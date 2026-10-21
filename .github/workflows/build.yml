@@ -48,8 +48,8 @@ jobs:
           mkdir -p $D
           cp "$BIN" $D/LiveHost
           cp -r web $D/web
-          cp scripts/install-pi.sh scripts/set-password.sh scripts/run.sh INSTALLER_LEVEL $D/
-          chmod +x $D/install-pi.sh $D/set-password.sh $D/run.sh $D/LiveHost
+          cp scripts/install-pi.sh scripts/set-password.sh scripts/run.sh scripts/livehost-os scripts/livehost-os-job INSTALLER_LEVEL $D/
+          chmod +x $D/install-pi.sh $D/set-password.sh $D/run.sh $D/livehost-os $D/livehost-os-job $D/LiveHost
           echo "build ${{ github.run_number }} (${GITHUB_SHA::7})" > $D/VERSION
           printf '{ "build": "%s", "installerLevel": %s, "sha256": "%s" }\n' \
             "${{ github.run_number }}" "$(tr -d '[:space:]' < INSTALLER_LEVEL)" "$(sha256sum $D/LiveHost | cut -d' ' -f1)" > $D/manifest.json

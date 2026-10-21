@@ -1,0 +1,44 @@
+#!/bin/bash
+# Runs as root inside its own systemd unit (started by livehost-os). Do not call directly.
+DIR="${LIVEHOST_OS_DIR:-/var/lib/livehost-os}"
+export PATH="$PATH:/usr/sbin:/sbin"
+export DEBIAN_FRONTEND=noninteractive
+verb="${1:-check}"
+rc=0
+
+{
+  echo "== $(date '+%F %T') apt-get update"
+  apt-get update -q --allow-releaseinfo-change || rc=$?
+
+  if [ "$rc" -eq 0 ] && [ "$verb" = upgrade ]; then
+    echo "== $(date '+%F %T') apt-get upgrade"
+    apt-get -y -q -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef upgrade || rc=$?
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    n=$(apt-get -s upgrade 2>/dev/null | grep -c '^Inst ')
+    echo "$n" > "$DIR/upgradable"
+    if [ "$verb" = check ]; then
+      echo "$n package(s) can be upgraded."
+    else
+      echo "Finished. $n package(s) still waiting or held back."
+    fi
+  else
+    echo "Failed with exit code $rc."
+  fi
+
+  # Recommend a reboot if a newer kernel of the running flavour is installed
+  need=no
+  [ -f /var/run/reboot-required ] && need=yes
+  run="$(uname -r)"
+  flavor="${run##*-}"
+  newest="$(ls /lib/modules 2>/dev/null | grep -- "-${flavor}\$" | sort -V | tail -n1)"
+  if [ -n "$newest" ] && [ "$newest" != "$run" ]; then need=yes; fi
+  echo "$need" > "$DIR/reboot"
+} >> "$DIR/log" 2>&1
+
+echo "$rc" > "$DIR/exit"
+if [ "$rc" -eq 0 ]; then echo ok > "$DIR/state"; else echo failed > "$DIR/state"; fi
+date +%s > "$DIR/finished"
+chmod 644 "$DIR"/* 2>/dev/null
+exit "$rc"

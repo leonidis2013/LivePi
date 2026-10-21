@@ -20,6 +20,7 @@
   .bad, #status .bad b { color:var(--bad) !important; }
   select, input, button { background:#262a31; color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:7px 10px; font:inherit; }
   button { cursor:pointer; } button:hover { border-color:var(--acc); }
+  button:disabled { opacity:.35; cursor:not-allowed; border-color:var(--line); }
   button.danger { color:var(--bad); }
   button.sm { padding:3px 7px; font-size:12px; border-radius:6px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:12px; max-width:760px; }
@@ -133,6 +134,15 @@
       <button id="sysOff" class="danger">Shut down Pi</button>
     </div>
     <div class="note">After a restart or reboot, wait about 30 seconds and this page reconnects.</div>
+    <h2 style="margin-top:14px">Operating system</h2>
+    <div id="osMsg" class="note">…</div>
+    <div class="row">
+      <button id="osCheck" disabled>Check for OS updates</button>
+      <button id="osUpgrade" class="danger" disabled>Install OS updates</button>
+      <button id="osReboot" class="hide">Reboot now</button>
+    </div>
+    <pre id="osLog" class="hide" style="max-height:200px;overflow:auto;background:#0d0f12;padding:8px;border-radius:8px;font-size:12px;white-space:pre-wrap;margin:6px 0"></pre>
+    <div class="note">Runs apt-get update / upgrade on the Pi and needs internet. Don't run it before a service: it can cause audio dropouts while it runs, and may need a reboot afterwards.</div>
     <h2 style="margin-top:14px">Update</h2>
     <div id="ver" class="note"></div>
     <div id="rolled" class="note bad hide">The last update did not start and was rolled back automatically.</div>
@@ -454,7 +464,41 @@ $('updGo').onclick = () => {
   $('updGo').disabled = true; $('updStat').textContent = 'Uploading…';
   x.send(fd);
 };
-$('sysRestart').onclick =() => sys('restart', 'Restart LiveHost? Audio stops for a few seconds.');
+/* ---------- operating system updates ---------- */
+async function osRefresh() {
+  let s;
+  try { s = await (await fetch('/api/os/status', { cache: 'no-store' })).json(); } catch (e) { return; }
+  if (s.error || s.available === undefined) return;
+  const running = s.state === 'running';
+  let text, bad = false;
+  if (!s.available) { text = 'OS updates are not set up on this Pi. Re-run the installer (sudo ./install-pi.sh).'; bad = true; }
+  else if (!s.known) text = 'Checking internet connection…';
+  else if (!s.online) { text = 'No internet access'; bad = true; }
+  else if (running) text = (s.verb === 'upgrade' ? 'Installing updates…' : 'Checking for updates…') + ' Do not power off the Pi.';
+  else if (s.state === 'failed') { text = 'The last ' + (s.verb || 'update') + ' failed. See the log below.'; bad = true; }
+  else if (s.upgradable >= 0) text = s.upgradable + ' package(s) can be upgraded.';
+  else text = 'Press "Check for OS updates" to look for updates.';
+  if (s.rebootRecommended && !running) text += ' A reboot is recommended.';
+  $('osMsg').textContent = text; $('osMsg').classList.toggle('bad', bad);
+
+  const usable = s.available && s.known && s.online && !running;
+  $('osCheck').disabled = !usable;
+  $('osUpgrade').disabled = !(usable && s.upgradable > 0);
+  $('osReboot').classList.toggle('hide', !(s.rebootRecommended && !running));
+
+  const pre = $('osLog'), has = !!s.log && s.state !== 'idle';
+  pre.classList.toggle('hide', !has);
+  if (has && pre.textContent !== s.log) { pre.textContent = s.log; pre.scrollTop = pre.scrollHeight; }
+}
+$('osCheck').onclick = async () => { const r = await api('/api/system/os/check', {}); if (r.ok) toast('Checking for updates…'); osRefresh(); };
+$('osUpgrade').onclick = async () => {
+  if (!confirm('Install OS updates now? Do not do this during a service. Audio may drop out while it runs, and a reboot may be needed afterwards.')) return;
+  const r = await api('/api/system/os/upgrade', {}); if (r.ok) toast('Installing updates…'); osRefresh();
+};
+$('osReboot').onclick = () => sys('reboot', 'Reboot the Pi now? Audio stops until it is back (about 30 seconds).');
+setInterval(() => { if (!$('tab-setup').classList.contains('hide')) osRefresh(); }, 2000);
+
+$('sysRestart').onclick = () => sys('restart', 'Restart LiveHost? Audio stops for a few seconds.');
 $('sysReboot').onclick = () => sys('reboot', 'Reboot the Pi? Audio stops until it is back (about 30 seconds).');
 $('sysOff').onclick = () => sys('shutdown', 'Shut down the Pi? You will need to power it back on by hand.');
 
@@ -479,6 +523,7 @@ async function refresh() {
   $('ver').textContent = 'Version: ' + (info.version || 'unknown');
   $('rolled').classList.toggle('hide', !info.rolledBack);
   loadInstalled();
+  osRefresh();
   await refresh();
   setInterval(refresh, 1500);
   setInterval(pollMeters, 80);
