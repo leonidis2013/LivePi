@@ -19,6 +19,10 @@ FetchContent_Declare(httplib
   GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
   GIT_TAG v0.18.3
   GIT_SHALLOW ON)
+# LiveHost serves plain HTTP only: keep httplib free of optional OpenSSL/zlib/Brotli dependencies
+set(HTTPLIB_USE_OPENSSL_IF_AVAILABLE OFF CACHE BOOL "" FORCE)
+set(HTTPLIB_USE_ZLIB_IF_AVAILABLE OFF CACHE BOOL "" FORCE)
+set(HTTPLIB_USE_BROTLI_IF_AVAILABLE OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(JUCE httplib)
 
 find_package(Threads REQUIRED)
