@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LiveHost</title>
+<style>
+  :root { --bg:#14161a; --card:#1d2026; --card2:#23272e; --line:#2c313a; --fg:#e6e8eb; --dim:#8a919c; --acc:#4da3ff; --bad:#ff5d5d; --ok:#4ccf8a; --warn:#f0c040; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; background:var(--bg); color:var(--fg); font:14px system-ui, sans-serif; }
+  body { padding:10px; }
+  .hide { display:none !important; }
+  header { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:10px; }
+  h1 { font-size:18px; margin:0; }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); margin:0 0 8px; }
+  nav { display:flex; gap:6px; }
+  nav button.on { border-color:var(--acc); color:var(--acc); }
+  #status { flex:1; min-width:200px; color:var(--dim); font-variant-numeric:tabular-nums; font-size:13px; }
+  #status b { color:var(--fg); font-weight:600; }
+  .bad, #status .bad b { color:var(--bad) !important; }
+  select, input, button { background:#262a31; color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:7px 10px; font:inherit; }
+  button { cursor:pointer; } button:hover { border-color:var(--acc); }
+  button.danger { color:var(--bad); }
+  button.sm { padding:3px 7px; font-size:12px; border-radius:6px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:12px; max-width:760px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:6px 0; }
+  .grow { flex:1; min-width:120px; }
+
+  .bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+  .strips { display:flex; gap:10px; overflow-x:auto; padding-bottom:10px; align-items:stretch; }
+  .strip { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:8px; width:176px; flex:0 0 176px; display:flex; flex-direction:column; gap:8px; }
+  .strip.master { width:110px; flex-basis:110px; background:var(--card2); }
+  .strip .nm { width:100%; text-align:center; font-weight:600; padding:5px; }
+  .strip .mname { text-align:center; font-weight:600; padding:6px 0; }
+  .fm { display:flex; justify-content:center; gap:10px; height:210px; }
+  .meter { position:relative; width:10px; background:#0d0f12; border-radius:3px; overflow:hidden; }
+  .meter i { position:absolute; inset:0; background:linear-gradient(to top, #2fbf71 0%, #2fbf71 72%, #e8c23a 86%, #ff4d4d 100%); clip-path: inset(100% 0 0 0); }
+  .fader { position:relative; width:46px; touch-action:none; cursor:pointer; }
+  .fader::before { content:""; position:absolute; left:50%; top:0; bottom:0; width:6px; margin-left:-3px; background:#0d0f12; border-radius:3px; }
+  .fader .fill { position:absolute; left:50%; bottom:0; width:6px; margin-left:-3px; background:var(--acc); opacity:.55; border-radius:3px; }
+  .fader .knob { position:absolute; left:3px; right:3px; height:18px; background:#d9dde3; border-radius:5px; border:1px solid #888; box-shadow:0 1px 3px #0008; }
+  .fader .zero { position:absolute; left:0; right:0; height:1px; background:#fff5; }
+  .db { text-align:center; font-variant-numeric:tabular-nums; color:var(--dim); font-size:12px; }
+  .mute { width:100%; }
+  .mute.on { background:var(--bad); border-color:var(--bad); color:#fff; }
+  .chain { display:flex; flex-direction:column; gap:6px; }
+  .chip { background:var(--card2); border:1px solid var(--line); border-radius:8px; padding:6px; }
+  .chip.byp .cn { text-decoration:line-through; color:var(--dim); }
+  .cn { font-weight:600; font-size:13px; margin-bottom:5px; word-break:break-word; }
+  .cb { display:flex; gap:4px; flex-wrap:wrap; }
+  .add { display:flex; gap:4px; }
+  .add select { min-width:0; flex:1; padding:5px; font-size:12px; }
+
+  .overlay { position:fixed; inset:0; background:#000d; z-index:20; display:flex; flex-direction:column; }
+  .overlay .obar { display:flex; gap:8px; align-items:center; padding:8px; background:var(--card); border-bottom:1px solid var(--line); }
+  .overlay .obar a { color:var(--acc); }
+  .overlay iframe { flex:1; border:0; background:#000; }
+  .modal { position:fixed; inset:0; background:#000b; z-index:15; display:flex; align-items:flex-start; justify-content:center; padding:20px 10px; overflow:auto; }
+  .modal .box { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px; width:min(640px,100%); }
+  .param { display:grid; grid-template-columns: 1fr 2fr 90px; gap:8px; align-items:center; margin:4px 0; font-size:13px; }
+  .param input[type=range] { width:100%; padding:0; }
+  .param span:last-child { color:var(--dim); text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #msg { position:fixed; bottom:10px; left:10px; right:10px; background:#000c; padding:8px 12px; border-radius:8px; display:none; z-index:40; }
+  .note { color:var(--dim); font-size:12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>LiveHost</h1>
+  <div id="status">…</div>
+  <nav>
+    <button data-tab="mix" class="on">Mixer</button>
+    <button data-tab="setup">Setup</button>
+  </nav>
+</header>
+
+<section id="tab-mix">
+  <div class="bar">
+    <select id="presetList" class="grow" style="max-width:220px"></select>
+    <button id="presetLoad">Load</button>
+    <input id="presetName" placeholder="New preset name" style="width:160px">
+    <button id="presetSave">Save</button>
+  </div>
+  <div id="strips" class="strips"></div>
+</section>
+
+<section id="tab-setup" class="hide">
+  <div class="card">
+    <h2>Audio device</h2>
+    <div class="row"><select id="devType" class="grow"></select></div>
+    <div class="row">
+      <select id="devIn" class="grow"></select>
+      <select id="devOut" class="grow"></select>
+    </div>
+    <div class="row">
+      <select id="devRate"></select>
+      <select id="devBuf"></select>
+      <button id="devApply">Apply</button>
+    </div>
+    <div class="note">Lower buffer = lower latency but more CPU. Watch the xrun counter at the top.</div>
+  </div>
+  <div class="card">
+    <h2>Channels &amp; plugins</h2>
+    <div class="row">
+      <label>Channels <input id="chCount" type="number" min="1" max="16" value="1" style="width:70px"></label>
+      <button id="chApply">Set</button>
+      <span class="grow"></span>
+      <button id="scan">Scan plugins</button>
+    </div>
+    <div class="note">Put .vst3 bundles in ~/.vst3 on the Pi, then press Scan plugins. With one channel the output feeds both L and R.</div>
+  </div>
+</section>
+
+<div id="pm" class="modal hide">
+  <div class="box">
+    <div class="row"><h2 id="pmTitle" style="margin:0" class="grow"></h2><button id="pmClose">Close</button></div>
+    <div id="pmBody"></div>
+  </div>
+</div>
+
+<div id="ed" class="overlay hide">
+  <div class="obar">
+    <b id="edTitle" class="grow"></b>
+    <a id="edNew" target="_blank" rel="noopener">New tab</a>
+    <button id="edClosePlugin">Close plugin window</button>
+    <button id="edHide">Hide</button>
+  </div>
+  <iframe id="edFrame" title="Plugin window"></iframe>
+</div>
+
+<div id="msg"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const MINDB = -60, MAXDB = 6, CURVE = 0.55;
+let S = null, plugins = [], devices = null, structKey = '', disp = {}, curEditor = null, polling = false;
+
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+function toast(t) { const m = $('msg'); m.textContent = t; m.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => m.style.display = 'none', 3500); }
+
+async function api(path, body) {
+  const opt = body === undefined ? {} : { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) };
+  try {
+    const r = await fetch(path, opt);
+    const j = await r.json();
+    if (j.error) toast(j.error);
+    return j;
+  } catch (e) { toast('Connection lost'); return {}; }
+}
+
+const pending = {};
+function throttled(key, fn, ms = 40) {
+  if (pending[key]) { pending[key].fn = fn; return; }
+  fn(); pending[key] = { fn: null };
+  setTimeout(() => { const p = pending[key]; delete pending[key]; if (p.fn) p.fn(); }, ms);
+}
+
+function fill(sel, items, current) {
+  sel.innerHTML = '';
+  items.forEach(v => { const o = document.createElement('option'); o.value = o.textContent = v; sel.appendChild(o); });
+  if (current !== undefined && items.map(String).includes(String(current))) sel.value = current;
+}
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
+  $('tab-mix').classList.toggle('hide', b.dataset.tab !== 'mix');
+  $('tab-setup').classList.toggle('hide', b.dataset.tab !== 'setup');
+});
+
+/* ---------- faders ---------- */
+const posFromDb = db => db <= MINDB ? 0 : Math.min(1, Math.pow((db - MINDB) / (MAXDB - MINDB), 1 / CURVE));
+const dbFromPos = p => p < 0.005 ? -100 : MINDB + (MAXDB - MINDB) * Math.pow(p, CURVE);
+
+function paintFader(f, db) {
+  f._db = db;
+  const p = posFromDb(db);
+  f.querySelector('.knob').style.bottom = `calc(${p * 100}% - 9px)`;
+  f.querySelector('.fill').style.height = (p * 100) + '%';
+  f.closest('.strip').querySelector('.db').textContent = db <= MINDB ? '-inf' : db.toFixed(1) + ' dB';
+}
+
+function makeFader(onChange) {
+  const f = el('div', 'fader');
+  f.append(el('div', 'fill'), el('div', 'zero'), el('div', 'knob'));
+  f.querySelector('.zero').style.bottom = (posFromDb(0) * 100) + '%';
+  let drag = false;
+  const upd = e => {
+    const r = f.getBoundingClientRect();
+    const p = Math.max(0, Math.min(1, 1 - (e.clientY - r.top) / r.height));
+    const db = dbFromPos(p);
+    paintFader(f, db); onChange(db);
+  };
+  f.addEventListener('pointerdown', e => { drag = true; f.dataset.drag = 1; f.setPointerCapture(e.pointerId); upd(e); });
+  f.addEventListener('pointermove', e => { if (drag) upd(e); });
+  const end = () => { drag = false; delete f.dataset.drag; };
+  f.addEventListener('pointerup', end); f.addEventListener('pointercancel', end);
+  f.addEventListener('dblclick', () => { paintFader(f, 0); onChange(0); });
+  return f;
+}
+
+/* ---------- mixer strips ---------- */
+function buildStrip(c, ch) {
+  const s = el('div', 'strip'); s.dataset.ch = ch;
+
+  const nm = el('input', 'nm'); nm.value = c.name; nm.maxLength = 24;
+  nm.onchange = () => api('/api/channel/name', { channel: ch, name: nm.value });
+  s.append(nm);
+
+  const fm = el('div', 'fm');
+  const mi = el('div', 'meter'); mi.dataset.k = 'in'; mi.append(el('i'));
+  const fader = makeFader(db => throttled('g' + ch, () => api('/api/mixer', { channel: ch, gainDb: db })));
+  const mo = el('div', 'meter'); mo.dataset.k = 'out'; mo.append(el('i'));
+  fm.append(mi, fader, mo);
+  s.append(fm, el('div', 'db', '0.0 dB'));
+
+  const mute = el('button', 'mute', 'Mute');
+  mute.onclick = () => { const on = !mute.classList.contains('on'); mute.classList.toggle('on', on); api('/api/mixer', { channel: ch, mute: on }); };
+  s.append(mute);
+
+  const chain = el('div', 'chain');
+  c.slots.forEach((p, i) => {
+    const chip = el('div', 'chip' + (p.bypassed ? ' byp' : ''));
+    chip.append(el('div', 'cn', p.name));
+    const cb = el('div', 'cb');
+    if (S && S.editorAvailable) {
+      const e = el('button', 'sm', 'Edit'); e.onclick = () => openEditor(ch, i, p.name); cb.append(e);
+    }
+    const pr = el('button', 'sm', 'Params'); pr.onclick = () => openParams(ch, i, p.name);
+    const by = el('button', 'sm', p.bypassed ? 'Enable' : 'Bypass'); by.onclick = async () => { await api('/api/chain/bypass', { channel: ch, slot: i, bypass: !p.bypassed }); refresh(); };
+    const rm = el('button', 'sm danger', '×'); rm.title = 'Remove'; rm.onclick = async () => { await api('/api/chain/remove', { channel: ch, slot: i }); refresh(); };
+    cb.append(pr, by, rm); chip.append(cb); chain.append(chip);
+  });
+  s.append(chain);
+
+  const add = el('div', 'add');
+  const sel = el('select');
+  plugins.forEach(p => { const o = el('option', '', p.name); o.value = p.id; sel.append(o); });
+  const btn = el('button', 'sm', '+ Add');
+  btn.onclick = async () => { if (!sel.value) return toast('Scan for plugins on the Setup tab first'); btn.disabled = true; await api('/api/chain/add', { channel: ch, id: sel.value }); btn.disabled = false; refresh(); };
+  add.append(sel, btn); s.append(add);
+  return s;
+}
+
+function buildMaster() {
+  const s = el('div', 'strip master');
+  s.append(el('div', 'mname', 'Master'));
+  const fm = el('div', 'fm');
+  fm.append(makeFader(db => throttled('master', () => api('/api/master', { gainDb: db }))));
+  s.append(fm, el('div', 'db', '0.0 dB'));
+  return s;
+}
+
+function renderStrips(st) {
+  const key = JSON.stringify(st.chains.map(c => [c.name, c.slots])) + '|' + plugins.length + '|' + !!st.editorAvailable;
+  if (key === structKey) return;
+  const a = document.activeElement;
+  if (a && a.tagName === 'INPUT' && a.closest('#strips')) return;   // don't rebuild while renaming
+  structKey = key;
+  const root = $('strips'); root.innerHTML = '';
+  st.chains.forEach((c, ch) => root.append(buildStrip(c, ch)));
+  root.append(buildMaster());
+  syncMix(st);
+}
+
+function syncMix(st) {
+  document.querySelectorAll('.strip[data-ch]').forEach(s => {
+    const c = st.chains[+s.dataset.ch]; if (!c) return;
+    const f = s.querySelector('.fader');
+    if (!f.dataset.drag) paintFader(f, c.gainDb);
+    s.querySelector('.mute').classList.toggle('on', c.mute);
+  });
+  const m = document.querySelector('.strip.master .fader');
+  if (m && !m.dataset.drag) paintFader(m, st.masterDb);
+}
+
+/* ---------- meters ---------- */
+function setMeter(ch, kind, db) {
+  const key = ch + kind;
+  const d = Math.max(db, (disp[key] ?? -100) - 2.5);
+  disp[key] = d;
+  const i = document.querySelector(`.strip[data-ch="${ch}"] .meter[data-k="${kind}"] i`);
+  if (!i) return;
+  const pct = Math.max(0, Math.min(1, (d - MINDB) / (MAXDB - MINDB))) * 100;
+  i.style.clipPath = `inset(${100 - pct}% 0 0 0)`;
+}
+async function pollMeters() {
+  if (polling || document.hidden || $('tab-mix').classList.contains('hide')) return;
+  polling = true;
+  try {
+    const m = await (await fetch('/api/meters')).json();
+    if (m.in) { m.in.forEach((db, i) => setMeter(i, 'in', db)); m.out.forEach((db, i) => setMeter(i, 'out', db)); }
+  } catch (e) {}
+  polling = false;
+}
+
+/* ---------- params dialog ---------- */
+async function openParams(ch, slot, title) {
+  $('pmTitle').textContent = title; $('pmBody').innerHTML = 'Loading…'; $('pm').classList.remove('hide');
+  const r = await api(`/api/params?channel=${ch}&slot=${slot}`);
+  const body = $('pmBody'); body.innerHTML = '';
+  (r.params || []).forEach(p => {
+    const row = el('div', 'param');
+    const name = el('span', '', p.name);
+    const slider = el('input'); slider.type = 'range'; slider.min = 0; slider.max = 1; slider.step = 0.001; slider.value = p.value;
+    const txt = el('span', '', p.text);
+    slider.oninput = () => throttled(`p${ch}.${slot}.${p.index}`, () => api('/api/param', { channel: ch, slot, index: p.index, value: +slider.value }));
+    row.append(name, slider, txt); body.append(row);
+  });
+  if (!(r.params || []).length) body.textContent = 'This plugin exposes no parameters.';
+}
+$('pmClose').onclick = () => $('pm').classList.add('hide');
+
+/* ---------- plugin editor (streamed from the Pi's virtual display) ---------- */
+async function openEditor(ch, slot, title) {
+  const r = await api('/api/editor/open', { channel: ch, slot });
+  if (!r.ok) return;
+  curEditor = { ch, slot };
+  const url = `http://${location.hostname}:6080/vnc.html?autoconnect=1&resize=scale&reconnect=1`;
+  $('edTitle').textContent = title;
+  $('edNew').href = url;
+  $('edFrame').src = url;
+  $('ed').classList.remove('hide');
+}
+$('edHide').onclick = () => { $('ed').classList.add('hide'); $('edFrame').src = 'about:blank'; };
+$('edClosePlugin').onclick = async () => { if (curEditor) await api('/api/editor/close', curEditor); $('edHide').onclick(); };
+
+/* ---------- presets ---------- */
+$('presetLoad').onclick = async () => { const n = $('presetList').value; if (!n) return; const r = await api('/api/presets/load', { name: n }); if (r.ok) toast('Loaded ' + n); structKey = ''; refresh(); };
+$('presetSave').onclick = async () => { const n = $('presetName').value.trim(); if (!n) return; const r = await api('/api/presets/save', { name: n }); if (r.ok) { toast('Saved ' + n); $('presetName').value = ''; } refresh(); };
+
+/* ---------- setup tab ---------- */
+async function loadDevices() {
+  devices = await api('/api/devices');
+  if (!devices.types) return;
+  const cur = devices.current;
+  fill($('devType'), devices.types.map(t => t.type), cur.type);
+  refreshDeviceLists();
+  fill($('devRate'), cur.sampleRates, cur.sampleRate);
+  fill($('devBuf'), cur.bufferSizes, cur.bufferSize);
+  $('devIn').value = cur.input; $('devOut').value = cur.output;
+}
+function refreshDeviceLists() {
+  const t = devices.types.find(t => t.type === $('devType').value);
+  if (!t) return;
+  fill($('devIn'), t.inputs); fill($('devOut'), t.outputs);
+}
+$('devType').onchange = refreshDeviceLists;
+$('devApply').onclick = async () => {
+  const r = await api('/api/device', { type: $('devType').value, input: $('devIn').value, output: $('devOut').value,
+                                        sampleRate: +$('devRate').value, bufferSize: +$('devBuf').value });
+  if (r.ok) toast('Audio device applied');
+  await loadDevices();
+};
+$('chApply').onclick = async () => { await api('/api/channels', { count: +$('chCount').value }); structKey = ''; refresh(); };
+$('scan').onclick = async () => { toast('Scanning…'); plugins = (await api('/api/scan')).plugins || []; toast(plugins.length + ' plugins found'); structKey = ''; refresh(); };
+
+/* ---------- status / refresh ---------- */
+async function refresh() {
+  const st = await api('/api/state');
+  if (!st.chains) return;
+  S = st;
+  const cpu = (st.cpu * 100).toFixed(0);
+  $('status').innerHTML = `${st.deviceName} · <b>${st.sampleRate}</b> Hz · <b>${st.bufferSize}</b> smp · latency <b>${(st.latencyMs || 0).toFixed(1)}</b> ms · <span class="${st.cpu > 0.7 ? 'bad' : ''}">CPU <b>${cpu}%</b></span> · <span class="${st.xruns > 0 ? 'bad' : ''}">xruns <b>${st.xruns ?? 0}</b></span>`;
+  if (document.activeElement !== $('chCount')) $('chCount').value = st.numChannels;
+  const pl = $('presetList'), prev = pl.value; fill(pl, st.presets || [], prev);
+  renderStrips(st);
+  syncMix(st);
+}
+
+(async () => {
+  await loadDevices();
+  plugins = (await api('/api/plugins')).plugins || [];
+  await refresh();
+  setInterval(refresh, 1500);
+  setInterval(pollMeters, 80);
+})();
+</script>
+</body>
+</html>

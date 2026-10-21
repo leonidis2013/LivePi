@@ -1,0 +1,43 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  linux-arm64:
+    # 22.04 so the binary runs on Raspberry Pi OS Bookworm (older glibc) as well as newer
+    runs-on: ubuntu-22.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build pkg-config \
+            libasound2-dev libjack-jackd2-dev libfreetype-dev libfontconfig1-dev \
+            libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxext-dev \
+            libgl1-mesa-dev
+
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Package
+        run: |
+          BIN=$(find build -name LiveHost -type f -perm -u+x | head -n1)
+          mkdir -p dist/livehost
+          cp "$BIN" dist/livehost/LiveHost
+          cp -r web dist/livehost/web
+          cp scripts/install-pi.sh dist/livehost/
+          chmod +x dist/livehost/install-pi.sh dist/livehost/LiveHost
+          tar czf livehost-linux-arm64.tar.gz -C dist livehost
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: livehost-linux-arm64
+          path: livehost-linux-arm64.tar.gz
