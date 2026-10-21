@@ -155,7 +155,7 @@ bool WebServer::checkAuth (const httplib::Request& req) const
 
     const String creds = out.toString();                       // "user:password"
     const String pass = creds.fromFirstOccurrenceOf (":", false, false);
-    const String got = SHA256 ((authSalt + pass).toUTF8(), (size_t) (authSalt + pass).getNumBytesAsUTF8()).toHexString();
+    const String got = juce::SHA256 ((authSalt + pass).toUTF8(), (size_t) (authSalt + pass).getNumBytesAsUTF8()).toHexString();
 
     if (got.length() != authHash.length())
         return false;
