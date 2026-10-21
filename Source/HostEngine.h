@@ -20,6 +20,8 @@ public:
     void start();
     void shutdown();
 
+    static juce::File dataDir();   // ~/.livehost
+
     // Audio device
     juce::var getDevices();
     juce::var setDevice (const juce::String& type, const juce::String& in, const juce::String& out,
@@ -44,6 +46,11 @@ public:
     juce::var setParam (int channel, int slot, int index, float value);
     juce::var openEditor (int channel, int slot);
     juce::var closeEditor (int channel, int slot);
+
+    // Uploaded plugin management (bundles live in ~/.livehost/plugins)
+    juce::var installPlugins (const juce::File& unpackedDir, const juce::String& uploadedFileName);
+    juce::var deletePlugin (const juce::String& bundleName);
+    juce::var getInstalledPlugins();
 
     // State / presets
     juce::var getState();
@@ -79,6 +86,8 @@ private:
     juce::var serialise();
     juce::var deserialise (const juce::var&);
     void saveLast();
+    void markDirty();                       // save last.json shortly after fader/name changes
+    bool pluginInUse (const juce::File& bundle);
     juce::File presetFile (const juce::String& name);
 
     juce::AudioDeviceManager deviceManager;
@@ -95,4 +104,5 @@ private:
     std::vector<Chain> chains;
     std::map<juce::uint32, std::unique_ptr<EditorWindow>> editors;
     bool running = false;
+    bool savePending = false;
 };

@@ -362,6 +362,7 @@ var HostEngine::setMixer (const var& body)
     if (body.hasProperty ("gainDb")) c.gainDb = jlimit (-100.0f, 6.0f, (float) (double) body["gainDb"]);
     if (body.hasProperty ("mute"))   c.mute = (bool) body["mute"];
     applyMix (c);
+    markDirty();
     return ok();
 }
 
@@ -369,6 +370,7 @@ var HostEngine::setMasterDb (float db)
 {
     masterDb = jlimit (-100.0f, 6.0f, db);
     masterGain.store (masterDb <= -60.0f ? 0.0f : Decibels::decibelsToGain (masterDb));
+    markDirty();
     return ok();
 }
 
@@ -377,6 +379,7 @@ var HostEngine::setChannelName (int channel, const String& name)
     if (channel < 0 || channel >= (int) chains.size())
         return err ("bad channel");
     chains[(size_t) channel].name = name.trim().substring (0, 24);
+    markDirty();
     return ok();
 }
 
@@ -505,6 +508,148 @@ var HostEngine::closeEditor (int channel, int slot)
         return err ("no such plugin");
     editors.erase (s->node->nodeID.uid);
     return ok();
+}
+
+// ---------------------------------------------------------------- uploaded plugin management
+
+File HostEngine::dataDir()
+{
+    return appDir();
+}
+
+bool HostEngine::pluginInUse (const File& bundle)
+{
+    const auto path = bundle.getFullPathName();
+    for (auto& c : chains)
+        for (auto& s : c.slots)
+            if (s.desc.fileOrIdentifier.startsWith (path))
+                return true;
+    return false;
+}
+
+var HostEngine::installPlugins (const File& staged, const String& uploadedFileName)
+{
+    struct Item { File src; String name; };
+    std::vector<Item> items;
+
+    // Find .vst3 bundles anywhere in the unpacked zip (but not inside another bundle)
+    for (auto& f : staged.findChildFiles (File::findDirectories, true, "*.vst3"))
+    {
+        bool nested = false;
+        for (auto p = f.getParentDirectory(); p != staged && p != p.getParentDirectory(); p = p.getParentDirectory())
+            if (p.hasFileExtension ("vst3")) { nested = true; break; }
+        if (! nested)
+            items.push_back ({ f, f.getFileName() });
+    }
+
+    // Zip made from inside the bundle folder: Contents/ at the root
+    if (items.empty() && staged.getChildFile ("Contents").isDirectory())
+    {
+        auto base = File::createLegalFileName (File (uploadedFileName).getFileNameWithoutExtension());
+        if (base.isEmpty()) base = "Plugin";
+        items.push_back ({ staged, base + ".vst3" });
+    }
+
+    if (items.empty())
+        return err ("No .vst3 plugin found in that zip. Zip the plugin's .vst3 folder itself.");
+
+    auto dest = appDir().getChildFile ("plugins");
+    dest.createDirectory();
+
+    Array<var> installed;
+    StringArray problems;
+
+    for (auto& it : items)
+    {
+        auto contents = it.src.getChildFile ("Contents");
+        auto arch = contents.getChildFile ("aarch64-linux");
+
+        if (! arch.isDirectory() || arch.findChildFiles (File::findFiles, false, "*.so").isEmpty())
+        {
+            StringArray have;
+            for (auto& d : contents.findChildFiles (File::findDirectories, false, "*"))
+                have.add (d.getFileName());
+            problems.add (it.name + " is not a Linux ARM64 build (it contains: "
+                          + (have.isEmpty() ? String ("nothing useful") : have.joinIntoString (", "))
+                          + "). It needs Contents/aarch64-linux/*.so");
+            continue;
+        }
+
+        auto target = dest.getChildFile (File::createLegalFileName (it.name));
+
+        if (target.exists())
+        {
+            if (pluginInUse (target))
+            {
+                problems.add (it.name + " is in use by a channel. Remove it from the channels first.");
+                continue;
+            }
+            for (auto& d : known.getTypes())
+                if (d.fileOrIdentifier.startsWith (target.getFullPathName()))
+                    known.removeType (d);
+            target.deleteRecursively();
+        }
+
+        if (! it.src.moveFileTo (target))
+        {
+            problems.add ("Could not install " + it.name);
+            continue;
+        }
+        installed.add (target.getFileName());
+    }
+
+    if (installed.isEmpty())
+        return err (problems.joinIntoString ("\n"));
+
+    scanPlugins();
+
+    auto* o = new DynamicObject();
+    o->setProperty ("ok", true);
+    o->setProperty ("installed", installed);
+    o->setProperty ("skipped", toVarArray (problems));
+    return var (o);
+}
+
+var HostEngine::deletePlugin (const String& name)
+{
+    if (! name.endsWithIgnoreCase (".vst3") || name.containsAnyOf ("/\\") || name.contains (".."))
+        return err ("bad plugin name");
+
+    auto target = appDir().getChildFile ("plugins").getChildFile (name);
+    if (! target.isDirectory())
+        return err ("no such plugin");
+    if (pluginInUse (target))
+        return err (name + " is in use by a channel. Remove it from the channels first.");
+
+    for (auto& d : known.getTypes())
+        if (d.fileOrIdentifier.startsWith (target.getFullPathName()))
+            known.removeType (d);
+
+    target.deleteRecursively();
+
+    if (auto xml = known.createXml())
+        xml->writeTo (appDir().getChildFile ("plugins.xml"));
+    return ok();
+}
+
+var HostEngine::getInstalledPlugins()
+{
+    Array<var> arr;
+    for (auto& d : appDir().getChildFile ("plugins").findChildFiles (File::findDirectories, false, "*.vst3"))
+    {
+        int64 bytes = 0;
+        for (auto& f : d.findChildFiles (File::findFiles, true, "*"))
+            bytes += f.getSize();
+
+        auto* o = new DynamicObject();
+        o->setProperty ("name", d.getFileName());
+        o->setProperty ("mb", (double) bytes / 1048576.0);
+        o->setProperty ("inUse", pluginInUse (d));
+        arr.add (var (o));
+    }
+    auto* root = new DynamicObject();
+    root->setProperty ("bundles", arr);
+    return var (root);
 }
 
 // ---------------------------------------------------------------- state
@@ -669,6 +814,19 @@ var HostEngine::deserialise (const var& v)
 void HostEngine::saveLast()
 {
     appDir().getChildFile ("last.json").replaceWithText (JSON::toString (serialise(), true));
+}
+
+void HostEngine::markDirty()
+{
+    if (savePending)
+        return;
+    savePending = true;
+    Timer::callAfterDelay (2000, [this]
+    {
+        savePending = false;
+        if (running)
+            saveLast();
+    });
 }
 
 var HostEngine::listPresets()

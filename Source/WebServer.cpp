@@ -25,6 +25,13 @@ namespace
         return result;
     }
 
+    var errVar (const String& msg)
+    {
+        auto* o = new DynamicObject();
+        o->setProperty ("error", msg);
+        return var (o);
+    }
+
     void reply (httplib::Response& res, const var& v)
     {
         if (auto* o = v.getDynamicObject())
@@ -42,10 +49,67 @@ namespace
     {
         return req.has_param (key) ? String (req.get_param_value (key)) : String();
     }
+
+    // Unpack an uploaded zip into dest, refusing anything that could escape it.
+    String extractZipSafely (const File& zipFile, const File& dest)
+    {
+        ZipFile zip (zipFile);
+        const int n = zip.getNumEntries();
+        if (n <= 0)
+            return "That file is not a valid zip, or it is empty.";
+        if (n > 20000)
+            return "The zip has too many files.";
+
+        int64 total = 0;
+        for (int i = 0; i < n; ++i)
+        {
+            auto* e = zip.getEntry (i);
+            const String name = e->filename;
+
+            if (e->isSymbolicLink)
+                return "The zip contains symbolic links, which are not allowed.";
+            if (name.containsChar ('\\'))
+                return "The zip uses Windows-style paths. Re-zip it with 7-Zip, macOS Archive Utility or the zip command.";
+            if (name.startsWithChar ('/') || name.containsChar (':'))
+                return "Unsafe path in zip: " + name;
+            for (auto& part : StringArray::fromTokens (name, "/", ""))
+                if (part == "..")
+                    return "Unsafe path in zip: " + name;
+
+            total += e->uncompressedSize;
+        }
+
+        if (total > (int64) 1500 * 1024 * 1024)
+            return "The zip is too large when unpacked (limit 1.5 GB).";
+
+        dest.createDirectory();
+        for (int i = 0; i < n; ++i)
+        {
+            auto r = zip.uncompressEntry (i, dest, true);
+            if (r.failed())
+                return "Could not unpack the zip: " + r.getErrorMessage();
+        }
+        return {};
+    }
+
+    // Run a privileged command shortly after replying (needs the sudoers rule from the installer).
+    void scheduleCommand (StringArray args)
+    {
+        MessageManager::callAsync ([args]
+        {
+            Timer::callAfterDelay (700, [args]
+            {
+                ChildProcess p;
+                if (p.start (args))
+                    p.waitForProcessToFinish (5000);
+            });
+        });
+    }
 }
 
 WebServer::WebServer (HostEngine& e, int portToUse) : engine (e), port (portToUse)
 {
+    loadAuth();
     setupRoutes();
 }
 
@@ -66,11 +130,92 @@ void WebServer::stop()
         thread.join();
 }
 
+void WebServer::loadAuth()
+{
+    auto f = HostEngine::dataDir().getChildFile ("auth.json");
+    if (! f.existsAsFile())
+    {
+        Logger::writeToLog ("No password set (~/.livehost/auth.json missing). Uploads and system controls are disabled.");
+        return;
+    }
+    auto v = JSON::parse (f);
+    authSalt = v.getProperty ("salt", {}).toString();
+    authHash = v.getProperty ("hash", {}).toString().toLowerCase();
+}
+
+bool WebServer::checkAuth (const httplib::Request& req) const
+{
+    String h (req.get_header_value ("Authorization"));
+    if (! h.startsWithIgnoreCase ("Basic "))
+        return false;
+
+    MemoryOutputStream out;
+    if (! Base64::convertFromBase64 (out, h.substring (6).trim()))
+        return false;
+
+    const String creds = out.toString();                       // "user:password"
+    const String pass = creds.fromFirstOccurrenceOf (":", false, false);
+    const String got = SHA256 ((authSalt + pass).toUTF8(), (size_t) (authSalt + pass).getNumBytesAsUTF8()).toHexString();
+
+    if (got.length() != authHash.length())
+        return false;
+    int diff = 0;
+    for (int i = 0; i < got.length(); ++i)
+        diff |= (int) got[i] ^ (int) authHash[i];
+    return diff == 0;
+}
+
 void WebServer::setupRoutes()
 {
     auto webDir = File::getSpecialLocation (File::currentExecutableFile)
                       .getParentDirectory().getChildFile ("web");
     svr.set_mount_point ("/", webDir.getFullPathName().toStdString());
+
+    svr.set_payload_max_length ((size_t) 400 * 1024 * 1024);   // plugin zips
+    svr.set_read_timeout (30, 0);
+    svr.set_write_timeout (30, 0);
+
+    // Password, CSRF guard, and "no password" lockout for dangerous routes
+    svr.set_pre_routing_handler ([this] (const httplib::Request& req, httplib::Response& res)
+    {
+        const bool passwordSet = authHash.isNotEmpty();
+
+        if (passwordSet && ! checkAuth (req))
+        {
+            if (req.has_header ("Authorization"))
+                Thread::sleep (400);                            // slow down guessing
+            res.status = 401;
+            res.set_header ("WWW-Authenticate", "Basic realm=\"LiveHost\"");
+            res.set_content ("Password required", "text/plain");
+            return httplib::Server::HandlerResponse::Handled;
+        }
+
+        // Browsers cannot add a custom header cross-site, so this blocks CSRF from other web pages
+        if (req.method != "GET" && req.method != "HEAD" && req.get_header_value ("X-LiveHost") != "1")
+        {
+            res.status = 403;
+            res.set_content ("{\"error\":\"missing X-LiveHost header\"}", "application/json");
+            return httplib::Server::HandlerResponse::Handled;
+        }
+
+        const String path (req.path);
+        if (! passwordSet && (path.startsWith ("/api/plugins/upload") || path.startsWith ("/api/plugins/delete")
+                              || path.startsWith ("/api/system/")))
+        {
+            res.status = 403;
+            res.set_content ("{\"error\":\"Set a password first: sudo /opt/livehost/set-password.sh\"}", "application/json");
+            return httplib::Server::HandlerResponse::Handled;
+        }
+
+        return httplib::Server::HandlerResponse::Unhandled;
+    });
+
+    svr.Get ("/api/info", [this] (const httplib::Request&, httplib::Response& res)
+    {
+        auto* o = new DynamicObject();
+        o->setProperty ("passwordSet", authHash.isNotEmpty());
+        reply (res, var (o));
+    });
 
     svr.Get ("/api/state", [this] (const httplib::Request&, httplib::Response& res)
     {
@@ -128,9 +273,75 @@ void WebServer::setupRoutes()
         reply (res, onMT ([this] { return engine.getPlugins(); }));
     });
 
+    svr.Get ("/api/plugins/installed", [this] (const httplib::Request&, httplib::Response& res)
+    {
+        reply (res, onMT ([this] { return engine.getInstalledPlugins(); }));
+    });
+
     svr.Post ("/api/scan", [this] (const httplib::Request&, httplib::Response& res)
     {
         reply (res, onMT ([this] { return engine.scanPlugins(); }, 180000));
+    });
+
+    svr.Post ("/api/plugins/upload", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto it = req.files.find ("file");
+        if (it == req.files.end())
+        {
+            reply (res, errVar ("No file received."));
+            return;
+        }
+
+        const auto& up = it->second;
+        auto staging = HostEngine::dataDir().getChildFile ("staging").getChildFile (Uuid().toString());
+        staging.createDirectory();
+
+        auto zip = staging.getChildFile ("upload.zip");
+        if (! zip.replaceWithData (up.content.data(), up.content.size()))
+        {
+            staging.deleteRecursively();
+            reply (res, errVar ("Could not save the upload (disk full?)."));
+            return;
+        }
+
+        auto unpacked = staging.getChildFile ("unpacked");
+        auto e = extractZipSafely (zip, unpacked);
+        if (e.isNotEmpty())
+        {
+            staging.deleteRecursively();
+            reply (res, errVar (e));
+            return;
+        }
+
+        const String uploadName (up.filename);
+        auto result = onMT ([this, unpacked, uploadName] { return engine.installPlugins (unpacked, uploadName); }, 300000);
+        staging.deleteRecursively();
+        reply (res, result);
+    });
+
+    svr.Post ("/api/plugins/delete", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto b = body (req);
+        reply (res, onMT ([this, b] { return engine.deletePlugin (b["name"].toString()); }));
+    });
+
+    // System
+    svr.Post ("/api/system/restart", [] (const httplib::Request&, httplib::Response& res)
+    {
+        res.set_content ("{\"ok\":true}", "application/json");
+        MessageManager::callAsync ([] { Timer::callAfterDelay (500, [] { JUCEApplicationBase::quit(); }); });
+    });
+
+    svr.Post ("/api/system/reboot", [] (const httplib::Request&, httplib::Response& res)
+    {
+        res.set_content ("{\"ok\":true}", "application/json");
+        scheduleCommand ({ "sudo", "-n", "/usr/bin/systemctl", "reboot" });
+    });
+
+    svr.Post ("/api/system/shutdown", [] (const httplib::Request&, httplib::Response& res)
+    {
+        res.set_content ("{\"ok\":true}", "application/json");
+        scheduleCommand ({ "sudo", "-n", "/usr/bin/systemctl", "poweroff" });
     });
 
     svr.Post ("/api/chain/add", [this] (const httplib::Request& req, httplib::Response& res)

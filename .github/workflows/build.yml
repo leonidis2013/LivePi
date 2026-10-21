@@ -33,8 +33,8 @@ jobs:
           mkdir -p dist/livehost
           cp "$BIN" dist/livehost/LiveHost
           cp -r web dist/livehost/web
-          cp scripts/install-pi.sh dist/livehost/
-          chmod +x dist/livehost/install-pi.sh dist/livehost/LiveHost
+          cp scripts/install-pi.sh scripts/set-password.sh dist/livehost/
+          chmod +x dist/livehost/install-pi.sh dist/livehost/set-password.sh dist/livehost/LiveHost
           tar czf livehost-linux-arm64.tar.gz -C dist livehost
 
       - uses: actions/upload-artifact@v4

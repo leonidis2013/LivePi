@@ -75,6 +75,11 @@
   </nav>
 </header>
 
+<div id="nopw" class="card hide" style="max-width:none;border-color:var(--bad)">
+  <b>No password is set.</b> Plugin upload, delete, and reboot are disabled until you set one.
+  On the Pi run: <code>sudo /opt/livehost/set-password.sh</code>
+</div>
+
 <section id="tab-mix">
   <div class="bar">
     <select id="presetList" class="grow" style="max-width:220px"></select>
@@ -108,7 +113,26 @@
       <span class="grow"></span>
       <button id="scan">Scan plugins</button>
     </div>
-    <div class="note">Put .vst3 bundles in ~/.vst3 on the Pi, then press Scan plugins. With one channel the output feeds both L and R.</div>
+    <div class="note">With one channel the output feeds both L and R.</div>
+  </div>
+  <div class="card">
+    <h2>Plugins on this Pi</h2>
+    <div class="row">
+      <input id="upFile" type="file" accept=".zip" class="grow">
+      <button id="upGo">Upload &amp; install</button>
+    </div>
+    <div id="upStat" class="note"></div>
+    <div class="note">Zip the plugin's <b>.vst3</b> folder and upload the .zip. It must be a Linux ARM64 build (it needs <code>Contents/aarch64-linux/*.so</code>).</div>
+    <div id="bundles" style="margin-top:8px"></div>
+  </div>
+  <div class="card">
+    <h2>System</h2>
+    <div class="row">
+      <button id="sysRestart">Restart LiveHost</button>
+      <button id="sysReboot" class="danger">Reboot Pi</button>
+      <button id="sysOff" class="danger">Shut down Pi</button>
+    </div>
+    <div class="note">After a restart or reboot, wait about 30 seconds and this page reconnects.</div>
   </div>
 </section>
 
@@ -140,7 +164,7 @@ function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.
 function toast(t) { const m = $('msg'); m.textContent = t; m.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => m.style.display = 'none', 3500); }
 
 async function api(path, body) {
-  const opt = body === undefined ? {} : { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) };
+  const opt = body === undefined ? {} : { method: 'POST', headers: {'Content-Type':'application/json', 'X-LiveHost':'1'}, body: JSON.stringify(body) };
   try {
     const r = await fetch(path, opt);
     const j = await r.json();
@@ -356,6 +380,51 @@ $('devApply').onclick = async () => {
 $('chApply').onclick = async () => { await api('/api/channels', { count: +$('chCount').value }); structKey = ''; refresh(); };
 $('scan').onclick = async () => { toast('Scanning…'); plugins = (await api('/api/scan')).plugins || []; toast(plugins.length + ' plugins found'); structKey = ''; refresh(); };
 
+/* ---------- plugin upload / manage ---------- */
+async function loadInstalled() {
+  const r = await api('/api/plugins/installed');
+  const root = $('bundles'); root.innerHTML = '';
+  (r.bundles || []).forEach(b => {
+    const row = el('div', 'row');
+    row.append(el('span', 'grow', `${b.name}  (${b.mb.toFixed(1)} MB)${b.inUse ? '  · in use' : ''}`));
+    const del = el('button', 'sm danger', 'Delete'); del.disabled = b.inUse;
+    del.onclick = async () => {
+      if (!confirm('Delete ' + b.name + ' from the Pi?')) return;
+      const x = await api('/api/plugins/delete', { name: b.name });
+      if (x.ok) { toast('Deleted ' + b.name); plugins = (await api('/api/plugins')).plugins || []; structKey = ''; loadInstalled(); refresh(); }
+    };
+    row.append(del); root.append(row);
+  });
+  if (!(r.bundles || []).length) root.append(el('div', 'note', 'No uploaded plugins yet.'));
+}
+$('upGo').onclick = () => {
+  const f = $('upFile').files[0];
+  if (!f) return toast('Choose a .zip file first');
+  const fd = new FormData(); fd.append('file', f, f.name);
+  const x = new XMLHttpRequest();
+  x.open('POST', '/api/plugins/upload'); x.setRequestHeader('X-LiveHost', '1');
+  x.upload.onprogress = e => { if (e.lengthComputable) $('upStat').textContent = e.loaded < e.total ? `Uploading… ${Math.round(e.loaded / e.total * 100)}%` : 'Installing and scanning…'; };
+  x.onload = async () => {
+    let j = {}; try { j = JSON.parse(x.responseText); } catch (e) {}
+    if (j.ok) {
+      $('upStat').textContent = 'Installed: ' + (j.installed || []).join(', ') + ((j.skipped || []).length ? ' — skipped: ' + j.skipped.join(' | ') : '');
+      $('upFile').value = '';
+      plugins = (await api('/api/plugins')).plugins || []; structKey = ''; loadInstalled(); refresh();
+    } else {
+      $('upStat').textContent = j.error || ('Upload failed (' + x.status + ')');
+    }
+  };
+  x.onerror = () => { $('upStat').textContent = 'Upload failed (connection lost)'; };
+  x.onloadend = () => { $('upGo').disabled = false; };
+  $('upGo').disabled = true; $('upStat').textContent = 'Uploading…';
+  x.send(fd);
+};
+
+async function sys(what, msg) { if (!confirm(msg)) return; const r = await api('/api/system/' + what, {}); if (r.ok) toast('Command sent. Wait about 30 seconds.'); }
+$('sysRestart').onclick = () => sys('restart', 'Restart LiveHost? Audio stops for a few seconds.');
+$('sysReboot').onclick = () => sys('reboot', 'Reboot the Pi? Audio stops until it is back (about 30 seconds).');
+$('sysOff').onclick = () => sys('shutdown', 'Shut down the Pi? You will need to power it back on by hand.');
+
 /* ---------- status / refresh ---------- */
 async function refresh() {
   const st = await api('/api/state');
@@ -372,6 +441,9 @@ async function refresh() {
 (async () => {
   await loadDevices();
   plugins = (await api('/api/plugins')).plugins || [];
+  const info = await api('/api/info');
+  $('nopw').classList.toggle('hide', info.passwordSet !== false);
+  loadInstalled();
   await refresh();
   setInterval(refresh, 1500);
   setInterval(pollMeters, 80);

@@ -45,6 +45,7 @@ target_link_libraries(LiveHost PRIVATE
   juce::juce_audio_utils
   juce::juce_audio_devices
   juce::juce_audio_processors
+  juce::juce_cryptography
   juce::juce_gui_basics
   juce::juce_events
   juce::juce_recommended_config_flags
