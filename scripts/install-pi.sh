@@ -28,8 +28,8 @@ apt-get install -y libasound2 2>/dev/null || apt-get install -y libasound2t64
 
 echo "== Installing to /opt/livehost"
 mkdir -p /opt/livehost
-cp -r "$HERE/LiveHost" "$HERE/web" "$HERE/set-password.sh" "$HERE/run.sh" "$HERE/INSTALLER_LEVEL" /opt/livehost/
-chmod +x /opt/livehost/LiveHost /opt/livehost/set-password.sh /opt/livehost/run.sh
+cp -r "$HERE/LiveHost" "$HERE/web" "$HERE/set-password.sh" "$HERE/trusted-network.sh" "$HERE/run.sh" "$HERE/INSTALLER_LEVEL" /opt/livehost/
+chmod +x /opt/livehost/LiveHost /opt/livehost/set-password.sh /opt/livehost/trusted-network.sh /opt/livehost/run.sh
 # The app owns its folder so it can install offline updates from the web page
 chown -R "$USER_NAME:$(id -gn "$USER_NAME")" /opt/livehost
 

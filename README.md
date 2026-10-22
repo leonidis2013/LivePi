@@ -83,6 +83,15 @@ Data lives in `~/.livehost` (audio setup, plugin list, `plugins/`, `last.json`, 
 - Zip uploads are checked for path tricks, symbolic links and Windows-style paths before unpacking.
 - Plugin windows are drawn in software on a virtual screen, so use them for setup, not during a show.
 
+### Trusted networks (optional, no password from your own network)
+
+```
+sudo /opt/livehost/trusted-network.sh add 192.168.10.0/24   # a network, or a single IP
+sudo /opt/livehost/trusted-network.sh list | remove <entry> | clear
+```
+
+Computers in a trusted network use LiveHost without a password, including uploads, updates and reboot, even if no password is set at all. Everyone else still needs the password (and without one, the dangerous controls stay locked). Only trust a network you control, such as a dedicated AV VLAN: anyone on it can upload plugins, which are native code, and reboot the Pi. The list is stored in `~/.livehost/trusted.txt`; IPv4 only, and networks wider than /8 are ignored. The plugin-window viewer (port 6080) has its own VNC password and is not affected.
+
 ## Notes
 
 - Your plugins must be built for Linux aarch64. Add an ARM64 Linux target to your plugin CI.

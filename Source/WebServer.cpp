@@ -95,6 +95,7 @@ WebServer::WebServer (HostEngine& e, int portToUse) : engine (e), port (portToUs
     ghUpdate = std::make_unique<OnlineUpdate> (cfg);
 
     loadAuth();
+    loadTrusted();
     setupRoutes();
 }
 
@@ -126,6 +127,71 @@ void WebServer::loadAuth()
     auto v = JSON::parse (f);
     authSalt = v.getProperty ("salt", {}).toString();
     authHash = v.getProperty ("hash", {}).toString().toLowerCase();
+}
+
+namespace
+{
+    bool parseIPv4 (const String& s, uint32& out)
+    {
+        auto parts = StringArray::fromTokens (s.trim(), ".", "");
+        if (parts.size() != 4)
+            return false;
+        uint32 v = 0;
+        for (auto& p : parts)
+        {
+            if (p.isEmpty() || p.length() > 3 || ! p.containsOnly ("0123456789") || p.getIntValue() > 255)
+                return false;
+            v = (v << 8) | (uint32) p.getIntValue();
+        }
+        out = v;
+        return true;
+    }
+}
+
+void WebServer::loadTrusted()
+{
+    trusted.clear();
+    trustedText.clear();
+    auto f = HostEngine::dataDir().getChildFile ("trusted.txt");
+    if (! f.existsAsFile())
+        return;
+
+    for (auto line : StringArray::fromLines (f.loadFileAsString()))
+    {
+        line = line.upToFirstOccurrenceOf ("#", false, false).trim();
+        if (line.isEmpty())
+            continue;
+
+        const int prefix = line.containsChar ('/') ? line.fromFirstOccurrenceOf ("/", false, false).getIntValue() : 32;
+        uint32 a = 0;
+        // Refuse anything wider than a /8, so a typo cannot open the page to the whole internet
+        if (! parseIPv4 (line.upToFirstOccurrenceOf ("/", false, false), a) || prefix < 8 || prefix > 32)
+        {
+            Logger::writeToLog ("Ignoring trusted network entry: " + line);
+            continue;
+        }
+        const uint32 mask = prefix == 32 ? 0xffffffffu : ~(0xffffffffu >> prefix);
+        trusted.push_back ({ a & mask, mask });
+        trustedText.add (line);
+    }
+}
+
+bool WebServer::isTrusted (const httplib::Request& req) const
+{
+    if (trusted.empty())
+        return false;
+
+    String ip (req.remote_addr);
+    if (ip.startsWithIgnoreCase ("::ffff:"))
+        ip = ip.substring (7);                                  // IPv4 seen through a dual-stack socket
+
+    uint32 a = 0;
+    if (! parseIPv4 (ip, a))
+        return false;
+    for (auto& n : trusted)
+        if ((a & n.mask) == n.addr)
+            return true;
+    return false;
 }
 
 bool WebServer::checkAuth (const httplib::Request& req) const
@@ -164,8 +230,9 @@ void WebServer::setupRoutes()
     svr.set_pre_routing_handler ([this] (const httplib::Request& req, httplib::Response& res)
     {
         const bool passwordSet = authHash.isNotEmpty();
+        const bool trustedClient = isTrusted (req);   // listed in trusted.txt: no password needed
 
-        if (passwordSet && ! checkAuth (req))
+        if (passwordSet && ! trustedClient && ! checkAuth (req))
         {
             if (req.has_header ("Authorization"))
                 Thread::sleep (400);                            // slow down guessing
@@ -184,21 +251,23 @@ void WebServer::setupRoutes()
         }
 
         const String path (req.path);
-        if (! passwordSet && (path.startsWith ("/api/plugins/upload") || path.startsWith ("/api/plugins/delete")
+        if (! passwordSet && ! trustedClient && (path.startsWith ("/api/plugins/upload") || path.startsWith ("/api/plugins/delete")
                               || path.startsWith ("/api/system/")))
         {
             res.status = 403;
-            res.set_content ("{\"error\":\"Set a password first: sudo /opt/livehost/set-password.sh\"}", "application/json");
+            res.set_content ("{\"error\":\"Set a password (sudo /opt/livehost/set-password.sh) or trust this network (sudo /opt/livehost/trusted-network.sh add <network>) first\"}", "application/json");
             return httplib::Server::HandlerResponse::Handled;
         }
 
         return httplib::Server::HandlerResponse::Unhandled;
     });
 
-    svr.Get ("/api/info", [this] (const httplib::Request&, httplib::Response& res)
+    svr.Get ("/api/info", [this] (const httplib::Request& req, httplib::Response& res)
     {
         auto* o = new DynamicObject();
         o->setProperty ("passwordSet", authHash.isNotEmpty());
+        o->setProperty ("trusted", isTrusted (req));
+        o->setProperty ("trustedNetworks", trustedText.joinIntoString (", "));
         const String build (LIVEHOST_BUILD_STR);
         o->setProperty ("version", build == "dev" ? build : "build " + build);
         o->setProperty ("rolledBack", HostEngine::dataDir().getChildFile ("rolled-back").existsAsFile());

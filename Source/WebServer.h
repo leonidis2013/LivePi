@@ -5,6 +5,7 @@
 #include "OnlineUpdate.h"
 #include <juce_cryptography/juce_cryptography.h>
 #include <thread>
+#include <vector>
 #include "HostEngine.h"
 
 class WebServer
@@ -19,7 +20,13 @@ public:
 private:
     void setupRoutes();
     void loadAuth();
+    void loadTrusted();
     bool checkAuth (const httplib::Request&) const;
+    bool isTrusted (const httplib::Request&) const;
+
+    struct Net { juce::uint32 addr, mask; };
+    std::vector<Net> trusted;         // from ~/.livehost/trusted.txt (IPv4 only)
+    juce::StringArray trustedText;
 
     HostEngine& engine;
     httplib::Server svr;

@@ -78,8 +78,9 @@
 </header>
 
 <div id="nopw" class="card hide" style="max-width:none;border-color:var(--bad)">
-  <b>No password is set.</b> Plugin upload, delete, and reboot are disabled until you set one.
+  <b>No password is set.</b> Plugin upload, delete, updates and reboot are disabled until you set one.
   On the Pi run: <code>sudo /opt/livehost/set-password.sh</code>
+  or trust your control network: <code>sudo /opt/livehost/trusted-network.sh add 192.168.1.0/24</code>
 </div>
 
 <section id="tab-mix">
@@ -568,7 +569,7 @@ async function refresh() {
   await loadDevices();
   plugins = (await api('/api/plugins')).plugins || [];
   const info = await api('/api/info');
-  $('nopw').classList.toggle('hide', info.passwordSet !== false);
+  $('nopw').classList.toggle('hide', info.passwordSet !== false || info.trusted === true);
   $('ver').textContent = 'Version: ' + (info.version || 'unknown');
   $('rolled').classList.toggle('hide', !info.rolledBack);
   loadInstalled();
