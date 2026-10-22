@@ -34,6 +34,15 @@ sets up a virtual screen and browser viewer (port 6080) for plugin windows.
 Then open `http://<pi-hostname>.local:8080` from any device. The browser asks for the password
 (user name can be left blank). To change it later: `sudo /opt/livehost/set-password.sh`.
 
+## Updating online (from GitHub)
+
+On the **Setup** tab, **Check for updates** looks at this repo's latest GitHub Release. If a newer build exists, **Install latest** downloads it, verifies it, installs it and restarts LiveHost (the old version is restored automatically if the new one fails to start). Both buttons are grayed out with "No internet access" when the Pi cannot reach GitHub. The Pi needs `curl` (the installer adds it). Development builds ("dev") never update themselves.
+
+## CPU and temperature
+
+- The header shows the Pi's SoC temperature (red above 75 °C).
+- Each plugin has a **CPU** button: it runs a separate copy of the plugin (same settings) on a noise test signal at the current buffer size and reports average and peak load as a percentage of one core, plus a per-channel sum. It is an estimate, not a live meter, and it uses some CPU while it runs, so don't use it during a show.
+
 ## Updating (offline, from the web page)
 
 1. Download `livehost-build-N.zip` from the repo's Releases page on any computer.

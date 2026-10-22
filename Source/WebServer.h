@@ -2,6 +2,7 @@
 #include <httplib.h>
 #include <memory>
 #include "OsStatus.h"
+#include "OnlineUpdate.h"
 #include <juce_cryptography/juce_cryptography.h>
 #include <thread>
 #include "HostEngine.h"
@@ -26,4 +27,5 @@ private:
     int port;
     juce::String authSalt, authHash;   // empty = no password set
     std::unique_ptr<InternetMonitor> internet;
+    std::unique_ptr<OnlineUpdate> ghUpdate;
 };

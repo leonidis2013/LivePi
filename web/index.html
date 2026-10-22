@@ -46,6 +46,7 @@
   .mute.on { background:var(--bad); border-color:var(--bad); color:#fff; }
   .chain { display:flex; flex-direction:column; gap:6px; }
   .chip { background:var(--card2); border:1px solid var(--line); border-radius:8px; padding:6px; }
+  .cpu { font-size:11px; color:var(--dim); text-align:center; font-variant-numeric:tabular-nums; }
   .chip.byp .cn { text-decoration:line-through; color:var(--dim); }
   .cn { font-weight:600; font-size:13px; margin-bottom:5px; word-break:break-word; }
   .cb { display:flex; gap:4px; flex-wrap:wrap; }
@@ -146,6 +147,14 @@
     <h2 style="margin-top:14px">Update</h2>
     <div id="ver" class="note"></div>
     <div id="rolled" class="note bad hide">The last update did not start and was rolled back automatically.</div>
+    <div id="gh" style="margin:6px 0">
+      <div id="ghMsg" class="note">Checking internet connection…</div>
+      <div class="row">
+        <button id="ghCheck" disabled>Check for updates</button>
+        <button id="ghInstall" class="danger hide" disabled>Install latest</button>
+      </div>
+      <div class="note">No internet? Upload an update file instead:</div>
+    </div>
     <div class="row">
       <input id="updFile" type="file" accept=".zip" class="grow">
       <button id="updGo">Install update</button>
@@ -273,9 +282,17 @@ function buildStrip(c, ch) {
     const pr = el('button', 'sm', 'Params'); pr.onclick = () => openParams(ch, i, p.name);
     const by = el('button', 'sm', p.bypassed ? 'Enable' : 'Bypass'); by.onclick = async () => { await api('/api/chain/bypass', { channel: ch, slot: i, bypass: !p.bypassed }); refresh(); };
     const rm = el('button', 'sm danger', '×'); rm.title = 'Remove'; rm.onclick = async () => { await api('/api/chain/remove', { channel: ch, slot: i }); refresh(); };
-    cb.append(pr, by, rm); chip.append(cb); chain.append(chip);
+    cb.append(pr, by, rm); chip.append(cb);
+    const cm = el('button', 'sm', 'CPU'); cm.title = 'Estimate this plugin\'s CPU use with a test signal (not during a show)';
+    cm.onclick = async () => { cm.disabled = true; const r = await api('/api/plugins/measure', { channel: ch, slot: i }); if (r.error) { cm.disabled = false; } else refresh(); };
+    cb.insertBefore(cm, rm);
+    if (p.cpuMeasuring) { chip.append(el('div', 'cpu', 'measuring…')); cm.disabled = true; }
+    else if (p.cpuAvg !== undefined) chip.append(el('div', 'cpu', `CPU ${p.cpuAvg.toFixed(1)}% (peak ${p.cpuPeak.toFixed(1)}%)`));
+    chain.append(chip);
   });
   s.append(chain);
+  const sum = c.slots.filter(p => p.cpuAvg !== undefined && !p.bypassed).reduce((a, p) => a + p.cpuAvg, 0);
+  if (c.slots.some(p => p.cpuAvg !== undefined)) s.append(el('div', 'cpu', `chain ≈ ${sum.toFixed(1)}% of one core`));
 
   const add = el('div', 'add');
   const sel = el('select');
@@ -464,6 +481,37 @@ $('updGo').onclick = () => {
   $('updGo').disabled = true; $('updStat').textContent = 'Uploading…';
   x.send(fd);
 };
+/* ---------- online update (GitHub) ---------- */
+let ghRestarted = false;
+async function updRefresh() {
+  let u;
+  try { u = await (await fetch('/api/update/status', { cache: 'no-store' })).json(); } catch (e) { return; }
+  const busy = ['checking', 'downloading', 'installing'].includes(u.state);
+  const check = $('ghCheck'), inst = $('ghInstall');
+  let msg;
+  if (!u.known) msg = 'Checking internet connection…';
+  else if (!u.online) msg = 'No internet access';
+  else if (u.state === 'checking') msg = 'Checking for updates…';
+  else if (u.state === 'downloading') msg = 'Downloading update…';
+  else if (u.state === 'installing') msg = 'Installing…';
+  else if (u.state === 'ok') msg = 'Installed ' + (u.latest || 'update') + '. Restarting…';
+  else if (u.state === 'error') msg = u.message || 'Update failed';
+  else msg = u.message || (u.available ? 'Update available: build ' + u.latest + ' (you have ' + u.current + ')' : 'Up to date (build ' + u.current + ')');
+  if (u.state !== 'error' && u.state !== 'ok' && u.available && u.online) msg = 'Update available: build ' + u.latest + ' (you have ' + u.current + ')';
+  $('ghMsg').textContent = msg;
+  $('ghMsg').classList.toggle('bad', !u.online && u.known || u.state === 'error');
+  check.disabled = !u.online || busy;
+  inst.classList.toggle('hide', !u.available);
+  inst.disabled = !u.online || busy || !u.available;
+  if (u.state === 'ok' && !ghRestarted) { ghRestarted = true; waitForRestart(); }
+}
+$('ghCheck').onclick = async () => { const r = await api('/api/system/update/check', {}); updRefresh(); };
+$('ghInstall').onclick = async () => {
+  if (!confirm('Download and install the latest version? LiveHost restarts and audio stops for a few seconds.')) return;
+  const r = await api('/api/system/update/install', {}); updRefresh();
+};
+setInterval(() => { if (!$('tab-setup').classList.contains('hide')) updRefresh(); }, 2000);
+
 /* ---------- operating system updates ---------- */
 async function osRefresh() {
   let s;
@@ -508,7 +556,8 @@ async function refresh() {
   if (!st.chains) return;
   S = st;
   const cpu = (st.cpu * 100).toFixed(0);
-  $('status').innerHTML = `${st.deviceName} · <b>${st.sampleRate}</b> Hz · <b>${st.bufferSize}</b> smp · latency <b>${(st.latencyMs || 0).toFixed(1)}</b> ms · <span class="${st.cpu > 0.7 ? 'bad' : ''}">CPU <b>${cpu}%</b></span> · <span class="${st.xruns > 0 ? 'bad' : ''}">xruns <b>${st.xruns ?? 0}</b></span>`;
+  $('status').innerHTML = `${st.deviceName} · <b>${st.sampleRate}</b> Hz · <b>${st.bufferSize}</b> smp · latency <b>${(st.latencyMs || 0).toFixed(1)}</b> ms · <span class="${st.cpu > 0.7 ? 'bad' : ''}">CPU <b>${cpu}%</b></span> · <span class="${st.xruns > 0 ? 'bad' : ''}">xruns <b>${st.xruns ?? 0}</b></span>`
+    + (st.tempC !== undefined ? ` · <span class="${st.tempC > 75 ? 'bad' : ''}">temp <b>${st.tempC.toFixed(0)}°C</b></span>` : '');
   if (document.activeElement !== $('chCount')) $('chCount').value = st.numChannels;
   const pl = $('presetList'), prev = pl.value; fill(pl, st.presets || [], prev);
   renderStrips(st);
@@ -524,6 +573,7 @@ async function refresh() {
   $('rolled').classList.toggle('hide', !info.rolledBack);
   loadInstalled();
   osRefresh();
+  updRefresh();
   await refresh();
   setInterval(refresh, 1500);
   setInterval(pollMeters, 80);

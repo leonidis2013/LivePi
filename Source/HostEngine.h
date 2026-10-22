@@ -3,9 +3,11 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <atomic>
 #include <map>
+#include <thread>
 #include <memory>
 #include <vector>
 #include "ChannelStrip.h"
+#include "CpuBench.h"
 
 class EditorWindow;
 
@@ -46,6 +48,7 @@ public:
     juce::var setParam (int channel, int slot, int index, float value);
     juce::var openEditor (int channel, int slot);
     juce::var closeEditor (int channel, int slot);
+    juce::var measurePlugin (int channel, int slot);   // CPU estimate on a separate instance
 
     // Uploaded plugin management (bundles live in ~/.livehost/plugins)
     juce::var installPlugins (const juce::File& unpackedDir, const juce::String& uploadedFileName);
@@ -105,4 +108,10 @@ private:
     std::map<juce::uint32, std::unique_ptr<EditorWindow>> editors;
     bool running = false;
     bool savePending = false;
+
+    struct CpuInfo { double avg = 0.0, peak = 0.0; bool measuring = false, valid = false; };
+    std::map<juce::uint32, CpuInfo> cpu;                 // keyed by graph node id
+    std::thread benchThread;
+    bool benchBusy = false;
+    std::shared_ptr<std::atomic<bool>> alive = std::make_shared<std::atomic<bool>> (true);
 };

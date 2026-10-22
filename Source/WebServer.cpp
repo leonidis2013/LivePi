@@ -2,6 +2,9 @@
 #include "Updater.h"
 #include <atomic>
 
+#ifndef LIVEHOST_REPO_STR
+ #define LIVEHOST_REPO_STR "leonidis2013/LivePi"
+#endif
 #ifndef LIVEHOST_BUILD_STR
  #define LIVEHOST_BUILD_STR "dev"
 #endif
@@ -56,48 +59,6 @@ namespace
         return req.has_param (key) ? String (req.get_param_value (key)) : String();
     }
 
-    // Unpack an uploaded zip into dest, refusing anything that could escape it.
-    String extractZipSafely (const File& zipFile, const File& dest)
-    {
-        ZipFile zip (zipFile);
-        const int n = zip.getNumEntries();
-        if (n <= 0)
-            return "That file is not a valid zip, or it is empty.";
-        if (n > 20000)
-            return "The zip has too many files.";
-
-        int64 total = 0;
-        for (int i = 0; i < n; ++i)
-        {
-            auto* e = zip.getEntry (i);
-            const String name = e->filename;
-
-            if (e->isSymbolicLink)
-                return "The zip contains symbolic links, which are not allowed.";
-            if (name.containsChar ('\\'))
-                return "The zip uses Windows-style paths. Re-zip it with 7-Zip, macOS Archive Utility or the zip command.";
-            if (name.startsWithChar ('/') || name.containsChar (':'))
-                return "Unsafe path in zip: " + name;
-            for (auto& part : StringArray::fromTokens (name, "/", ""))
-                if (part == "..")
-                    return "Unsafe path in zip: " + name;
-
-            total += e->uncompressedSize;
-        }
-
-        if (total > (int64) 1500 * 1024 * 1024)
-            return "The zip is too large when unpacked (limit 1.5 GB).";
-
-        dest.createDirectory();
-        for (int i = 0; i < n; ++i)
-        {
-            auto r = zip.uncompressEntry (i, dest, true);
-            if (r.failed())
-                return "Could not unpack the zip: " + r.getErrorMessage();
-        }
-        return {};
-    }
-
     // Run a privileged command shortly after replying (needs the sudoers rule from the installer).
     void scheduleCommand (StringArray args)
     {
@@ -116,7 +77,23 @@ namespace
 WebServer::WebServer (HostEngine& e, int portToUse) : engine (e), port (portToUse)
 {
     internet = std::make_unique<InternetMonitor> (std::vector<InternetMonitor::Target> {
-        { "deb.debian.org", 443 }, { "archive.raspberrypi.com", 443 } });
+        { "deb.debian.org", 443 }, { "archive.raspberrypi.com", 443 }, { "api.github.com", 443 } });
+
+    OnlineUpdate::Config cfg;
+    cfg.repo = LIVEHOST_REPO_STR;
+    cfg.currentBuild = LIVEHOST_BUILD_STR;
+    cfg.dataDir = HostEngine::dataDir();
+    auto exe = File::getSpecialLocation (File::currentExecutableFile);
+    cfg.installDir = exe.getParentDirectory();
+    cfg.exeName = exe.getFileName();
+    cfg.isOnline = [this] { return internet->isOnline(); };
+    cfg.onInstalled = []
+    {
+        // systemd (via run.sh) starts the new version
+        MessageManager::callAsync ([] { Timer::callAfterDelay (1500, [] { JUCEApplicationBase::quit(); }); });
+    };
+    ghUpdate = std::make_unique<OnlineUpdate> (cfg);
+
     loadAuth();
     setupRoutes();
 }
@@ -316,7 +293,7 @@ void WebServer::setupRoutes()
         }
 
         auto unpacked = staging.getChildFile ("unpacked");
-        auto e = extractZipSafely (zip, unpacked);
+        auto e = Updater::extractZipSafely (zip, unpacked);
         if (e.isNotEmpty())
         {
             staging.deleteRecursively();
@@ -414,7 +391,7 @@ void WebServer::setupRoutes()
         }
 
         auto unpacked = staging.getChildFile ("unpacked");
-        auto e = extractZipSafely (zip, unpacked);
+        auto e = Updater::extractZipSafely (zip, unpacked);
 
         String version;
         if (e.isEmpty())
@@ -437,6 +414,33 @@ void WebServer::setupRoutes()
 
         // systemd (via run.sh) starts the new version
         MessageManager::callAsync ([] { Timer::callAfterDelay (1500, [] { JUCEApplicationBase::quit(); }); });
+    });
+
+    svr.Get ("/api/update/status", [this] (const httplib::Request&, httplib::Response& res)
+    {
+        auto v = ghUpdate->status();
+        if (auto* o = v.getDynamicObject())
+        {
+            o->setProperty ("known", internet->isKnown());
+            o->setProperty ("online", internet->isOnline());
+        }
+        reply (res, v);
+    });
+
+    svr.Post ("/api/system/update/check", [this] (const httplib::Request&, httplib::Response& res)
+    {
+        if (! internet->isOnline())
+            return reply (res, errVar ("No internet access"));
+        ghUpdate->requestCheck();
+        res.set_content ("{\"ok\":true}", "application/json");
+    });
+
+    svr.Post ("/api/system/update/install", [this] (const httplib::Request&, httplib::Response& res)
+    {
+        if (! internet->isOnline())
+            return reply (res, errVar ("No internet access"));
+        ghUpdate->requestInstall();
+        res.set_content ("{\"ok\":true}", "application/json");
     });
 
     svr.Post ("/api/system/restart", [] (const httplib::Request&, httplib::Response& res)
@@ -489,6 +493,12 @@ void WebServer::setupRoutes()
         {
             return engine.setParam ((int) b["channel"], (int) b["slot"], (int) b["index"], (float) (double) b["value"]);
         }));
+    });
+
+    svr.Post ("/api/plugins/measure", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto b = body (req);
+        reply (res, onMT ([this, b] { return engine.measurePlugin ((int) b["channel"], (int) b["slot"]); }, 30000));
     });
 
     // Plugin editor windows (shown on the virtual display)

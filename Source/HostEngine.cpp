@@ -107,6 +107,9 @@ void HostEngine::shutdown()
     if (! running)
         return;
     running = false;
+    *alive = false;
+    if (benchThread.joinable())
+        benchThread.join();
     saveLast();
     editors.clear();
     deviceManager.removeChangeListener (this);
@@ -139,6 +142,7 @@ void HostEngine::removeChain (Chain& c)
     for (auto& s : c.slots)
     {
         editors.erase (s.node->nodeID.uid);
+        cpu.erase (s.node->nodeID.uid);
         graph.removeNode (s.node->nodeID);
     }
     c.slots.clear();
@@ -332,6 +336,7 @@ var HostEngine::removePlugin (int channel, int slot)
 
     auto& c = chains[(size_t) channel].slots;
     editors.erase (c[(size_t) slot].node->nodeID.uid);
+    cpu.erase (c[(size_t) slot].node->nodeID.uid);
     graph.removeNode (c[(size_t) slot].node->nodeID);
     c.erase (c.begin() + slot);
     rebuildConnections();
@@ -501,6 +506,72 @@ var HostEngine::openEditor (int channel, int slot)
     return ok();
 }
 
+var HostEngine::measurePlugin (int channel, int slot)
+{
+    auto* s = findSlot (channel, slot);
+    if (s == nullptr)
+        return err ("no such plugin");
+    if (benchBusy)
+        return err ("Another measurement is still running.");
+
+    if (benchThread.joinable())
+        benchThread.join();                       // previous one has finished (benchBusy is false)
+
+    String e;
+    auto inst = createInstance (s->desc, e);
+    if (inst == nullptr)
+        return err ("load failed: " + e);
+
+    // Same settings as the live plugin
+    MemoryBlock state;
+    s->node->getProcessor()->getStateInformation (state);
+    if (state.getSize() > 0)
+        inst->setStateInformation (state.getData(), (int) state.getSize());
+
+    double sr = 48000.0;
+    int bs = 64;
+    if (auto* dev = deviceManager.getCurrentAudioDevice())
+    {
+        sr = dev->getCurrentSampleRate();
+        bs = dev->getCurrentBufferSizeSamples();
+    }
+
+    const int nIn = inst->getTotalNumInputChannels(), nOut = inst->getTotalNumOutputChannels();
+    inst->setPlayConfigDetails (nIn, nOut, sr, bs);
+    inst->prepareToPlay (sr, bs);
+
+    std::shared_ptr<AudioPluginInstance> shared (inst.release());
+    const auto key = s->node->nodeID.uid;
+    cpu[key].measuring = true;
+    benchBusy = true;
+
+    auto flag = alive;
+    benchThread = std::thread ([this, shared, key, nIn, nOut, sr, bs, flag]
+    {
+        auto r = runCpuBench ([shared] (AudioBuffer<float>& b, MidiBuffer& m) { shared->processBlock (b, m); },
+                              jmax (nIn, nOut), sr, bs);
+
+        // Back on the message thread: store the result and destroy the test instance there
+        MessageManager::callAsync ([this, shared, key, r, flag]
+        {
+            shared->releaseResources();
+            if (! flag->load())
+                return;
+            auto it = cpu.find (key);
+            if (it != cpu.end())
+            {
+                it->second.measuring = false;
+                it->second.valid = true;
+                it->second.avg = r.avgPct;
+                it->second.peak = r.peakPct;
+            }
+            benchBusy = false;
+        });
+    });
+
+    return ok();
+}
+
 var HostEngine::closeEditor (int channel, int slot)
 {
     auto* s = findSlot (channel, slot);
@@ -662,6 +733,13 @@ var HostEngine::getState()
     o->setProperty ("masterDb", masterDb);
     o->setProperty ("editorAvailable", std::getenv ("DISPLAY") != nullptr);
 
+    // Raspberry Pi / Linux SoC temperature
+    {
+        auto t = File ("/sys/class/thermal/thermal_zone0/temp").loadFileAsString().trim();
+        if (t.isNotEmpty() && t.containsOnly ("0123456789"))
+            o->setProperty ("tempC", t.getDoubleValue() / 1000.0);
+    }
+
     if (auto* dev = deviceManager.getCurrentAudioDevice())
     {
         const double sr = dev->getCurrentSampleRate();
@@ -688,6 +766,15 @@ var HostEngine::getState()
             auto* so = new DynamicObject();
             so->setProperty ("name", s.desc.name);
             so->setProperty ("bypassed", s.bypassed);
+            if (auto it = cpu.find (s.node->nodeID.uid); it != cpu.end())
+            {
+                so->setProperty ("cpuMeasuring", it->second.measuring);
+                if (it->second.valid)
+                {
+                    so->setProperty ("cpuAvg", it->second.avg);
+                    so->setProperty ("cpuPeak", it->second.peak);
+                }
+            }
             slots.add (var (so));
         }
         auto* co = new DynamicObject();

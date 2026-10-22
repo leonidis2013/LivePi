@@ -23,7 +23,7 @@ id "$USER_NAME" >/dev/null 2>&1 || { echo "User '$USER_NAME' does not exist. Usa
 
 echo "== Runtime libraries"
 apt-get update
-apt-get install -y libfreetype6 libfontconfig1 libx11-6 libxext6 libxrandr2 libxinerama1 libxcursor1 libjack-jackd2-0 unzip
+apt-get install -y libfreetype6 libfontconfig1 libx11-6 libxext6 libxrandr2 libxinerama1 libxcursor1 libjack-jackd2-0 unzip curl ca-certificates
 apt-get install -y libasound2 2>/dev/null || apt-get install -y libasound2t64
 
 echo "== Installing to /opt/livehost"

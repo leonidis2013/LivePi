@@ -1,17 +1,73 @@
 #pragma once
 #include <juce_core/juce_core.h>
 #include <juce_cryptography/juce_cryptography.h>
+#include <mutex>
 
 // Offline update: validates an unpacked update package and swaps it into the install folder.
 // The old program and web files are kept as LiveHost.prev / web.prev so run.sh can roll back.
 namespace Updater
 {
+    // Unpack an uploaded or downloaded zip into dest, refusing anything that could escape it.
+    inline juce::String extractZipSafely (const juce::File& zipFile, const juce::File& dest)
+    {
+        using namespace juce;
+
+        ZipFile zip (zipFile);
+        const int n = zip.getNumEntries();
+        if (n <= 0)
+            return "That file is not a valid zip, or it is empty.";
+        if (n > 20000)
+            return "The zip has too many files.";
+
+        int64 total = 0;
+        for (int i = 0; i < n; ++i)
+        {
+            auto* e = zip.getEntry (i);
+            const String name = e->filename;
+
+            if (e->isSymbolicLink)
+                return "The zip contains symbolic links, which are not allowed.";
+            if (name.containsChar ('\\'))
+                return "The zip uses Windows-style paths. Re-zip it with 7-Zip, macOS Archive Utility or the zip command.";
+            if (name.startsWithChar ('/') || name.containsChar (':'))
+                return "Unsafe path in zip: " + name;
+            for (auto& part : StringArray::fromTokens (name, "/", ""))
+                if (part == "..")
+                    return "Unsafe path in zip: " + name;
+
+            total += e->uncompressedSize;
+        }
+
+        if (total > (int64) 1500 * 1024 * 1024)
+            return "The zip is too large when unpacked (limit 1.5 GB).";
+
+        dest.createDirectory();
+        for (int i = 0; i < n; ++i)
+        {
+            auto r = zip.uncompressEntry (i, dest, true);
+            if (r.failed())
+                return "Could not unpack the zip: " + r.getErrorMessage();
+        }
+        return {};
+    }
+
+    // Only one update may touch the install folder at a time
+    inline std::mutex& applyLock()
+    {
+        static std::mutex m;
+        return m;
+    }
+
     // Returns an error message, or an empty string on success (versionOut is then set).
     inline juce::String apply (const juce::File& unpacked, const juce::File& installDir,
                                const juce::String& exeName, const juce::File& dataDir,
                                juce::String& versionOut)
     {
         using namespace juce;
+
+        std::unique_lock<std::mutex> guard (applyLock(), std::try_to_lock);
+        if (! guard.owns_lock())
+            return "Another update is already being installed.";
 
         // Find <root>/LiveHost with <root>/web/index.html next to it
         File root;

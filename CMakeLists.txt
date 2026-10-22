@@ -3,6 +3,7 @@ project(LiveHost VERSION 0.3.0 LANGUAGES C CXX)
 
 # Build label shown on the web page (CI passes the run number)
 set(LIVEHOST_BUILD "dev" CACHE STRING "Build label")
+set(LIVEHOST_REPO "leonidis2013/LivePi" CACHE STRING "GitHub repo that online updates come from")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -47,7 +48,8 @@ target_compile_definitions(LiveHost PRIVATE
   JUCE_ALSA=1
   JUCE_JACK=1
   JUCE_STRICT_REFCOUNTEDPOINTER=1
-  LIVEHOST_BUILD_STR="${LIVEHOST_BUILD}")
+  LIVEHOST_BUILD_STR="${LIVEHOST_BUILD}"
+  LIVEHOST_REPO_STR="${LIVEHOST_REPO}")
 
 target_link_libraries(LiveHost PRIVATE
   juce::juce_audio_utils
