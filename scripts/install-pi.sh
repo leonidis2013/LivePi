@@ -173,9 +173,19 @@ for i, w in enumerate(out):
 PY
 )"
     fi
-    if [[ -t 0 && -n "$NET" ]] && yesno "Skip the password for devices on this network ($NET)? [y/N]" N; then
-      /opt/livepi/trusted-network.sh add "$NET" >/dev/null || true
-      /opt/livepi/trusted-network.sh on || true
+    if [[ -t 0 ]]; then
+      echo
+      echo "Trusted access: devices on networks you trust skip the password (for example your AV network)."
+      if yesno "Turn on trusted access? [y/N]" N; then
+        while :; do
+          read -r -p "Trusted network or address${NET:+ [$NET]} (Enter = ${NET:-done}): " ADD || ADD=""
+          ADD="${ADD:-$NET}"; NET=""
+          [[ -z "$ADD" ]] && break
+          /opt/livepi/trusted-network.sh add "$ADD" >/dev/null && echo "   added $ADD" || echo "   '$ADD' is not a valid IPv4 address or network (like 192.168.2.0/24)"
+          yesno "Add another? [y/N]" N || break
+        done
+        /opt/livepi/trusted-network.sh on | sed 's/^/   /' || true
+      fi
     fi
   else
     echo "No password was set. LivePi will still start; set one later in Setup > Settings."

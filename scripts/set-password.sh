@@ -2,14 +2,14 @@
 # Set or change the LivePi web password (also possible on the page: Setup > Settings > Password).
 #   sudo /opt/livepi/set-password.sh [username]          set / change it (turns protection on)
 #   sudo /opt/livepi/set-password.sh --off [username]    turn password protection off (forgot it? use this)
-#   sudo /opt/livepi/set-password.sh --on  [username]    turn it back on (keeps the old password)
+#   sudo /opt/livepi/set-password.sh --on  [username]    turn it back on (asks for the password to use)
 # For scripted installs you can pass it as LIVEPI_PASSWORD=... in the environment.
 set -euo pipefail
 
 if [[ $EUID -ne 0 ]]; then echo "Run with sudo"; exit 1; fi
 
 MODE=set
-if [[ "${1:-}" == --off || "${1:-}" == --on ]]; then MODE="${1#--}"; shift; fi
+if [[ "${1:-}" == --off ]]; then MODE=off; shift; elif [[ "${1:-}" == --on ]]; then shift; fi   # --on = set it again
 USER_NAME="${1:-}"
 if [[ -z "$USER_NAME" && -f /etc/systemd/system/livepi.service ]]; then
   USER_NAME="$(sed -n 's/^User=//p' /etc/systemd/system/livepi.service | head -n1)"
@@ -23,11 +23,10 @@ if [[ $MODE != set ]]; then
   [[ -s "$F" ]] || { echo "No password is set."; exit 0; }
   SALT="$(sed -n 's/.*"salt"[^"]*"\([^"]*\)".*/\1/p' "$F")"
   HASH="$(sed -n 's/.*"hash"[^"]*"\([^"]*\)".*/\1/p' "$F")"
-  EN=$([[ $MODE == on ]] && echo true || echo false)
-  ( umask 077; printf '{ "salt": "%s", "hash": "%s", "enabled": %s }\n' "$SALT" "$HASH" "$EN" > "$F" )
+  ( umask 077; printf '{ "salt": "%s", "hash": "%s", "enabled": false }\n' "$SALT" "$HASH" > "$F" )
   chown "$USER_NAME:$(id -gn "$USER_NAME")" "$F"
   systemctl try-restart livepi.service 2>/dev/null || true
-  echo "Password protection is now $( [[ $MODE == on ]] && echo ON || echo OFF )."
+  echo "Password protection is now OFF. Turn it back on in Setup > Settings or with: sudo $0 --on"
   exit 0
 fi
 

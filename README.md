@@ -18,7 +18,7 @@ Built with JUCE. Runs your own Linux ARM64 VST3 plugins, one chain per channel.
    sudo ./install-pi.sh your-user
    ```
 
-   The installer installs everything, then asks **"Do you want to set a password? [Y/n]"**. Answer **Y** to choose a web password (at least 4 characters; nothing is shown while you type); it then offers to skip the password on the Pi's own network. Answer **n** to run without one (everyone on your network can use it). You can change all of this later in Setup > Settings. Use `--password` or `--no-password` after the user name to skip the question. When it finishes, run `sudo reboot`.
+   The installer installs everything, then asks **"Do you want to set a password? [Y/n]"**. Answer **Y** to choose a web password (at least 4 characters; nothing is shown while you type); it then asks whether to turn on trusted access and which networks to trust (the Pi's own network is suggested). Answer **n** to run without one (everyone on your network can use it). You can change all of this later in Setup > Settings. Use `--password` or `--no-password` after the user name to skip the question. When it finishes, run `sudo reboot`.
 4. **Open the page** at `http://livepi.local:8080` from any computer, tablet or phone on the same network. If you set a password, the page asks for it (no user name).
 5. **Set up audio** on the **Setup** tab: pick your audio device, sample rate 48000 and buffer 64 (raise to 128 if the xrun counter climbs), then Apply.
 6. **Add plugins**: on the Setup tab > Plugins upload each plugin as a `.zip`, a `.vst3` folder, or a single `.vst3`/`.so` file (Linux ARM64), press Scan, then add them to a channel on the **Mixer** tab.
@@ -109,11 +109,11 @@ Data lives in `~/.livepi` (audio setup, plugin list, `plugins/`, `last.json`, `p
 
 ## Security
 
-- **Password** (Setup > Settings > Password): set or change it there, no user name. With **password protection on**, every device logs in once on the page (it stays logged in for 30 days); with it **off**, or with no password, everyone on your network can use LivePi. Turning protection off never asks for the password. Changing the password logs out all other devices.
+- **Password** (Setup > Settings > Password): set or change it there, no user name. With **password protection on**, every device logs in once on the page (it stays logged in for 30 days); with it **off**, or with no password, everyone on your network can use LivePi. Turning protection off never asks for the password; turning it back on always asks you to type the password to use (the old one or a new one), so you can't switch it on and then not know it. Changing the password logs out all other devices. Ten wrong passwords lock that device out for 10 minutes.
 - **Forgot the password:** on the Pi run `sudo /opt/livepi/set-password.sh --off` (protection off) or `sudo /opt/livepi/set-password.sh` (new password).
 - **Trusted access** (Setup > Settings, only while a password is set and protection is on): devices on the trusted networks you list skip the login. Only trust a network you control, such as a dedicated AV VLAN. From the Pi: `sudo /opt/livepi/trusted-network.sh add 192.168.10.0/24` and `... on` / `off` / `list`.
 - Uploaded plugins are native code that runs on the Pi, so only upload plugins you trust.
-- Traffic is plain HTTP, so the password is not encrypted on the network. Keep the Pi on a trusted network or VLAN, not exposed to the internet. Ten wrong passwords lock that device out for 10 minutes.
+- Traffic is plain HTTP, so the password is not encrypted on the network. Keep the Pi on a trusted network or VLAN, not exposed to the internet.
 - Zip uploads are checked for path tricks, symbolic links and Windows-style paths before unpacking.
 - Plugin windows are drawn in software on a virtual screen, so use them for setup, not during a show. If one shows no picture, Setup > Plugins > **Plugin windows** says what is missing.
 

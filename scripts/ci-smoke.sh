@@ -86,6 +86,7 @@ run_case() {
   curl -s -m 5 -b $J -X POST -H 'X-LivePi: 1' -H 'Content-Type: application/json' -d '{"enabled":false}' http://127.0.0.1:8080/api/password/protection >/dev/null
   check "$label: protection off -> open, no login" "api /api/state | jq -e '.chains' >/dev/null"
   check "$label: protection off -> trusted access unavailable" "post /api/access '{\"trustedAccess\":true}' | jq -e '.error' >/dev/null"
+  check "$label: turning protection back on needs the password typed" "post /api/password/protection '{\"enabled\":true}' | jq -e '.error' >/dev/null"
   check "$label: mixer works" "api /api/state | jq -e '.chains' >/dev/null"
   local pid; pid=$(cat /tmp/lh.pid)
   say "signals: $(grep -E 'SigCgt|SigBlk|SigIgn' /proc/$pid/status | tr '\n' ' ') (SIGTERM caught = bit 15 of SigCgt, i.e. 0x4000)"

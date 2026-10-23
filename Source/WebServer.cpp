@@ -499,15 +499,28 @@ void WebServer::setupRoutes()
     });
 
     // Password protection on/off. Turning it off never asks for the password (whoever can reach this
-    // is already in); turning it on needs a password to exist.
+    // is already in). Turning it on always asks for the password to use from now on (it may be the
+    // old one or a new one), so nobody switches it on without knowing the password.
     svr.Post ("/api/password/protection", [this] (const httplib::Request& req, httplib::Response& res)
     {
         auto b = body (req);
         const bool on = (bool) b["enabled"];
+        if (on)
+        {
+            const auto pw = b["password"].toString();
+            if (pw.length() < 4) { reply (res, errVar ("Enter the password to use (at least 4 characters).")); return; }
+            const ScopedLock sl (trustedLock);
+            authSalt = randomHex (16);
+            authHash = sha (authSalt + pw);
+            protectionOn = true;
+            saveAuth();
+            sessions.clear();
+            saveSessions();
+        }
+        else
         {
             const ScopedLock sl (trustedLock);
-            if (on && authHash.isEmpty()) { reply (res, errVar ("Set a password first.")); return; }
-            protectionOn = on;
+            protectionOn = false;
             saveAuth();
         }
         if (on) res.set_header ("Set-Cookie", newSession());   // keep this device logged in

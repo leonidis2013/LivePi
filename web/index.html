@@ -497,6 +497,13 @@
       <div class="seg" id="pwSeg"><button data-v="on">On</button><button data-v="off">Off</button></div>
     </div>
     <div id="pwNote" class="note"></div>
+    <form id="pwOnBox" class="pwform hide" autocomplete="on">
+      <div class="note">Enter the password to use from now on (your old one or a new one).</div>
+      <input type="text" name="username" value="livepi" autocomplete="username" class="hide" tabindex="-1" aria-hidden="true">
+      <input id="pwOnPw" type="password" placeholder="Password (at least 4 characters)" autocomplete="new-password">
+      <input id="pwOnPw2" type="password" placeholder="Repeat it" autocomplete="new-password">
+      <div class="row"><button type="submit" class="on">Turn on</button><button id="pwOnCancel" type="button">Cancel</button></div>
+    </form>
     <form id="pwForm" class="pwform" autocomplete="on">
       <input type="text" name="username" value="livepi" autocomplete="username" class="hide" tabindex="-1" aria-hidden="true">
       <input id="pwCur" type="password" placeholder="Current password" autocomplete="current-password">
@@ -653,11 +660,12 @@ function applySession(a) {
   if (!a.authed) { showLogin(true); return; }
   // password card
   document.querySelectorAll('#pwSeg button').forEach(b => { b.classList.toggle('on', (b.dataset.v === 'on') === a.protection); });
-  $('pwSeg').querySelector('[data-v="on"]').disabled = !a.passwordSet;
-  $('pwNote').textContent = !a.passwordSet ? 'No password is set: everyone on your network can use LivePi. Set one below to turn protection on.'
+  $('pwNote').textContent = !a.passwordSet ? 'No password is set: everyone on your network can use LivePi. Turn protection on to choose one.'
     : a.protection ? 'On: devices must log in' + (a.trustedAccess ? ' (except on trusted networks).' : '.')
-    : 'Off: everyone on your network can use LivePi without logging in. The password is kept for when you turn it back on.';
+    : 'Off: everyone on your network can use LivePi without logging in. Turning it back on asks you to type the password again.';
   $('pwCur').classList.toggle('hide', !a.protection);
+  $('pwForm').classList.toggle('hide', a.passwordSet && !a.protection);
+  $('pwSeg').querySelector('[data-v="on"]').disabled = false;
   $('pwSave').textContent = a.passwordSet ? 'Change password' : 'Set password';
   $('pwLogout').classList.toggle('hide', !(a.protection && a.loggedIn));
   // trusted access card: only with an active password
@@ -678,10 +686,25 @@ function applySession(a) {
 async function accessRefresh() { applySession(await api('/api/session', undefined, true)); }
 document.querySelectorAll('#pwSeg button').forEach(b => b.onclick = async () => {
   const on = b.dataset.v === 'on';
-  if (!on && !confirm('Turn password protection off? Everyone on your network can then use LivePi without logging in.')) return;
-  const r = await api('/api/password/protection', { enabled: on });
-  if (!r.error) { applySession(r); toast(on ? 'Password protection is on' : 'Password protection is off'); }
+  if (on === !!(ACC && ACC.protection)) return;
+  if (!on) {
+    if (!confirm('Turn password protection off? Everyone on your network can then use LivePi without logging in.')) return;
+    const r = await api('/api/password/protection', { enabled: false });
+    if (!r.error) { applySession(r); toast('Password protection is off'); }
+    return;
+  }
+  // turning it on: type the password to use from now on (the old one or a new one)
+  $('pwOnBox').classList.remove('hide'); $('pwOnPw').focus();
 });
+$('pwOnBox').onsubmit = async e => {
+  e.preventDefault();
+  const a = $('pwOnPw').value, b2 = $('pwOnPw2').value;
+  if (a.length < 4) return toast('Use at least 4 characters.');
+  if (a !== b2) return toast('The two passwords do not match.');
+  const r = await api('/api/password/protection', { enabled: true, password: a });
+  if (!r.error) { $('pwOnPw').value = $('pwOnPw2').value = ''; $('pwOnBox').classList.add('hide'); applySession(r); toast('Password protection is on. Other devices must log in.'); }
+};
+$('pwOnCancel').onclick = () => { $('pwOnPw').value = $('pwOnPw2').value = ''; $('pwOnBox').classList.add('hide'); };
 $('pwForm').onsubmit = async e => {
   e.preventDefault();
   const n1 = $('pwNew').value, n2 = $('pwNew2').value;
