@@ -293,8 +293,8 @@ void HostEngine::rebuildConnections()
         graph.addConnection (Conn { NC { inputNode->nodeID, ch }, NC { chain.tap->nodeID, 0 } }, UK::none);
         NC src = connectSlots (chain, NC { chain.tap->nodeID, 0 });
 
-        // Pre-fader send to the monitor mix
-        graph.addConnection (Conn { src, NC { chain.send->nodeID, 0 } }, UK::none);
+        // Pre-fader send to the monitor mix, tapped before or after the plugins
+        graph.addConnection (Conn { chain.sendPre ? NC { chain.tap->nodeID, 0 } : src, NC { chain.send->nodeID, 0 } }, UK::none);
         graph.addConnection (Conn { NC { chain.send->nodeID, 0 }, NC { monBus.tap->nodeID, 0 } }, UK::none);
 
         graph.addConnection (Conn { src, NC { chain.strip->nodeID, 0 } }, UK::none);
@@ -494,6 +494,11 @@ var HostEngine::setMixer (const var& body)
     if (body.hasProperty ("sendDb") && c.send != nullptr)
         c.sendDb = jlimit (-100.0f, 6.0f, (float) (double) body["sendDb"]);
     applyMix (c);
+    if (body.hasProperty ("sendPre") && c.send != nullptr && (bool) body["sendPre"] != c.sendPre)
+    {
+        c.sendPre = (bool) body["sendPre"];
+        rebuildConnections();
+    }
     markDirty();
     return ok();
 }
@@ -1152,6 +1157,7 @@ var HostEngine::getState()
         co->setProperty ("gainDb", c.gainDb);
         co->setProperty ("mute", c.mute);
         co->setProperty ("sendDb", c.sendDb);
+        co->setProperty ("sendPre", c.sendPre);
         co->setProperty ("slots", slotsState (c));
         chainArr.add (var (co));
     }
@@ -1210,6 +1216,7 @@ var HostEngine::serialise()
         co->setProperty ("gainDb", c.gainDb);
         co->setProperty ("mute", c.mute);
         co->setProperty ("sendDb", c.sendDb);
+        co->setProperty ("sendPre", c.sendPre);
         co->setProperty ("slots", slotsSerialised (c));
         chainArr.add (var (co));
     }
@@ -1254,6 +1261,7 @@ var HostEngine::deserialise (const var& v)
             applyMix (chain);
 
             chain.sendDb = (float) (double) cv.getProperty ("sendDb", -100.0);
+            chain.sendPre = (bool) cv.getProperty ("sendPre", false);
             applyMix (chain);
             loadSlots (chain, cv.getProperty ("slots", {}), errors);
         }

@@ -90,6 +90,7 @@ private:
         float gainDb = 0.0f;
         bool mute = false;
         float sendDb = -100.0f;                // level sent to the monitor mix (pre-fader); -100 = off
+        bool sendPre = false;                  // monitor tap point: true = input (before plugins), false = after plugins
     };
 
     void changeListenerCallback (juce::ChangeBroadcaster*) override;

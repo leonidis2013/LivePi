@@ -338,6 +338,8 @@
   .listen svg { width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   .listen.on { background:var(--acc); color:var(--onacc); }
   .monstat:empty { display:none; }
+  .monsrc { width:100%; font-size:12px; padding:6px 8px; border-radius:999px; text-align:center; }
+  @media (max-width:720px) { .monsrc { min-height:34px; font-size:13px; } }
   @media (max-width:720px) { .monbtn, .listen { min-height:34px; } }
 
   /* settings rows: words left, controls right */
@@ -807,6 +809,18 @@ function ib(icon, title, cls = '') {
   b.innerHTML = `<svg viewBox="0 0 24 24">${ICON[icon]}</svg>`; return b;
 }
 const openFolds = new Set();
+// One channel feeds the monitor mix (for now), tapped before or after its plugins; then the monitor fader
+async function setMonitorSource(v) {
+  const [chs, tap] = v === 'off' ? [-1, 'out'] : v.split(':');
+  const ch = +chs;
+  document.querySelectorAll('.monbtn').forEach(x => x.classList.toggle('on', +x.dataset.ch === ch));
+  const calls = [];
+  (S ? S.chains : []).forEach((cc, i) => {
+    if (i === ch) calls.push(api('/api/mixer', { channel: i, sendDb: 0, sendPre: tap === 'in' }));
+    else if (cc.sendDb > -60) calls.push(api('/api/mixer', { channel: i, sendDb: -100 }));
+  });
+  await Promise.all(calls); structKey = ''; refresh();
+}
 const TICKS = [6, 0, -6, -12, -24, -36, -48];
 const meterPct = db => Math.max(0, Math.min(1, (db - MINDB) / (MAXDB - MINDB))) * 100;
 function meterCol(kind, label, side, tip) {
@@ -847,17 +861,7 @@ function buildStrip(c, ch) {
     const mb = el('button', 'monbtn' + (c.sendDb > -60 ? ' on' : ''), 'Monitor');
     mb.title = 'Send this channel (after its plugins) to the Monitor mix. One channel at a time.';
     mb.dataset.ch = ch;
-    mb.onclick = async () => {
-      const on = !mb.classList.contains('on');
-      document.querySelectorAll('.monbtn').forEach(x => x.classList.toggle('on', on && x === mb));
-      // only one channel feeds the monitor mix for now
-      const calls = [];
-      (S ? S.chains : []).forEach((cc, i) => {
-        const want = on && i === ch;
-        if (want || cc.sendDb > -60) calls.push(api('/api/mixer', { channel: i, sendDb: want ? 0 : -100 }));
-      });
-      await Promise.all(calls); refresh();
-    };
+    mb.onclick = () => setMonitorSource(mb.classList.contains('on') ? 'off' : ch + ':' + (c.sendPre ? 'in' : 'out'));
     s.append(mb);
   } else {
     const map = el('div', 'map'); map.title = 'Which output channels of the audio device carry the monitor mix';
@@ -873,6 +877,15 @@ function buildStrip(c, ch) {
       cb.onchange = () => api('/api/monitorbus', { outputs: [...map.querySelectorAll('input:checked')].map(x => +x.dataset.o) });
       map.append(lb);
     }
+    // Source = which channel feeds the monitor mix and where it is tapped; it always goes through this fader
+    const src = el('select', 'monsrc'); src.title = 'What feeds the monitor mix (it always goes through this fader)';
+    const add = (v, t) => { const o = el('option', '', t); o.value = v; src.append(o); };
+    add('off', 'Source: off');
+    (S ? S.chains : []).forEach((cc, i) => { add(i + ':in', `${cc.name} · before plugins`); add(i + ':out', `${cc.name} · after plugins`); });
+    const cur = (S ? S.chains : []).findIndex(cc => cc.sendDb > -60);
+    src.value = cur < 0 ? 'off' : cur + ':' + (S.chains[cur].sendPre ? 'in' : 'out');
+    src.onchange = () => setMonitorSource(src.value);
+    s.append(src);
     const lb = el('button', 'listen' + (mon.on ? ' on' : ''));
     lb.innerHTML = `<svg viewBox="0 0 24 24"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg><span>${mon.on ? 'Listening' : 'Listen here'}</span>`;
     lb.title = 'Play the monitor mix on this phone / computer (a copy of the audio; it never delays the Pi)';
@@ -952,7 +965,7 @@ function buildMaster() {
 }
 
 function renderStrips(st) {
-  const key = JSON.stringify(st.chains.map(c => [c.name, c.slots])) + JSON.stringify([st.monitorBus, st.outputNames]) + '|' + plugins.length + '|' + !!st.editorAvailable + '|' + showMaster();
+  const key = JSON.stringify(st.chains.map(c => [c.name, c.slots, c.sendDb > -60, !!c.sendPre])) + JSON.stringify([st.monitorBus, st.outputNames]) + '|' + plugins.length + '|' + !!st.editorAvailable + '|' + showMaster();
   if (key === structKey) return;
   const a = document.activeElement;
   if (a && a.tagName === 'INPUT' && a.closest('#strips')) return;   // don't rebuild while renaming
