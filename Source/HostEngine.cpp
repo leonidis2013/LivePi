@@ -7,9 +7,19 @@ namespace
 {
     File appDir()
     {
-        auto d = File::getSpecialLocation (File::userHomeDirectory).getChildFile (".livehost");
+        auto d = File::getSpecialLocation (File::userHomeDirectory).getChildFile (".livepi");
         d.createDirectory();
         return d;
+    }
+
+    // Value text with its unit, without doubling it when the plugin already includes it ("0.0 dB dB")
+    String paramText (AudioProcessorParameter& p, float v)
+    {
+        auto t = p.getText (v, 24).trim();
+        const auto label = p.getLabel().trim();
+        if (label.isNotEmpty() && ! t.endsWithIgnoreCase (label))
+            t << " " << label;
+        return t;
     }
 
     var ok()
@@ -595,7 +605,7 @@ var HostEngine::getParams (int channel, int slot)
         o->setProperty ("name", p->getName (48));
         o->setProperty ("value", v);
         o->setProperty ("default", p->getDefaultValue());
-        o->setProperty ("text", (p->getText (v, 24) + " " + p->getLabel()).trim());
+        o->setProperty ("text", paramText (*p, v));
         o->setProperty ("group", groupOf[p]);
         const int steps = p->getNumSteps();
         if (p->isBoolean() || steps == 2)
@@ -633,7 +643,7 @@ var HostEngine::setParam (int channel, int slot, int index, float value)
     auto* o = new DynamicObject();
     o->setProperty ("ok", true);
     o->setProperty ("value", p->getValue());
-    o->setProperty ("text", (p->getText (p->getValue(), 24) + " " + p->getLabel()).trim());
+    o->setProperty ("text", paramText (*p, p->getValue()));
     return var (o);
 }
 

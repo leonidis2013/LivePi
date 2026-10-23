@@ -24,7 +24,7 @@ jobs:
             libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxext-dev \
             libgl1-mesa-dev
 
-      # Compiler cache: JUCE itself rarely changes, so most builds only recompile LiveHost's own files
+      # Compiler cache: JUCE itself rarely changes, so most builds only recompile LivePi's own files
       - name: Compiler cache
         uses: actions/cache@v4
         with:
@@ -37,7 +37,7 @@ jobs:
       - name: Configure
         env:
           CCACHE_MAXSIZE: 600M
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DLIVEHOST_BUILD=${{ github.run_number }} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DLIVEPI_BUILD=${{ github.run_number }} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
         env:
@@ -58,27 +58,27 @@ jobs:
 
       - name: Package
         run: |
-          BIN=$(find build -name LiveHost -type f -perm -u+x | head -n1)
-          D=dist/livehost
+          BIN=$(find build -name LivePi -type f -perm -u+x | head -n1)
+          D=dist/livepi
           mkdir -p $D
-          cp "$BIN" $D/LiveHost
+          cp "$BIN" $D/LivePi
           cp -r web $D/web
-          cp scripts/install-pi.sh scripts/set-password.sh scripts/trusted-network.sh scripts/run.sh scripts/livehost-os scripts/livehost-os-job INSTALLER_LEVEL $D/
-          chmod +x $D/install-pi.sh $D/set-password.sh $D/trusted-network.sh $D/run.sh $D/livehost-os $D/livehost-os-job $D/LiveHost
+          cp scripts/install-pi.sh scripts/set-password.sh scripts/trusted-network.sh scripts/run.sh scripts/livepi-os scripts/livepi-os-job INSTALLER_LEVEL $D/
+          chmod +x $D/install-pi.sh $D/set-password.sh $D/trusted-network.sh $D/run.sh $D/livepi-os $D/livepi-os-job $D/LivePi
           echo "build ${{ github.run_number }} (${GITHUB_SHA::7})" > $D/VERSION
           printf '{ "build": "%s", "installerLevel": %s, "sha256": "%s" }\n' \
-            "${{ github.run_number }}" "$(tr -d '[:space:]' < INSTALLER_LEVEL)" "$(sha256sum $D/LiveHost | cut -d' ' -f1)" > $D/manifest.json
+            "${{ github.run_number }}" "$(tr -d '[:space:]' < INSTALLER_LEVEL)" "$(sha256sum $D/LivePi | cut -d' ' -f1)" > $D/manifest.json
           # One package for both uses: upload it on the Setup tab to update, or unzip it for a fresh install
-          (cd dist && zip -qr ../livehost-build-${{ github.run_number }}.zip livehost)
-          tar czf livehost-linux-arm64.tar.gz -C dist livehost
+          (cd dist && zip -qr ../livepi-build-${{ github.run_number }}.zip livepi)
+          tar czf livepi-linux-arm64.tar.gz -C dist livepi
           ls -la *.zip *.tar.gz
 
       - uses: actions/upload-artifact@v4
         with:
-          name: livehost-build-${{ github.run_number }}
+          name: livepi-build-${{ github.run_number }}
           path: |
-            livehost-build-${{ github.run_number }}.zip
-            livehost-linux-arm64.tar.gz
+            livepi-build-${{ github.run_number }}.zip
+            livepi-linux-arm64.tar.gz
 
       - name: Publish release
         if: github.event_name == 'push'
@@ -86,7 +86,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "build-${{ github.run_number }}" \
-            "livehost-build-${{ github.run_number }}.zip" livehost-linux-arm64.tar.gz \
-            --title "LiveHost build ${{ github.run_number }}" \
-            --notes "Update an installed Pi: upload livehost-build-${{ github.run_number }}.zip on the Setup tab. Fresh install: unzip it and run sudo ./install-pi.sh." \
+            "livepi-build-${{ github.run_number }}.zip" livepi-linux-arm64.tar.gz \
+            --title "LivePi build ${{ github.run_number }}" \
+            --notes "Update an installed Pi: upload livepi-build-${{ github.run_number }}.zip on the Setup tab. Fresh install: unzip it and run sudo ./install-pi.sh." \
             --target "${{ github.sha }}"

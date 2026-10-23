@@ -4,8 +4,8 @@
 #include <mutex>
 #include "Updater.h"
 
-// Checks GitHub Releases for a newer LiveHost build and installs it.
-// Uses the system `curl` for HTTPS so LiveHost itself needs no TLS library.
+// Checks GitHub Releases for a newer LivePi build and installs it.
+// Uses the system `curl` for HTTPS so LivePi itself needs no TLS library.
 class OnlineUpdate : private juce::Thread
 {
 public:
@@ -148,7 +148,7 @@ private:
         json.deleteFile();
 
         const int code = runCurl ({ "-fsSL", "--connect-timeout", "10", "--max-time", "30",
-                                    "-H", "Accept: application/vnd.github+json", "-H", "User-Agent: LiveHost",
+                                    "-H", "Accept: application/vnd.github+json", "-H", "User-Agent: LivePi",
                                     "-o", json.getFullPathName(),
                                     cfg.apiBase + "/repos/" + cfg.repo + "/releases/latest" }, 45);
         if (code != 0)
@@ -170,7 +170,7 @@ private:
 
         juce::String url;
         juce::int64 size = 0;
-        const juce::String wanted = "livehost-build-" + juce::String (latest) + ".zip";
+        const juce::String wanted = "livepi-build-" + juce::String (latest) + ".zip";
         if (auto* assets = v.getProperty ("assets", {}).getArray())
             for (auto& a : *assets)
                 if (a.getProperty ("name", {}).toString() == wanted)
@@ -220,7 +220,7 @@ private:
         auto zip = staging.getChildFile ("update.zip");
 
         const int code = runCurl ({ "-fsSL", "--connect-timeout", "10", "--max-time", "900",
-                                    "-H", "User-Agent: LiveHost", "-o", zip.getFullPathName(), url }, 920);
+                                    "-H", "User-Agent: LivePi", "-o", zip.getFullPathName(), url }, 920);
         if (code != 0)
         {
             staging.deleteRecursively();

@@ -27,10 +27,10 @@ namespace
     };
 }
 
-class LiveHostApp : public juce::JUCEApplicationBase
+class LivePiApp : public juce::JUCEApplicationBase
 {
 public:
-    const juce::String getApplicationName() override    { return "LiveHost"; }
+    const juce::String getApplicationName() override    { return "LivePi"; }
     const juce::String getApplicationVersion() override { return "0.1.0"; }
     bool moreThanOneInstanceAllowed() override          { return false; }
 
@@ -60,7 +60,7 @@ public:
         // Healthy for a minute: an update (if one was just installed) is accepted, no rollback needed
         juce::Timer::callAfterDelay (60000, [] { HostEngine::dataDir().getChildFile ("update-pending").deleteFile(); });
 
-        juce::Logger::writeToLog ("LiveHost running - open http://<this-pi>:" + juce::String (port));
+        juce::Logger::writeToLog ("LivePi running - open http://<this-pi>:" + juce::String (port));
     }
 
     void shutdown() override
@@ -87,4 +87,4 @@ private:
     std::unique_ptr<EditorViewer> viewer;
 };
 
-START_JUCE_APPLICATION (LiveHostApp)
+START_JUCE_APPLICATION (LivePiApp)

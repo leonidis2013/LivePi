@@ -5,8 +5,8 @@
 #include <vector>
 
 // Helpers for the "Operating system" card: is the Pi online, and what is the apt job doing.
-// The apt work itself is done by the root helper scripts (scripts/livehost-os*), which write
-// their progress to /var/lib/livehost-os so it survives a LiveHost restart.
+// The apt work itself is done by the root helper scripts (scripts/livepi-os*), which write
+// their progress to /var/lib/livepi-os so it survives a LivePi restart.
 
 // Checks every few seconds whether the Pi can reach its package servers.
 class InternetMonitor : private juce::Thread
@@ -61,8 +61,8 @@ private:
 
 namespace OsStatus
 {
-    inline const char* const helperPath = "/usr/local/sbin/livehost-os";
-    inline const char* const stateDir   = "/var/lib/livehost-os";
+    inline const char* const helperPath = "/usr/local/sbin/livepi-os";
+    inline const char* const stateDir   = "/var/lib/livepi-os";
 
     inline juce::var read (const juce::File& dir, bool available, bool known, bool online)
     {

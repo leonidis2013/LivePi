@@ -9,7 +9,7 @@
 
 // Shows plugin windows inside the web page without VNC: grabs the plugin's area of the virtual
 // screen, sends it as a JPEG, and plays the browser's taps/clicks/keys back with XTest.
-// libX11 and libXtst are loaded at run time, so LiveHost still starts on a Pi without them
+// libX11 and libXtst are loaded at run time, so LivePi still starts on a Pi without them
 // (the live view then reports what is missing). Thread-safe: one private X connection behind a mutex.
 struct LiveView::Impl
 {

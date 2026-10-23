@@ -24,7 +24,7 @@ public:
     void start();
     void shutdown();
 
-    static juce::File dataDir();   // ~/.livehost
+    static juce::File dataDir();   // ~/.livepi
 
     // Audio device
     juce::var getDevices();
@@ -62,7 +62,7 @@ public:
     juce::var closeEditor (int channel, int slot);
     juce::var measurePlugin (int channel, int slot);   // CPU estimate on a separate instance
 
-    // Uploaded plugin management (bundles live in ~/.livehost/plugins)
+    // Uploaded plugin management (bundles live in ~/.livepi/plugins)
     juce::var installPlugins (const juce::File& unpackedDir, const juce::String& uploadedFileName);
     juce::var deletePlugin (const juce::String& bundleName);
     juce::var getInstalledPlugins();

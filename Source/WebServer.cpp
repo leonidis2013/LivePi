@@ -8,11 +8,11 @@
  #include <unistd.h>
 #endif
 
-#ifndef LIVEHOST_REPO_STR
- #define LIVEHOST_REPO_STR "leonidis2013/LivePi"
+#ifndef LIVEPI_REPO_STR
+ #define LIVEPI_REPO_STR "leonidis2013/LivePi"
 #endif
-#ifndef LIVEHOST_BUILD_STR
- #define LIVEHOST_BUILD_STR "dev"
+#ifndef LIVEPI_BUILD_STR
+ #define LIVEPI_BUILD_STR "dev"
 #endif
 
 using namespace juce;
@@ -86,8 +86,8 @@ WebServer::WebServer (HostEngine& e, int portToUse) : engine (e), port (portToUs
         { "deb.debian.org", 443 }, { "archive.raspberrypi.com", 443 }, { "api.github.com", 443 } });
 
     OnlineUpdate::Config cfg;
-    cfg.repo = LIVEHOST_REPO_STR;
-    cfg.currentBuild = LIVEHOST_BUILD_STR;
+    cfg.repo = LIVEPI_REPO_STR;
+    cfg.currentBuild = LIVEPI_BUILD_STR;
     cfg.dataDir = HostEngine::dataDir();
     auto exe = File::getSpecialLocation (File::currentExecutableFile);
     cfg.installDir = exe.getParentDirectory();
@@ -127,7 +127,7 @@ void WebServer::loadAuth()
     auto f = HostEngine::dataDir().getChildFile ("auth.json");
     if (! f.existsAsFile())
     {
-        Logger::writeToLog ("No password set (~/.livehost/auth.json missing). Uploads and system controls are disabled.");
+        Logger::writeToLog ("No password set (~/.livepi/auth.json missing). Uploads and system controls are disabled.");
         return;
     }
     auto v = JSON::parse (f);
@@ -298,10 +298,10 @@ void WebServer::setupRoutes()
         }
 
         // Browsers cannot add a custom header cross-site, so this blocks CSRF from other web pages
-        if (req.method != "GET" && req.method != "HEAD" && req.get_header_value ("X-LiveHost") != "1")
+        if (req.method != "GET" && req.method != "HEAD" && req.get_header_value ("X-LivePi") != "1")
         {
             res.status = 403;
-            res.set_content ("{\"error\":\"missing X-LiveHost header\"}", "application/json");
+            res.set_content ("{\"error\":\"missing X-LivePi header\"}", "application/json");
             return httplib::Server::HandlerResponse::Handled;
         }
 
@@ -309,7 +309,7 @@ void WebServer::setupRoutes()
         if (! passwordSet && ! trustedClient && isLockedPath (path) && ! mayUseLocked (req))
         {
             res.status = 403;
-            res.set_content ("{\"error\":\"Access is locked: this device is not in a trusted network. Set a password, or on the Pi run: sudo /opt/livehost/trusted-network.sh open\"}", "application/json");
+            res.set_content ("{\"error\":\"Access is locked: this device is not in a trusted network. Set a password, or on the Pi run: sudo /opt/livepi/trusted-network.sh open\"}", "application/json");
             return httplib::Server::HandlerResponse::Handled;
         }
 
@@ -357,7 +357,7 @@ void WebServer::setupRoutes()
         {
             const auto m = b["mode"].toString();
             if (m != "open" && m != "locked") { reply (res, errVar ("mode must be open or locked")); return; }
-            if (m == "open" && ! may) { reply (res, errVar ("Only a trusted device can unlock. On the Pi run: sudo /opt/livehost/trusted-network.sh open")); return; }
+            if (m == "open" && ! may) { reply (res, errVar ("Only a trusted device can unlock. On the Pi run: sudo /opt/livepi/trusted-network.sh open")); return; }
             auto f = HostEngine::dataDir().getChildFile ("access.txt");
             if (! f.replaceWithText (m + "\n")) { reply (res, errVar ("Could not save the setting.")); return; }
             loadTrusted();
@@ -375,7 +375,7 @@ void WebServer::setupRoutes()
         o->setProperty ("trusted", isTrusted (req));
         o->setProperty ("allowed", mayUseLocked (req));
         { const ScopedLock sl (trustedLock); o->setProperty ("trustedNetworks", trustedText.joinIntoString (", ")); o->setProperty ("access", openAccess ? "open" : "locked"); }
-        const String build (LIVEHOST_BUILD_STR);
+        const String build (LIVEPI_BUILD_STR);
         o->setProperty ("version", build == "dev" ? build : "build " + build);
         o->setProperty ("rolledBack", HostEngine::dataDir().getChildFile ("rolled-back").existsAsFile());
         reply (res, var (o));
@@ -591,7 +591,7 @@ void WebServer::setupRoutes()
     svr.Post ("/api/system/os/check", osAction ("check"));
     svr.Post ("/api/system/os/upgrade", osAction ("upgrade"));
 
-    // Offline update: upload livehost-build-N.zip from GitHub
+    // Offline update: upload livepi-build-N.zip from GitHub
     svr.Post ("/api/system/update", [] (const httplib::Request& req, httplib::Response& res)
     {
         static std::atomic<bool> busy { false };

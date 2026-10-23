@@ -1,6 +1,6 @@
 #!/bin/bash
-# Runs as root inside its own systemd unit (started by livehost-os). Do not call directly.
-DIR="${LIVEHOST_OS_DIR:-/var/lib/livehost-os}"
+# Runs as root inside its own systemd unit (started by livepi-os). Do not call directly.
+DIR="${LIVEPI_OS_DIR:-/var/lib/livepi-os}"
 export PATH="$PATH:/usr/sbin:/sbin"
 export DEBIAN_FRONTEND=noninteractive
 verb="${1:-check}"

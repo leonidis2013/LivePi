@@ -4,7 +4,7 @@
 #include <mutex>
 
 // Offline update: validates an unpacked update package and swaps it into the install folder.
-// The old program and web files are kept as LiveHost.prev / web.prev so run.sh can roll back.
+// The old program and web files are kept as LivePi.prev / web.prev so run.sh can roll back.
 namespace Updater
 {
     // Unpack an uploaded or downloaded zip into dest, refusing anything that could escape it.
@@ -69,7 +69,7 @@ namespace Updater
         if (! guard.owns_lock())
             return "Another update is already being installed.";
 
-        // Find <root>/LiveHost with <root>/web/index.html next to it
+        // Find <root>/LivePi with <root>/web/index.html next to it
         File root;
         for (auto& f : unpacked.findChildFiles (File::findFiles, true, exeName))
             if (f.getSiblingFile ("web").getChildFile ("index.html").existsAsFile())
@@ -79,12 +79,12 @@ namespace Updater
             }
 
         if (root == File())
-            return "This zip does not look like a LiveHost update (no program with a web folder).";
+            return "This zip does not look like a LivePi update (no program with a web folder).";
 
         auto newBin = root.getChildFile (exeName);
         auto manifest = JSON::parse (root.getChildFile ("manifest.json"));
         if (! manifest.isObject())
-            return "The zip has no manifest.json. Use the livehost-build zip from GitHub.";
+            return "The zip has no manifest.json. Use the livepi-build zip from GitHub.";
 
         // Must be a 64-bit little-endian ARM Linux program (e_machine 0xB7 = AArch64)
         {
@@ -105,7 +105,7 @@ namespace Updater
             return "This update needs the newer installer. On the Pi, unzip it and run: sudo ./install-pi.sh <your-user>";
 
         if (! installDir.hasWriteAccess())
-            return "LiveHost cannot write to " + installDir.getFullPathName() + ". Re-run the installer once to fix permissions.";
+            return "LivePi cannot write to " + installDir.getFullPathName() + ". Re-run the installer once to fix permissions.";
 
         auto exe = installDir.getChildFile (exeName);
         auto prevBin = installDir.getChildFile (exeName + ".prev");

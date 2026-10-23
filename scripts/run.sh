@@ -1,17 +1,17 @@
 #!/bin/sh
-# Starts LiveHost. If an update was just installed and the new version keeps failing
+# Starts LivePi. If an update was just installed and the new version keeps failing
 # to start, this puts the previous version back automatically.
 D="$(cd "$(dirname "$0")" && pwd)"
-DATA="$HOME/.livehost"
+DATA="$HOME/.livepi"
 M="$DATA/update-pending"
 
 if [ -f "$M" ]; then
   n=$(cat "$M" 2>/dev/null)
   n=$((n + 1))
-  if [ "$n" -gt 3 ] && [ -f "$D/LiveHost.prev" ]; then
-    echo "LiveHost: the update failed to start $((n - 1)) times, rolling back"
-    mv -f "$D/LiveHost" "$D/LiveHost.failed"
-    mv -f "$D/LiveHost.prev" "$D/LiveHost"
+  if [ "$n" -gt 3 ] && [ -f "$D/LivePi.prev" ]; then
+    echo "LivePi: the update failed to start $((n - 1)) times, rolling back"
+    mv -f "$D/LivePi" "$D/LivePi.failed"
+    mv -f "$D/LivePi.prev" "$D/LivePi"
     if [ -d "$D/web.prev" ]; then
       rm -rf "$D/web.failed"
       mv "$D/web" "$D/web.failed"
@@ -24,4 +24,4 @@ if [ -f "$M" ]; then
   fi
 fi
 
-exec "$D/LiveHost" "$@"
+exec "$D/LivePi" "$@"

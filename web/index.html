@@ -98,31 +98,24 @@
   .fader { touch-action:none; }
   @media (pointer:coarse), (max-width:720px) {
     body { font-size:15px; }
-    select, input, button { min-height:44px; font-size:16px; }
     input[type=range] { min-height:32px; }
     input[type=checkbox] { width:22px; height:22px; min-height:0; }
     button.sm { min-height:38px; padding:6px 12px; font-size:14px; }
-    .strip { width:min(78vw,230px); flex-basis:min(78vw,230px); scroll-snap-align:start; }
-    .strip.master { width:130px; flex-basis:130px; }
+    .strip { scroll-snap-align:start; }
     .strips { scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; }
-    .fm { height:260px; }
-    .fader { width:72px; }
-    .fader .knob { height:30px; border-radius:7px; }
-    .meter { width:14px; }
     .map { gap:8px 14px; font-size:13px; } .map label { gap:6px; min-height:30px; }
     .send { font-size:13px; }
     .card { padding:12px; }
     .bar > * { flex:1 1 auto; } .bar select.grow { max-width:none !important; }
-    #status { order:5; flex-basis:100%; }
     header { padding:8px 12px; padding-top:calc(8px + env(safe-area-inset-top)); }
-    #app { padding-left:calc(12px + env(safe-area-inset-left)); padding-right:calc(12px + env(safe-area-inset-right)); padding-bottom:calc(14px + env(safe-area-inset-bottom)); }
+    #app { padding-left:calc(12px + env(safe-area-inset-left)); padding-right:calc(12px + env(safe-area-inset-right)); }
     .side button { min-height:48px; padding:8px 14px; } .side button span { display:inline; }
     .side { gap:6px; }
     .param { grid-template-columns:1fr; gap:4px; margin:12px 0; }
     .param span:last-child { text-align:left; }
     .modal { padding:0; } .modal .box { width:100%; min-height:100%; border-radius:0; }
     .obar { padding-top:calc(8px + env(safe-area-inset-top)); flex-wrap:wrap; }
-    #msg { bottom:calc(12px + env(safe-area-inset-bottom)); }
+    #msg { bottom:calc(84px + env(safe-area-inset-bottom)); }
   }
 
   /* plugin view (controls + live window) */
@@ -162,6 +155,132 @@
   .locknote { border:1px solid var(--warn); color:var(--fg); background:color-mix(in srgb, var(--warn) 12%, transparent); border-radius:6px; padding:8px 10px; margin-bottom:10px; font-size:13px; }
   .netrow { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; }
   .netrow:last-child { border-bottom:0; }
+
+  /* ===== Live skin: flat, calm, fewer borders ===== */
+  :root { --r:10px; }
+  select, input, button { border-color:transparent; background:var(--card2); border-radius:8px; }
+  input:focus, select:focus { outline:2px solid color-mix(in srgb, var(--acc) 55%, transparent); outline-offset:0; }
+  button { font-weight:600; }
+  button:hover { border-color:transparent; background:color-mix(in srgb, var(--card2) 80%, var(--fg) 8%); }
+  .seg { background:var(--card2); border-radius:9px; padding:3px; gap:2px; }
+  .seg button { border-radius:7px !important; background:transparent; }
+  .seg button.on { background:var(--acc); color:var(--onacc); }
+  nav.seg button { display:flex; align-items:center; gap:6px; }
+  nav.seg svg, .pill svg { width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .card { border-radius:var(--r); border-color:var(--line); }
+  header { gap:14px; }
+  #status { display:flex; gap:6px; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; }
+  #status::-webkit-scrollbar { display:none; }
+  .st { flex:0 0 auto; background:var(--card2); border-radius:999px; padding:3px 10px; font-size:12px; color:var(--dim); white-space:nowrap; }
+  .st b { color:var(--fg); font-weight:600; }
+  .st.bad { background:color-mix(in srgb, var(--bad) 18%, transparent); color:var(--bad); }
+  .st.bad b { color:var(--bad); }
+
+  .toolbar { display:flex; gap:8px; margin-bottom:10px; }
+  .pill { display:flex; align-items:center; gap:7px; border-radius:999px; padding:7px 14px; min-width:0; }
+  .pill b { font-weight:400; color:var(--dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:40vw; }
+  .pill.open, .pill.live { background:var(--acc); color:var(--onacc); }
+  .pill.open b, .pill.live b { color:var(--onacc); }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:10px 12px; margin-bottom:12px; max-width:560px; }
+  .panel .row:first-child { margin-top:0; }
+
+  .strips { gap:12px; }
+  .strip { border-radius:12px; padding:10px; gap:10px; background:var(--card); }
+  .strip.bus, .strip.master { background:var(--card); }
+  .strip .nm { background:transparent; text-align:center; font-weight:700; font-size:13px; letter-spacing:.08em; text-transform:uppercase; padding:4px; }
+  .strip .nm:focus { background:var(--card2); }
+  .strip .mname { font-size:13px; letter-spacing:.08em; text-transform:uppercase; }
+  .db { font-size:12px; }
+  .mute { border-radius:999px; padding:6px; font-size:12px; letter-spacing:.08em; text-transform:uppercase; }
+  .send { gap:8px; font-size:10px; font-weight:700; letter-spacing:.08em; }
+  .send input[type=range] { accent-color:var(--acc); }
+  .chain { gap:8px; }
+  .chip { background:var(--card2); border:0; border-radius:10px; padding:8px; }
+  .chip .cn { display:flex; align-items:center; gap:6px; margin:0 0 6px; font-size:13px; }
+  .chip .cn .ib { width:28px; height:28px; background:transparent; color:var(--dim); }
+  .chip .cn span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cb { gap:4px; }
+  .ib { width:34px; height:34px; padding:0; display:inline-flex; align-items:center; justify-content:center; background:var(--card); border-radius:8px; }
+  .ib svg { width:17px; height:17px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .ib.on { background:var(--acc); color:var(--onacc); }
+  .ib.warn { color:var(--warn); }
+  .ib.danger { color:var(--bad); }
+  .chip.byp .ib.pw { background:color-mix(in srgb, var(--warn) 22%, transparent); color:var(--warn); }
+  .more { display:flex; gap:4px; margin-top:6px; align-items:center; }
+  .addbtn { width:100%; background:transparent; border:1px dashed var(--line); color:var(--dim); border-radius:10px; }
+  .add { flex-direction:column; }
+  .map { gap:6px; }
+  .och input { position:absolute; opacity:0; width:0; height:0; }
+  .och span { display:inline-flex; min-width:30px; height:30px; padding:0 8px; align-items:center; justify-content:center; border-radius:8px; background:var(--card2); color:var(--dim); font-weight:700; font-size:12px; cursor:pointer; }
+  .och input:checked + span { background:var(--acc); color:var(--onacc); }
+  .och input:focus-visible + span { outline:2px solid var(--acc); }
+
+  /* plugin view */
+  .zoom button { min-width:40px; }
+  #pvHand.on { background:var(--acc); color:var(--onacc); }
+  .pvwin { touch-action:none; }
+  .pvwin img { position:absolute; max-width:none; max-height:none; transform-origin:0 0; }
+  .pvhint { position:absolute; left:50%; bottom:calc(16px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:#000a; color:#fff; padding:6px 12px; border-radius:999px; font-size:12px; pointer-events:none; white-space:nowrap; }
+  .grp { padding:0; overflow:hidden; border-radius:var(--r); }
+  .gh { display:flex; align-items:center; gap:10px; padding:12px 14px; cursor:pointer; user-select:none; }
+  .gh h3 { margin:0; flex:1; }
+  .gh .chev { width:18px; height:18px; stroke:var(--dim); fill:none; stroke-width:2; transition:transform .15s; }
+  .grp.closed .chev { transform:rotate(-90deg); }
+  .grp.closed .ctls, .ctls:empty { display:none; }
+  .grp .ctls { padding:2px 14px 16px; display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:16px 8px; }
+  .ctl { width:auto; }
+  .gsw { min-width:52px; padding:5px 10px; border-radius:999px; font-size:11px; letter-spacing:.08em; }
+  .gsw.on { background:var(--acc); color:var(--onacc); }
+  .grp.off .ctls { opacity:.55; }
+
+  @media (max-width:720px) {
+    body { font-size:15px; }
+    select, input, button { min-height:42px; font-size:16px; }
+    header { position:sticky; padding:8px 14px; padding-top:calc(8px + env(safe-area-inset-top)); gap:8px; }
+    header h1 { font-size:14px; }
+    header h1 small { display:none; }
+    #status { order:0; flex:1; flex-basis:auto; min-width:0; }
+    nav.seg { position:fixed; left:12px; right:12px; bottom:calc(10px + env(safe-area-inset-bottom)); z-index:25; padding:4px; border-radius:16px;
+              background:color-mix(in srgb, var(--card) 88%, transparent); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+              border:1px solid var(--line); box-shadow:0 6px 24px var(--shadow); display:flex; }
+    nav.seg button { flex:1; flex-direction:column; gap:2px; min-height:50px; font-size:10px; border-radius:12px !important; }
+    nav.seg svg { width:20px; height:20px; }
+    #app { padding-bottom:calc(96px + env(safe-area-inset-bottom)); }
+    .toolbar .pill { flex:1; justify-content:center; min-height:40px; font-size:14px; }
+    .panel { max-width:none; }
+    .strips { gap:10px; margin:0 -2px; }
+    .strip { width:calc((100vw - 38px) / 2); flex-basis:calc((100vw - 38px) / 2); padding:8px; gap:8px; }
+    .strip.master { width:96px; flex-basis:96px; }
+    .fm { height:230px; gap:5px; }
+    .fader { width:34px; }
+    .fader .knob { height:24px; left:1px; right:1px; }
+    .meter { width:8px; }
+    .scale { width:15px; font-size:8px; }
+    .mute { min-height:36px; font-size:12px; }
+    .send { font-size:10px; }
+    .send input[type=range] { min-height:28px; }
+    .chip .cn { font-size:13px; }
+    .ib { width:38px; height:38px; min-height:0; }
+    .chip .cn .ib { width:30px; height:30px; background:transparent; }
+    .cb { flex-wrap:nowrap; }
+    .och span { min-width:34px; height:34px; }
+    .grp .ctls { grid-template-columns:repeat(3,1fr); gap:14px 4px; padding:2px 8px 14px; }
+    .knob { width:58px; height:58px; }
+    .ctl .cl { font-size:11px; }
+    .ctl.wide { grid-column:span 2; }
+    .ctl select { max-width:100%; width:100%; font-size:15px; }
+    .tog { min-width:64px; min-height:38px; }
+    .pvbar { gap:6px; padding:6px 8px; padding-top:calc(6px + env(safe-area-inset-top)); flex-wrap:wrap; }
+    .pvbar b { flex-basis:100%; order:-1; font-size:12px; }
+    .pvbar button.ico { min-width:40px; min-height:38px; padding:0 8px; }
+    .pvbar .seg button { min-height:34px; }
+    .card { padding:12px; }
+    .side { gap:6px; padding-bottom:2px; scrollbar-width:none; }
+    .side::-webkit-scrollbar { display:none; }
+    .side button { min-height:38px; padding:6px 14px; border-radius:999px; background:var(--card2); font-size:14px; box-shadow:none; border:0; }
+    .side button.on { background:var(--acc); color:var(--onacc); box-shadow:none; }
+    .side button svg { width:15px; height:15px; }
+  }
 </style>
 </head>
 <body>
@@ -170,32 +289,35 @@
   <h1>LivePi<small>live voice host</small></h1>
   <div id="status">…</div>
   <nav class="seg">
-    <button data-tab="mix" class="on">Mixer</button>
-    <button data-tab="setup">Setup</button>
+    <button data-tab="mix" class="on"><svg viewBox="0 0 24 24"><path d="M6 4v16M12 4v16M18 4v16"/><rect x="4" y="13" width="4" height="3" rx="1"/><rect x="10" y="7" width="4" height="3" rx="1"/><rect x="16" y="11" width="4" height="3" rx="1"/></svg><span>Mixer</span></button>
+    <button data-tab="setup"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg><span>Setup</span></button>
   </nav>
 </header>
 <div id="app">
 
 <div id="nopw" class="card hide" style="max-width:none;border-color:var(--bad)">
   <b>Access is locked.</b> Without a password, plugin upload, plugin windows, updates and reboot only work from a trusted network, and this device (<span id="nopwIp"></span>) is not in one.
-  Set a password on the Pi (<code>sudo /opt/livehost/set-password.sh</code>), or unlock: <code>sudo /opt/livehost/trusted-network.sh open</code>
+  Set a password on the Pi (<code>sudo /opt/livepi/set-password.sh</code>), or unlock: <code>sudo /opt/livepi/trusted-network.sh open</code>
 </div>
 
 <section id="tab-mix">
-  <div class="bar">
-    <select id="presetList" class="grow" style="max-width:220px"></select>
-    <button id="presetLoad">Load</button>
-    <input id="presetName" placeholder="New preset name" style="width:160px">
-    <button id="presetSave">Save</button>
+  <div class="toolbar">
+    <button class="pill" id="tbPresets"><svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></svg><span>Presets</span><b id="tbPresetName"></b></button>
+    <button class="pill" id="tbListen"><svg viewBox="0 0 24 24"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg><span>Listen</span></button>
   </div>
-  <div class="bar">
-    <span class="note" style="margin:0">Listen</span>
-    <select id="monSel" class="grow" style="max-width:300px"></select>
-    <select id="monLead" title="Smaller = less delay but more risk of crackles on Wi-Fi">
-      <option value="40">Lowest delay</option><option value="80" selected>Low delay</option><option value="200">Safe</option>
-    </select>
-    <button id="monGo">Listen in this browser</button>
-    <span class="note" id="monInfo" style="margin:0">Plays the chosen signal on this device. It only reads a copy of the audio, so it does not take priority over the main inputs and outputs.</span>
+  <div id="pnPresets" class="panel hide">
+    <div class="row"><select id="presetList" class="grow"></select><button id="presetLoad">Load</button></div>
+    <div class="row"><input id="presetName" class="grow" placeholder="Save current mix as…"><button id="presetSave">Save</button></div>
+  </div>
+  <div id="pnListen" class="panel hide">
+    <div class="row"><select id="monSel" class="grow"></select></div>
+    <div class="row">
+      <select id="monLead" class="grow" title="Smaller = less delay but more risk of crackles on Wi-Fi">
+        <option value="40">Lowest delay</option><option value="80" selected>Low delay</option><option value="200">Safe</option>
+      </select>
+      <button id="monGo" class="on">Listen in this browser</button>
+    </div>
+    <div class="note" id="monInfo">Plays the chosen signal on this device. It only reads a copy of the audio, so it does not take priority over the main inputs and outputs.</div>
   </div>
   <div id="strips" class="strips"></div>
 </section>
@@ -224,8 +346,8 @@
     <div class="note">Smaller buffer = lower latency but more CPU. Watch the xrun counter at the top.</div>
   </div>
   <div class="card hide" data-lock id="virtCard">
-    <h2>Simulated sound card</h2>
-    <div class="note" style="margin-bottom:8px">No hardware needed: the input is a test tone, noise, sweep, silence or your own audio file, and the output is discarded. Use <b>Listen</b> on the Mixer tab to hear the result.</div>
+    <h2>Test audio file</h2>
+    <div class="note" style="margin-bottom:8px">The input <b>Test file (loop)</b> plays an audio file of your own, over and over. Upload it here, then press Apply above. Use <b>Listen</b> on the Mixer tab to hear the result.</div>
     <div class="row">
       <input id="tfFile" type="file" accept="audio/*,.wav,.aif,.aiff,.flac,.ogg" class="grow">
       <button id="tfGo">Upload test file</button>
@@ -301,7 +423,7 @@
       <button id="updGo">Install update</button>
     </div>
     <div id="updStat" class="note"></div>
-    <div class="note">Download <b>livehost-build-N.zip</b> from your GitHub repo (Releases, or Actions &gt; Artifacts) and upload it here. Presets, plugins and password are kept. If the new version fails to start, the old one is restored automatically.</div>
+    <div class="note">Download <b>livepi-build-N.zip</b> from your GitHub repo (Releases, or Actions &gt; Artifacts) and upload it here. Presets, plugins and password are kept. If the new version fails to start, the old one is restored automatically.</div>
   </div>
   <div class="card" data-lock>
     <h2>Plugin windows</h2>
@@ -350,6 +472,10 @@
     <div class="seg" id="pvMode">
       <button data-m="controls">Controls</button><button data-m="window">Plugin</button>
     </div>
+    <div class="seg zoom" id="pvZoom">
+      <button id="pvZo" class="ico" title="Zoom out">−</button><button id="pvFit" class="ico" title="Fit">Fit</button><button id="pvZi" class="ico" title="Zoom in">+</button>
+    </div>
+    <button id="pvHand" class="ico" title="Move: drag with one finger to look around">✋</button>
     <button id="pvKb" class="ico" title="Keyboard (for typing into the plugin)">⌨</button>
     <button id="pvFs" class="ico" title="Full screen">⛶</button>
     <button id="pvClose" class="ico" title="Close">✕</button>
@@ -360,6 +486,7 @@
   </div>
   <div id="pvWindow" class="pvbody pvwin hide">
     <img id="pvImg" alt="" draggable="false">
+    <div id="pvHint" class="pvhint hide">Pinch to zoom · two fingers to move</div>
     <div id="pvMsg" class="note"></div>
     <input id="pvKeys" class="pvkeys" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Type into the plugin">
   </div>
@@ -372,11 +499,12 @@ const $ = id => document.getElementById(id);
 const MINDB = -60, MAXDB = 6, CURVE = 0.55;
 let S = null, plugins = [], devices = null, structKey = '', disp = {}, polling = false;
 
+function esc(t) { return String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 function toast(t) { const m = $('msg'); m.textContent = t; m.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => m.style.display = 'none', 3500); }
 
 async function api(path, body) {
-  const opt = body === undefined ? {} : { method: 'POST', headers: {'Content-Type':'application/json', 'X-LiveHost':'1'}, body: JSON.stringify(body) };
+  const opt = body === undefined ? {} : { method: 'POST', headers: {'Content-Type':'application/json', 'X-LivePi':'1'}, body: JSON.stringify(body) };
   try {
     const r = await fetch(path, opt);
     const j = await r.json();
@@ -434,7 +562,7 @@ document.querySelectorAll('#sub button').forEach(b => b.onclick = () => showSub(
 
 /* ---------- access: trusted access on/off, trusted networks, and graying out locked features ---------- */
 let ACC = null;
-const LOCKMSG = 'Locked: a password needs to be set (on the Pi: sudo /opt/livehost/set-password.sh), or this device must be in a trusted network. You can turn Trusted access off under Setup > Settings from a trusted device.';
+const LOCKMSG = 'Locked: a password needs to be set (on the Pi: sudo /opt/livepi/set-password.sh), or this device must be in a trusted network. You can turn Trusted access off under Setup > Settings from a trusted device.';
 function applyLock(allowed) {
   document.querySelectorAll('.card[data-lock]').forEach(c => {
     c.classList.toggle('locked', !allowed);
@@ -487,6 +615,17 @@ $('acAdd').onclick = async () => {
   accessRefresh();
 };
 
+/* ---------- mixer toolbar ---------- */
+function togglePanel(btn, panel) {
+  const open = $(panel).classList.contains('hide');
+  ['pnPresets', 'pnListen'].forEach(p => $(p).classList.add('hide'));
+  ['tbPresets', 'tbListen'].forEach(b => $(b).classList.remove('open'));
+  if (open) { $(panel).classList.remove('hide'); $(btn).classList.add('open'); }
+}
+$('tbPresets').onclick = () => togglePanel('tbPresets', 'pnPresets');
+$('tbListen').onclick = () => togglePanel('tbListen', 'pnListen');
+$('presetList').addEventListener('change', () => { $('tbPresetName').textContent = $('presetList').value || ''; });
+
 /* ---------- master fader on/off ---------- */
 function masterSync() {
   const v = showMaster() ? 'on' : 'off';
@@ -532,6 +671,20 @@ function makeFader(onChange) {
 }
 
 /* ---------- mixer strips ---------- */
+const ICON = {
+  ctl: '<path d="M5 4v6M5 14v6M12 4v2M12 10v10M19 4v10M19 18v2"/><circle cx="5" cy="12" r="2"/><circle cx="12" cy="8" r="2"/><circle cx="19" cy="16" r="2"/>',
+  win: '<rect x="3" y="4" width="18" height="15" rx="2"/><path d="M3 8h18"/>',
+  pw: '<path d="M12 3v8"/><path d="M6.3 7.5a8 8 0 1 0 11.4 0"/>',
+  more: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
+  cpu: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/>',
+  del: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  chev: '<path d="M6 9l6 6 6-6"/>',
+};
+function ib(icon, title, cls = '') {
+  const b = el('button', 'ib ' + cls); b.title = title; b.setAttribute('aria-label', title);
+  b.innerHTML = `<svg viewBox="0 0 24 24">${ICON[icon]}</svg>`; return b;
+}
 const TICKS = [6, 0, -6, -12, -24, -36, -48];
 const meterPct = db => Math.max(0, Math.min(1, (db - MINDB) / (MAXDB - MINDB))) * 100;
 function meterCol(kind, label, side, tip) {
@@ -579,15 +732,15 @@ function buildStrip(c, ch) {
     sw.append(el('span', '', 'Mon'), r, lbl); s.append(sw);
   } else {
     const map = el('div', 'map'); map.title = 'Which output channels of the audio device carry the monitor mix';
-    map.append(el('span', '', 'Out:'));
+    map.append(el('span', 'mlab', 'OUTPUTS'));
     const names = (S && S.outputNames) || [];
     const count = Math.max(names.length, 2);
     const mains = S && S.numChannels === 1 ? [0, 1] : Array.from({ length: S ? S.numChannels : 0 }, (_, i) => i);
     const outs = c.outputs || [];
     for (let i = 0; i < count; i++) {
-      const lb = el('label'); const cb = el('input'); cb.type = 'checkbox'; cb.checked = outs.includes(i); cb.dataset.o = i;
+      const lb = el('label', 'och'); const cb = el('input'); cb.type = 'checkbox'; cb.checked = outs.includes(i); cb.dataset.o = i;
       lb.title = (names[i] || ('Output ' + (i + 1))) + (mains.includes(i) ? ' (also carries a channel)' : '');
-      lb.append(cb, document.createTextNode((i + 1) + (mains.includes(i) ? '*' : '')));
+      lb.append(cb, el('span', '', (i + 1) + (mains.includes(i) ? '*' : '')));
       cb.onchange = () => api('/api/monitorbus', { outputs: [...map.querySelectorAll('input:checked')].map(x => +x.dataset.o) });
       map.append(lb);
     }
@@ -598,21 +751,30 @@ function buildStrip(c, ch) {
   const chain = el('div', 'chain');
   c.slots.forEach((p, i) => {
     const chip = el('div', 'chip' + (p.bypassed ? ' byp' : ''));
-    chip.append(el('div', 'cn', p.name));
+    const head = el('div', 'cn'); head.append(el('span', '', p.name));
     const cb = el('div', 'cb');
-    const pr = el('button', 'sm', 'Controls'); pr.onclick = () => openPlugin(ch, i, p.name, 'controls');
-    cb.append(pr);
+    const ctl = ib('ctl', 'Controls'); ctl.onclick = () => openPlugin(ch, i, p.name, 'controls');
+    cb.append(ctl);
     if (S && S.editorAvailable) {
-      const e = el('button', 'sm', 'Plugin'); e.dataset.needsAccess = '1'; e.disabled = !!(ACC && !ACC.allowed); e.title = ACC && !ACC.allowed ? 'Locked: a password needs to be set' : 'The plugin\'s own screen, full screen'; e.onclick = () => openPlugin(ch, i, p.name, 'window'); cb.append(e);
+      const e = ib('win', 'Plugin screen'); e.dataset.needsAccess = '1'; e.disabled = !!(ACC && !ACC.allowed);
+      e.onclick = () => openPlugin(ch, i, p.name, 'window'); cb.append(e);
     }
-    const by = el('button', 'sm', p.bypassed ? 'Enable' : 'Bypass'); by.onclick = async () => { await api('/api/chain/bypass', { channel: ch, slot: i, bypass: !p.bypassed }); refresh(); };
-    const rm = el('button', 'sm danger', '×'); rm.title = 'Remove'; rm.onclick = async () => { await api('/api/chain/remove', { channel: ch, slot: i }); refresh(); };
-    cb.append(by, rm); chip.append(cb);
-    const cm = el('button', 'sm', 'CPU'); cm.title = 'Estimate this plugin\'s CPU use with a test signal (not during a show)';
+    const by = ib('pw', p.bypassed ? 'Bypassed: tap to enable' : 'On: tap to bypass', 'pw' + (p.bypassed ? '' : ' on'));
+    by.onclick = async () => { await api('/api/chain/bypass', { channel: ch, slot: i, bypass: !p.bypassed }); refresh(); };
+    const mo = ib('more', 'More');
+    cb.append(by); head.append(mo);
+    const more = el('div', 'more hide');
+    const cm = ib('cpu', 'Estimate CPU use with a test signal (not during a show)');
     cm.onclick = async () => { cm.disabled = true; const r = await api('/api/plugins/measure', { channel: ch, slot: i }); if (r.error) { cm.disabled = false; } else refresh(); };
-    cb.insertBefore(cm, rm);
-    if (p.cpuMeasuring) { chip.append(el('div', 'cpu', 'measuring…')); cm.disabled = true; }
-    else if (p.cpuAvg !== undefined) chip.append(el('div', 'cpu', `CPU ${p.cpuAvg.toFixed(1)}% (peak ${p.cpuPeak.toFixed(1)}%)`));
+    const rm = ib('del', 'Remove from this channel', 'danger');
+    rm.onclick = async () => { if (!confirm('Remove ' + p.name + ' from this channel?')) return; await api('/api/chain/remove', { channel: ch, slot: i }); refresh(); };
+    const info = el('span', 'cpu grow', '');
+    if (p.cpuMeasuring) { info.textContent = 'measuring…'; cm.disabled = true; }
+    else if (p.cpuAvg !== undefined) info.textContent = `CPU ${p.cpuAvg.toFixed(1)}% (peak ${p.cpuPeak.toFixed(1)}%)`;
+    more.append(cm, info, rm);
+    mo.onclick = () => more.classList.toggle('hide');
+    if (p.cpuMeasuring) more.classList.remove('hide');
+    chip.append(head, cb, more);
     chain.append(chip);
   });
   s.append(chain);
@@ -621,11 +783,14 @@ function buildStrip(c, ch) {
 
   if (isBus) return s;   // the monitor mix carries no plugins
   const add = el('div', 'add');
-  const sel = el('select');
+  const open = el('button', 'addbtn', '+ Add plugin');
+  const row = el('div', 'row hide'); row.style.margin = '0';
+  const sel = el('select', 'grow');
   plugins.forEach(p => { const o = el('option', '', p.name); o.value = p.id; sel.append(o); });
-  const btn = el('button', 'sm', '+ Add');
-  btn.onclick = async () => { if (!sel.value) return toast('Scan for plugins on the Setup tab first'); btn.disabled = true; await api('/api/chain/add', { channel: ch, id: sel.value }); btn.disabled = false; refresh(); };
-  add.append(sel, btn); s.append(add);
+  const btn = el('button', 'on', 'Add');
+  open.onclick = () => { if (!plugins.length) return toast('Upload or scan for plugins on the Setup tab first'); open.classList.add('hide'); row.classList.remove('hide'); };
+  btn.onclick = async () => { btn.disabled = true; await api('/api/chain/add', { channel: ch, id: sel.value }); btn.disabled = false; refresh(); };
+  row.append(sel, btn); add.append(open, row); s.append(add);
   return s;
 }
 
@@ -704,6 +869,8 @@ async function pvMode(m) {
   $('pvControls').classList.toggle('hide', m !== 'controls');
   $('pvWindow').classList.toggle('hide', m !== 'window');
   $('pvKb').classList.toggle('hide', m !== 'window');
+  $('pvZoom').classList.toggle('hide', m !== 'window');
+  $('pvHand').classList.toggle('hide', m !== 'window');
   if (m === 'controls') { liveStop(); await ctlLoad(); } else { ctlStop(); await liveStart(); }
 }
 $('pvMode').querySelectorAll('button').forEach(b => b.onclick = () => { if (b.dataset.m === 'window') goFullscreen(); pvMode(b.dataset.m); });
@@ -756,11 +923,12 @@ function sendParam(p, v, ctl) {
     if (r && r.text !== undefined && ctl) ctl._text(r.text);
   }, 50);
 }
-function buildCtl(p) {
+function buildCtl(p, label) {
+  label = label || p.name;
   const c = el('div', 'ctl'); c.dataset.name = p.name.toLowerCase();
   if (p.type === 'bool') {
     const b = el('button', 'tog');
-    c.append(el('div', 'cl', p.name), b);
+    c.append(el('div', 'cl', label), b);
     c._set = v => { b.classList.toggle('on', v >= 0.5); b.textContent = v >= 0.5 ? 'ON' : 'OFF'; };
     c._text = () => {};
     b.onclick = () => { const v = p.value >= 0.5 ? 0 : 1; c._set(v); sendParam(p, v, c); };
@@ -768,13 +936,13 @@ function buildCtl(p) {
     c.classList.add('wide');
     const n = p.choices.length, sel = el('select');
     p.choices.forEach((t, k) => { const o = el('option', '', t); o.value = k; sel.append(o); });
-    c.append(el('div', 'cl', p.name), sel);
+    c.append(el('div', 'cl', label), sel);
     c._set = v => { if (document.activeElement !== sel) sel.value = Math.round(v * (n - 1)); };
     c._text = () => {};
     sel.onchange = () => { const v = (+sel.value) / (n - 1); sendParam(p, v, c); };
   } else {
     const k = knobSvg(), txt = el('div', 'cv', p.text);
-    c.append(el('div', 'cl', p.name), k, txt);
+    c.append(el('div', 'cl', label), k, txt);
     c._set = v => k._set(v);
     c._text = t => { txt.textContent = t; };
     let y0 = 0, v0 = 0, lastTap = 0;
@@ -795,6 +963,57 @@ function buildCtl(p) {
   c._set(p.value);
   return c;
 }
+// Sections: the plugin's own parameter groups when it has them; otherwise worked out from the names
+// and their order ("Comp Threshold", "Comp Ratio"... -> Compressor; "Band 2 Gain" -> Band 2; a lone
+// "X On" starts section X; anything else stays with the section before it).
+const ABBR = { comp: 'Compressor', hpf: 'High-pass', lpf: 'Low-pass', lcf: 'Low cut', pse: 'Gate (PSE)', eq: 'EQ', 'de-ess': 'De-esser', fb: 'Feedback', lvl: 'Leveler', lim: 'Limiter', sc: 'Sidechain' };
+function prettyGroup(g) {
+  if (!g) return 'Main';
+  const w = g.split(' '); const k = w[0].toLowerCase();
+  if (ABBR[k]) w[0] = ABBR[k];
+  return w.join(' ');
+}
+function groupParams(params) {
+  const out = [];   // [{title, key, params: [{p, label}]}]
+  const add = (title, key) => { const g = { title, key, params: [] }; out.push(g); return g; };
+  if (params.some(p => p.group)) {
+    const m = new Map();
+    params.forEach(p => { const k = p.group || ''; if (!m.has(k)) m.set(k, add(k || 'Main', k)); m.get(k).params.push({ p, label: p.name }); });
+    return out;
+  }
+  const words = n => n.trim().split(/\s+/);
+  const keyOf = n => { const w = words(n); return w.length > 2 && /^\d+$/.test(w[1]) ? w[0] + ' ' + w[1] : w[0]; };
+  const count = {};
+  params.forEach(p => { const k = keyOf(p.name).toLowerCase(); count[k] = (count[k] || 0) + 1; });
+  const GENERIC = /^(max|min|maximum|minimum|auto|high|low|mid|input|output|in|out|main|master|dry|wet|global|detect|freeze|use|show|enable|mode)$/i;
+  const related = (a, b) => { a = a.toLowerCase(); b = b.toLowerCase(); return a.length >= 3 && b.length >= 3 && (a.startsWith(b) || b.startsWith(a)); };
+  let cur = null;
+  params.forEach(p => {
+    const w = words(p.name), k = keyOf(p.name);
+    const onName = w.length >= 2 && /^(on|enable|enabled|active)$/i.test(w[w.length - 1]) ? w.slice(0, -1).join(' ') : null;
+    if (onName && !(cur && cur.key.toLowerCase() === onName.toLowerCase())) cur = add(prettyGroup(onName), onName);
+    else if (count[k.toLowerCase()] >= 3 && !GENERIC.test(w[0]) && !(cur && related(cur.key, k))) cur = add(prettyGroup(k), k);
+    else if (!cur) cur = add('Main', '');
+    // label without the section's prefix ("Comp Threshold" -> "Threshold")
+    let label = p.name;
+    const pres = [cur.key, related(cur.key, k) ? k : ''].filter(Boolean).sort((x, y) => y.length - x.length);
+    for (const pre of pres)
+      if (label.toLowerCase().startsWith(pre.toLowerCase() + ' ')) { label = label.slice(pre.length + 1); break; }
+    cur.params.push({ p, label: label.charAt(0).toUpperCase() + label.slice(1) });
+  });
+  // numbered sections right after an on-switch-only section belong to it ("Dynamic EQ · Band 1")
+  for (let i = 0; i < out.length; i++) {
+    const g = out[i];
+    if (g.params.length === 1 && /^on$/i.test(g.params[0].label))
+      for (let j = i + 1; j < out.length && /\d+$/.test(out[j].key); j++) out[j].title = g.title + ' · ' + out[j].title;
+  }
+  // merge tiny sections into the one before (but keep "Main" first)
+  return out.filter((g, i) => {
+    if (i > 0 && g.params.length === 1 && g.params[0].p.type !== 'bool') { out[i - 1].params.push(...g.params); return false; }
+    return true;
+  });
+}
+function grpOpenKey() { return 'lh.grp.' + PV.name; }
 async function ctlLoad() {
   $('pvGroups').innerHTML = '<div class="note">Loading…</div>';
   const r = await api(`/api/params?channel=${PV.ch}&slot=${PV.slot}`);
@@ -802,13 +1021,35 @@ async function ctlLoad() {
   PV.ctl = {};
   const root = $('pvGroups'); root.innerHTML = '';
   if (!PV.params.length) { root.append(el('div', 'note', 'This plugin has no controls to show. Use Plugin to see its own screen.')); return; }
-  const groups = new Map();
-  PV.params.forEach(p => { const g = p.group || 'Controls'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(p); });
-  groups.forEach((list, g) => {
-    const box = el('div', 'grp'); box.append(el('h3', '', g));
+  let openSet = null; try { openSet = JSON.parse(localStorage.getItem(grpOpenKey()) || 'null'); } catch (e) {}
+  const phone = matchMedia('(max-width:720px)').matches;
+  const groups = groupParams(PV.params);
+  groups.forEach((g, gi) => {
+    const box = el('div', 'grp card');
+    const head = el('div', 'gh');
+    const chev = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); chev.setAttribute('viewBox', '0 0 24 24'); chev.classList.add('chev'); chev.innerHTML = ICON.chev;
+    head.append(chev, el('h3', '', g.title));
+    // the section's own On switch goes in its header
+    const onIdx = g.params.findIndex(x => x.p.type === 'bool' && /^(on|enable|enabled|active)$/i.test(x.label));
+    if (onIdx >= 0) {
+      const { p } = g.params.splice(onIdx, 1)[0];
+      const sw = el('button', 'gsw');
+      const set = v => { sw.classList.toggle('on', v >= 0.5); sw.textContent = v >= 0.5 ? 'ON' : 'OFF'; box.classList.toggle('off', v < 0.5); };
+      sw.onclick = e => { e.stopPropagation(); const v = p.value >= 0.5 ? 0 : 1; set(v); sendParam(p, v, null); };
+      PV.ctl[p.index] = { _set: set, _text: () => {}, dataset: { name: p.name.toLowerCase() } };
+      set(p.value); head.append(sw);
+    }
     const row = el('div', 'ctls');
-    list.forEach(p => { const c = buildCtl(p); PV.ctl[p.index] = c; row.append(c); });
-    box.append(row); root.append(box);
+    g.params.forEach(({ p, label }) => { const c = buildCtl(p, label); PV.ctl[p.index] = c; row.append(c); });
+    box.append(head, row);
+    const isOpen = openSet ? openSet.includes(g.title) : (!phone || gi < 2);
+    box.classList.toggle('closed', !isOpen);
+    head.onclick = () => {
+      box.classList.toggle('closed');
+      const now = [...root.querySelectorAll('.grp:not(.closed) h3')].map(h => h.textContent);
+      try { localStorage.setItem(grpOpenKey(), JSON.stringify(now)); } catch (e) {}
+    };
+    root.append(box);
   });
   ctlFilter();
   PV.poll = setInterval(ctlPoll, 800);
@@ -830,21 +1071,58 @@ function ctlFilter() {
     let any = false;
     g.querySelectorAll('.ctl').forEach(c => { const hit = !q || c.dataset.name.includes(q); c.classList.toggle('hide', !hit); any = any || hit; });
     g.classList.toggle('hide', !any);
+    if (q && any) g.classList.remove('closed');
   });
 }
 $('pvSearch').oninput = ctlFilter;
 
-/* --- Plugin: its own screen, streamed as pictures; taps and keys go back to it --- */
-function liveSize() { const r = $('pvWindow').getBoundingClientRect(); return { w: Math.round(r.width || innerWidth), h: Math.round(r.height || innerHeight - 50) }; }
+/* --- Plugin: its own screen, streamed as pictures; taps and keys go back to it.
+   Zoom: pinch, the − / Fit / + buttons, or ctrl+wheel. Move: two fingers, or ✋ then one finger. --- */
+const VIEW = { s: 1, x: 0, y: 0, fit: 1, hand: false };
+function liveBox() { const r = $('pvWindow').getBoundingClientRect(); return { w: r.width || innerWidth, h: r.height || innerHeight - 50 }; }
+// Ask the plugin for a landscape shape even on a portrait phone: it stays readable, and you zoom in.
+function liveShape() { const b = liveBox(); return { w: Math.round(Math.max(b.w, b.h)), h: Math.round(Math.min(b.w, b.h)) }; }
+function viewApply() {
+  const L = PV.live; if (!L || !L.w) return;
+  const b = liveBox(), w = L.w * VIEW.s, h = L.h * VIEW.s;
+  // keep the plugin on screen: centred when smaller than the view, edges clamped when bigger
+  VIEW.x = w <= b.w ? (b.w - w) / 2 : Math.min(0, Math.max(b.w - w, VIEW.x));
+  VIEW.y = h <= b.h ? (b.h - h) / 2 : Math.min(0, Math.max(b.h - h, VIEW.y));
+  const img = $('pvImg');
+  img.style.width = w + 'px'; img.style.height = h + 'px';
+  img.style.left = VIEW.x + 'px'; img.style.top = VIEW.y + 'px';
+  $('pvFit').textContent = Math.abs(VIEW.s - VIEW.fit) < 0.01 ? 'Fit' : Math.round(VIEW.s / VIEW.fit * 100) + '%';
+}
+function viewFit() {
+  const L = PV.live; if (!L || !L.w) return;
+  const b = liveBox();
+  VIEW.fit = Math.min(b.w / L.w, b.h / L.h);
+  VIEW.s = VIEW.fit; viewApply();
+}
+function viewZoom(f, cx, cy) {
+  const b = liveBox();
+  if (cx === undefined) { cx = b.w / 2; cy = b.h / 2; }
+  const ns = Math.max(VIEW.fit, Math.min(Math.max(VIEW.fit * 8, 3), VIEW.s * f));
+  VIEW.x = cx - (cx - VIEW.x) * ns / VIEW.s; VIEW.y = cy - (cy - VIEW.y) * ns / VIEW.s;
+  VIEW.s = ns; viewApply();
+}
+$('pvZi').onclick = () => viewZoom(1.5);
+$('pvZo').onclick = () => viewZoom(1 / 1.5);
+$('pvFit').onclick = viewFit;
+$('pvHand').onclick = () => { VIEW.hand = !VIEW.hand; $('pvHand').classList.toggle('on', VIEW.hand); };
+
 async function liveStart() {
   liveStop();
-  const L = PV.live = { on: true, since: '0', w: 0, h: 0, url: '', q: [], busy: false, down: false, lastMove: 0 };
+  const L = PV.live = { on: true, since: '0', w: 0, h: 0, url: '', q: [], busy: false, down: false, lastMove: 0, reqW: 0 };
   const img = $('pvImg'); img.removeAttribute('src');
   $('pvMsg').textContent = 'Opening the plugin…';
-  const vs = liveSize();
+  const vs = liveShape();
   const r = await api('/api/editor/open', { channel: PV.ch, slot: PV.slot, viewW: vs.w, viewH: vs.h });
   if (!r.ok) { $('pvMsg').textContent = (r.error || 'Could not open the plugin window.') + ' Controls still work.'; return; }
   L.w = r.width; L.h = r.height;
+  VIEW.hand = false; $('pvHand').classList.remove('on');
+  viewFit();
+  if (matchMedia('(pointer:coarse)').matches) { $('pvHint').classList.remove('hide'); setTimeout(() => $('pvHint').classList.add('hide'), 3500); }
   liveLoop(L);
 }
 function liveStop() { if (PV.live) { PV.live.on = false; if (PV.live.url) URL.revokeObjectURL(PV.live.url); } PV.live = null; }
@@ -853,9 +1131,12 @@ async function liveLoop(L) {
   let fails = 0;
   while (L.on && PV.live === L) {
     if (document.hidden) { await new Promise(r => setTimeout(r, 500)); continue; }
-    const maxW = Math.min(1600, Math.round(liveSize().w * (devicePixelRatio || 1)));
+    // picture detail follows the zoom: full resolution when zoomed in, smaller when the whole plugin fits
+    const want = Math.min(L.w || 1920, Math.max(320, Math.round((L.w || 1000) * VIEW.s * (devicePixelRatio || 1))));
+    const bucket = Math.min(L.w || 1920, Math.ceil(want / 160) * 160);
+    if (bucket !== L.reqW) { L.reqW = bucket; L.since = '0'; }
     let res;
-    try { res = await fetch(`/api/editor/frame?channel=${PV.ch}&slot=${PV.slot}&since=${L.since}&w=${maxW}`, { cache: 'no-store' }); }
+    try { res = await fetch(`/api/editor/frame?channel=${PV.ch}&slot=${PV.slot}&since=${L.since}&w=${L.reqW >= L.w ? 0 : L.reqW}`, { cache: 'no-store' }); }
     catch (e) { res = null; }
     if (!L.on || PV.live !== L) break;
     if (!res || res.status >= 500 || res.status === 404) {
@@ -865,7 +1146,8 @@ async function liveLoop(L) {
     if (res.status === 410) { $('pvMsg').textContent = 'The plugin window was closed.'; break; }
     if (res.status === 401 || res.status === 403) { $('pvMsg').textContent = 'Not allowed from this device (password or trusted network needed).'; break; }
     fails = 0;
-    const sz = (res.headers.get('X-Size') || '').split('x'); if (sz.length === 2) { L.w = +sz[0]; L.h = +sz[1]; }
+    const sz = (res.headers.get('X-Size') || '').split('x');
+    if (sz.length === 2 && (+sz[0] !== L.w || +sz[1] !== L.h)) { L.w = +sz[0]; L.h = +sz[1]; viewFit(); }
     L.since = res.headers.get('X-Frame') || L.since;
     if (res.status === 200) {
       const blob = await res.blob();
@@ -890,49 +1172,88 @@ async function liveFlush() {
   const L = PV.live; if (!L || L.busy || !L.q.length) return;
   L.busy = true;
   const events = L.q.splice(0, L.q.length);
-  try { await fetch('/api/editor/input', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-LiveHost': '1' }, body: JSON.stringify({ channel: PV.ch, slot: PV.slot, events }) }); } catch (e) {}
+  try { await fetch('/api/editor/input', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-LivePi': '1' }, body: JSON.stringify({ channel: PV.ch, slot: PV.slot, events }) }); } catch (e) {}
   L.busy = false;
   if (L.q.length) liveFlush();
 }
 (function () {
-  const img = $('pvImg');
-  img.addEventListener('contextmenu', e => e.preventDefault());
-  img.addEventListener('pointerdown', e => {
-    if (!PV.live) return; e.preventDefault(); img.setPointerCapture(e.pointerId);
-    PV.live.down = true; const p = livePos(e); liveSend({ t: 'move', ...p }); liveSend({ t: 'down', b: e.button === 2 ? 3 : 1, ...p });
+  const area = $('pvWindow');
+  const pts = new Map();          // active pointers
+  let gesture = null;             // { d, cx, cy, s, x, y } for pinch/pan
+  let press = null;               // the pointer currently pressing inside the plugin
+  const local = e => { const r = area.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  const startGesture = () => {
+    const [a, b] = [...pts.values()];
+    const cx = b ? (a.x + b.x) / 2 : a.x, cy = b ? (a.y + b.y) / 2 : a.y;
+    gesture = { d: b ? Math.hypot(a.x - b.x, a.y - b.y) : 0, cx, cy, s: VIEW.s, x: VIEW.x, y: VIEW.y };
+  };
+  area.addEventListener('contextmenu', e => e.preventDefault());
+  area.addEventListener('pointerdown', e => {
+    if (!PV.live || e.target.closest('.pvkeys')) return;
+    e.preventDefault(); area.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, local(e));
+    if (pts.size >= 2 || VIEW.hand) {
+      if (press) { liveSend({ t: 'up', b: press.b, ...press.at }); press = null; PV.live.down = false; }   // second finger: stop pressing the plugin
+      startGesture(); return;
+    }
+    if (e.target !== $('pvImg')) return;
+    press = { id: e.pointerId, b: e.button === 2 ? 3 : 1, at: livePos(e) };
+    PV.live.down = true; liveSend({ t: 'move', ...press.at }); liveSend({ t: 'down', b: press.b, ...press.at });
   });
-  img.addEventListener('pointermove', e => {
+  area.addEventListener('pointermove', e => {
     const L = PV.live; if (!L) return;
-    if (!L.down && e.pointerType !== 'mouse') return;
-    const now = performance.now(); if (!L.down && now - L.lastMove < 50) return; L.lastMove = now;
-    liveSend({ t: 'move', ...livePos(e) });
+    if (pts.has(e.pointerId)) pts.set(e.pointerId, local(e));
+    if (gesture && pts.size) {
+      const [a, b] = [...pts.values()];
+      const cx = b ? (a.x + b.x) / 2 : a.x, cy = b ? (a.y + b.y) / 2 : a.y;
+      let ns = gesture.s;
+      if (b && gesture.d > 10) ns = Math.max(VIEW.fit, Math.min(Math.max(VIEW.fit * 8, 3), gesture.s * Math.hypot(a.x - b.x, a.y - b.y) / gesture.d));
+      VIEW.s = ns;
+      VIEW.x = cx - (gesture.cx - gesture.x) * ns / gesture.s;
+      VIEW.y = cy - (gesture.cy - gesture.y) * ns / gesture.s;
+      viewApply(); return;
+    }
+    if (press && press.id === e.pointerId) { press.at = livePos(e); liveSend({ t: 'move', ...press.at }); return; }
+    if (!press && e.pointerType === 'mouse' && e.target === $('pvImg')) {
+      const now = performance.now(); if (now - L.lastMove < 50) return; L.lastMove = now;
+      liveSend({ t: 'move', ...livePos(e) });
+    }
   });
-  const up = e => { const L = PV.live; if (!L || !L.down) return; L.down = false; liveSend({ t: 'up', b: e.button === 2 ? 3 : 1, ...livePos(e) }); };
-  img.addEventListener('pointerup', up); img.addEventListener('pointercancel', up);
-  img.addEventListener('wheel', e => { if (!PV.live) return; e.preventDefault(); liveSend({ t: 'wheel', dy: Math.sign(e.deltaY), ...livePos(e) }); }, { passive: false });
+  const up = e => {
+    pts.delete(e.pointerId);
+    if (press && press.id === e.pointerId) { liveSend({ t: 'up', b: press.b, ...livePos(e) }); press = null; if (PV.live) PV.live.down = false; }
+    if (gesture) { if (pts.size) startGesture(); else gesture = null; }
+  };
+  area.addEventListener('pointerup', up); area.addEventListener('pointercancel', up);
+  area.addEventListener('wheel', e => {
+    if (!PV.live) return; e.preventDefault();
+    if (e.ctrlKey || e.metaKey) { const p = local(e); viewZoom(Math.exp(-e.deltaY / 200), p.x, p.y); return; }   // trackpad pinch / ctrl+wheel
+    if (e.target === $('pvImg')) liveSend({ t: 'wheel', dy: Math.sign(e.deltaY), ...livePos(e) });
+  }, { passive: false });
+  // iOS Safari pinch events: keep the page itself from zooming
+  ['gesturestart', 'gesturechange'].forEach(t => area.addEventListener(t, e => e.preventDefault()));
 
   // keyboard: on a phone/tablet the ⌨ button opens the on-screen keyboard
   const keys = $('pvKeys');
   $('pvKb').onclick = () => keys.focus();
   const named = ['Enter', 'Backspace', 'Escape', 'Tab', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
-  const onKey = e => {
+  document.addEventListener('keydown', e => {
     if (!PV.live || PV.mode !== 'window' || $('pv').classList.contains('hide')) return;
     if (e.target !== keys && e.target !== document.body) return;
     if (named.includes(e.key)) { e.preventDefault(); liveSend({ t: 'key', k: e.key }); }
     else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && e.target !== keys) { e.preventDefault(); liveSend({ t: 'key', k: e.key }); }
-  };
-  document.addEventListener('keydown', onKey);
+  });
   keys.addEventListener('input', () => { for (const ch of keys.value) liveSend({ t: 'key', k: ch }); keys.value = ''; });
 
-  // follow rotation / resizing: give the plugin the new shape
+  // rotation / resizing: give the plugin the new shape, then fit it again
   let rt = null;
   addEventListener('resize', () => {
     if (!PV.live || PV.mode !== 'window') return;
     clearTimeout(rt);
     rt = setTimeout(async () => {
-      const vs = liveSize();
+      const vs = liveShape();
       const r = await api('/api/editor/open', { channel: PV.ch, slot: PV.slot, viewW: vs.w, viewH: vs.h });
-      if (r.ok && PV.live) { PV.live.w = r.width; PV.live.h = r.height; }
+      if (r.ok && PV.live) { PV.live.w = r.width; PV.live.h = r.height; viewFit(); }
     }, 300);
   });
 })();
@@ -942,7 +1263,7 @@ async function viewerStatus() { return await api('/api/editor/viewer'); }
 function viewerText(v) {
   if (!v || v.error || v.available === undefined) return v && v.error ? v.error : 'No answer from LivePi.';
   if (!v.available) return 'Not available: ' + (v.problem || 'no virtual screen');
-  return `Ready (virtual screen ${v.display}${v.displaySource === 'livehost' ? ', started by LivePi' : ''})` + (v.input ? '' : ' · touch input unavailable') + (v.problem ? ' · ' + v.problem : '');
+  return `Ready (virtual screen ${v.display}${v.displaySource === 'livepi' ? ', started by LivePi' : ''})` + (v.input ? '' : ' · touch input unavailable') + (v.problem ? ' · ' + v.problem : '');
 }
 async function viewerRefresh() {
   const v = await viewerStatus();
@@ -1004,7 +1325,7 @@ async function monStop() {
   mon.on = false;
   if (mon.abort) { try { mon.abort.abort(); } catch (e) {} mon.abort = null; }
   if (mon.ctx) { try { mon.ctx.close(); } catch (e) {} mon.ctx = null; }
-  $('monGo').textContent = 'Listen in this browser';
+  $('monGo').textContent = 'Listen in this browser'; $('tbListen').classList.remove('live');
   $('monInfo').textContent = "Plays the chosen signal on this device. It only reads a copy of the audio, so it does not take priority over the main inputs and outputs.";
   await api('/api/monitor', { channel: -1 });
 }
@@ -1016,7 +1337,7 @@ $('monGo').onclick = async () => {
   const r = await api('/api/monitor', monTap());
   if (!r.ok) { mon.ctx.close(); mon.ctx = null; return; }
   mon.on = true; mon.next = 0;
-  $('monGo').textContent = 'Stop listening';
+  $('monGo').textContent = 'Stop listening'; $('tbListen').classList.add('live');
   monStream();
 };
 $('monSel').onchange = async () => { if (mon.on) { await api('/api/monitor', monTap()); mon.next = 0; } };
@@ -1046,15 +1367,16 @@ function refreshDeviceLists() {
   if (!t) return;
   fill($('devIn'), t.inputs); fill($('devOut'), t.outputs);
 }
-function virtSync() { $('virtCard').classList.toggle('hide', !/^virtual/i.test($('devType').value)); }
+function virtSync() { $('virtCard').classList.toggle('hide', !(/^virtual/i.test($('devType').value) && /file/i.test($('devIn').value))); }
 $('devType').onchange = () => { refreshDeviceLists(); virtSync(); };
+$('devIn').addEventListener('change', virtSync);
 function tfSync() { $('tfDel').classList.toggle('hide', !(devices && devices.testFile)); }
 $('tfGo').onclick = async () => {
   const f = $('tfFile').files[0]; if (!f) return toast('Choose an audio file first');
   const fd = new FormData(); fd.append('file', f, f.name);
   $('tfStat').textContent = 'Uploading…'; $('tfGo').disabled = true;
   try {
-    const r = await fetch('/api/testfile', { method: 'POST', headers: { 'X-LiveHost': '1' }, body: fd });
+    const r = await fetch('/api/testfile', { method: 'POST', headers: { 'X-LivePi': '1' }, body: fd });
     const j = await r.json();
     $('tfStat').textContent = j.ok ? 'Test file saved. Select the input "Test file (loop)" on the virtual card and press Apply.' : (j.error || 'Upload failed');
     if (j.ok) $('tfFile').value = '';
@@ -1126,7 +1448,7 @@ $('upGo').onclick = () => {
   if (upParts.length === 1) fd.append('file', upParts[0].file, upParts[0].name);
   else upParts.forEach(p => fd.append('files', p.file, p.name));
   const x = new XMLHttpRequest();
-  x.open('POST', '/api/plugins/upload'); x.setRequestHeader('X-LiveHost', '1');
+  x.open('POST', '/api/plugins/upload'); x.setRequestHeader('X-LivePi', '1');
   x.upload.onprogress = e => { if (e.lengthComputable) $('upStat').textContent = e.loaded < e.total ? `Uploading… ${Math.round(e.loaded / e.total * 100)}%` : 'Installing and scanning…'; };
   x.onload = async () => {
     let j = {}; try { j = JSON.parse(x.responseText); } catch (e) {}
@@ -1158,7 +1480,7 @@ $('updGo').onclick = () => {
   if (!confirm('Install this update? LivePi restarts and audio stops for a few seconds.')) return;
   const fd = new FormData(); fd.append('file', f, f.name);
   const x = new XMLHttpRequest();
-  x.open('POST', '/api/system/update'); x.setRequestHeader('X-LiveHost', '1');
+  x.open('POST', '/api/system/update'); x.setRequestHeader('X-LivePi', '1');
   x.upload.onprogress = e => { if (e.lengthComputable) $('updStat').textContent = e.loaded < e.total ? `Uploading… ${Math.round(e.loaded / e.total * 100)}%` : 'Checking and installing…'; };
   x.onload = () => {
     let j = {}; try { j = JSON.parse(x.responseText); } catch (e) {}
@@ -1244,10 +1566,14 @@ async function refresh() {
   if (!st.chains) return;
   S = st;
   const cpu = (st.cpu * 100).toFixed(0);
-  $('status').innerHTML = `${st.deviceName} · <b>${(st.sampleRate / 1000).toFixed(st.sampleRate % 1000 ? 1 : 0)}</b> kHz · <b>${st.bufferSize}</b> smp · latency <b>${(st.latencyMs || 0).toFixed(1)}</b> ms · <span class="${st.cpu > 0.7 ? 'bad' : ''}">CPU <b>${cpu}%</b></span> · <span class="${st.xruns > 0 ? 'bad' : ''}">xruns <b>${st.xruns ?? 0}</b></span>`
-    + (st.tempC !== undefined ? ` · <span class="${st.tempC > 75 ? 'bad' : ''}">temp <b>${st.tempC.toFixed(0)}°C</b></span>` : '');
+  const chip = (html, bad, cls = '') => `<span class="st ${cls}${bad ? ' bad' : ''}">${html}</span>`;
+  $('status').innerHTML = chip(`<b>${(st.sampleRate / 1000).toFixed(st.sampleRate % 1000 ? 1 : 0)}</b> kHz`)
+    + chip(`<b>${st.bufferSize}</b> smp`) + chip(`<b>${(st.latencyMs || 0).toFixed(1)}</b> ms`)
+    + chip(`CPU <b>${cpu}%</b>`, st.cpu > 0.7) + chip(`xruns <b>${st.xruns ?? 0}</b>`, st.xruns > 0)
+    + (st.tempC !== undefined ? chip(`<b>${st.tempC.toFixed(0)}</b>°C`, st.tempC > 75) : '')
+    + chip(esc(st.deviceName || ''), false, 'dev');
   if (document.activeElement !== $('chCount')) $('chCount').value = st.numChannels;
-  const pl = $('presetList'), prev = pl.value; fill(pl, st.presets || [], prev);
+  const pl = $('presetList'), prev = pl.value; fill(pl, st.presets || [], prev); $('tbPresetName').textContent = pl.value || '';
   monFill(st);
   renderStrips(st);
   masterSync();

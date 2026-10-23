@@ -6,7 +6,7 @@
 #include <mutex>
 #include <vector>
 
-// A "sound card" with no hardware, so LiveHost can be run and tested on any computer.
+// A "sound card" with no hardware, so LivePi can be run and tested on any computer.
 //   Inputs : a test tone, pink noise, a sweep, silence, or a looping audio file you uploaded.
 //   Output : discarded (listen through "Monitor" on the Mixer tab instead).
 // It is paced by the system clock like a real device, so CPU and xrun counters are meaningful.
@@ -257,10 +257,8 @@ namespace VirtualAudio
         {
             if (! wantInputNames)
                 return { outName };
-            juce::StringArray a { inTone, inPink, inSweep, inSilence };
-            if (file.existsAsFile())
-                a.add (inFile);
-            return a;
+            // the file input is always offered: choosing it shows the upload box on the page
+            return { inTone, inPink, inSweep, inSilence, inFile };
         }
 
         int getDefaultDeviceIndex (bool) const override { return 0; }

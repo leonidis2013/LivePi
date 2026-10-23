@@ -34,9 +34,9 @@ private:
 
     struct Net { juce::uint32 addr, mask; };
     mutable juce::CriticalSection trustedLock;   // trusted/trustedText/openAccess change at run time
-    std::vector<Net> trusted;         // from ~/.livehost/trusted.txt (IPv4 only)
+    std::vector<Net> trusted;         // from ~/.livepi/trusted.txt (IPv4 only)
     juce::StringArray trustedText;
-    bool openAccess = true;           // ~/.livehost/access.txt: "open" (default) or "locked"; only used without a password
+    bool openAccess = true;           // ~/.livepi/access.txt: "open" (default) or "locked"; only used without a password
 
     HostEngine& engine;
     EditorViewer* viewer = nullptr;

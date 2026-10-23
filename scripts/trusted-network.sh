@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Choose networks that can use LiveHost WITHOUT a password (everyone else still needs one, if set).
-#   sudo /opt/livehost/trusted-network.sh add 192.168.10.0/24     # a whole network
-#   sudo /opt/livehost/trusted-network.sh add 192.168.10.25       # a single computer
-#   sudo /opt/livehost/trusted-network.sh remove 192.168.10.0/24
-#   sudo /opt/livehost/trusted-network.sh list
-#   sudo /opt/livehost/trusted-network.sh clear
-#   sudo /opt/livehost/trusted-network.sh lock    # trusted access ON: without a password, only these networks get full access
-#   sudo /opt/livehost/trusted-network.sh open    # trusted access OFF: without a password, everyone gets full access (default)
+# Choose networks that can use LivePi WITHOUT a password (everyone else still needs one, if set).
+#   sudo /opt/livepi/trusted-network.sh add 192.168.10.0/24     # a whole network
+#   sudo /opt/livepi/trusted-network.sh add 192.168.10.25       # a single computer
+#   sudo /opt/livepi/trusted-network.sh remove 192.168.10.0/24
+#   sudo /opt/livepi/trusted-network.sh list
+#   sudo /opt/livepi/trusted-network.sh clear
+#   sudo /opt/livepi/trusted-network.sh lock    # trusted access ON: without a password, only these networks get full access
+#   sudo /opt/livepi/trusted-network.sh open    # trusted access OFF: without a password, everyone gets full access (default)
 # Only use a network you control (for example a dedicated AV VLAN). Anyone on it can upload
 # plugins (native code) and reboot the Pi. IPv4 only; networks wider than /8 are refused.
 set -euo pipefail
@@ -14,16 +14,16 @@ set -euo pipefail
 if [[ $EUID -ne 0 ]]; then echo "Run with sudo"; exit 1; fi
 
 CMD="${1:-list}"; ARG="${2:-}"
-USER_NAME="${LIVEHOST_USER:-}"
-if [[ -z "$USER_NAME" && -f /etc/systemd/system/livehost.service ]]; then
-  USER_NAME="$(sed -n 's/^User=//p' /etc/systemd/system/livehost.service | head -n1)"
+USER_NAME="${LIVEPI_USER:-}"
+if [[ -z "$USER_NAME" && -f /etc/systemd/system/livepi.service ]]; then
+  USER_NAME="$(sed -n 's/^User=//p' /etc/systemd/system/livepi.service | head -n1)"
 fi
 USER_NAME="${USER_NAME:-pi}"
-id "$USER_NAME" >/dev/null 2>&1 || { echo "User '$USER_NAME' does not exist (set LIVEHOST_USER=...)."; exit 1; }
+id "$USER_NAME" >/dev/null 2>&1 || { echo "User '$USER_NAME' does not exist (set LIVEPI_USER=...)."; exit 1; }
 
 HOME_DIR="$(getent passwd "$USER_NAME" | cut -d: -f6)"
 GROUP_NAME="$(id -gn "$USER_NAME")"
-DIR="${LIVEHOST_DIR:-$HOME_DIR/.livehost}"
+DIR="${LIVEPI_DIR:-$HOME_DIR/.livepi}"
 FILE="$DIR/trusted.txt"
 install -d -o "$USER_NAME" -g "$GROUP_NAME" -m 700 "$DIR"
 touch "$FILE"
@@ -60,4 +60,4 @@ A=$(cat "$DIR/access.txt" 2>/dev/null || echo open)
 echo "Trusted access: $( [[ "$A" == locked ]] && echo "ON (without a password, only trusted networks get full access)" || echo "OFF (without a password, everyone gets full access)" )"
 echo "Trusted networks (no password needed from these):"
 if [[ -s "$FILE" ]]; then sed 's/^/  /' "$FILE"; else echo "  (none)"; fi
-[[ "$CMD" == list ]] || { systemctl try-restart livehost.service 2>/dev/null || true; echo "LiveHost restarted."; }
+[[ "$CMD" == list ]] || { systemctl try-restart livepi.service 2>/dev/null || true; echo "LivePi restarted."; }

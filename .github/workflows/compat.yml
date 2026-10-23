@@ -1,6 +1,6 @@
 name: compat
 
-# Runs the latest released LiveHost build in clean Debian containers (ARM64) with no sound card.
+# Runs the latest released LivePi build in clean Debian containers (ARM64) with no sound card.
 on:
   workflow_dispatch:
   push:
@@ -23,7 +23,7 @@ jobs:
       - name: Get the latest release package
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release download --pattern 'livehost-build-*.zip' --repo "$GITHUB_REPOSITORY"
+        run: gh release download --pattern 'livepi-build-*.zip' --repo "$GITHUB_REPOSITORY"
       - name: Run in ${{ matrix.image }}
         run: |
           set +e

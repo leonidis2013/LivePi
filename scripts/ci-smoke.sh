@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs inside a clean Debian container (see .github/workflows/compat.yml):
-# installs LiveHost's runtime packages exactly like install-pi.sh, starts it with no sound card
+# installs LivePi's runtime packages exactly like install-pi.sh, starts it with no sound card
 # (so it uses the virtual one) and checks the web API, meters, monitor mix and streaming.
 set -u
 cd /work
@@ -23,23 +23,23 @@ if apt-get install -y -qq xvfb libxtst6 fonts-dejavu-core libgl1 >/tmp/apt-viewe
 
 rm -rf /tmp/lh && mkdir /tmp/lh && cd /tmp/lh
 ls /work/*.zip | tee -a "$RES"
-unzip -q /work/livehost-build-*.zip || say "FAIL  unzip"
-cd livehost || { say "FAIL  no livehost directory in the zip"; exit 1; }
-check "binary has no missing libraries" "! ldd ./LiveHost | grep -q 'not found'"
+unzip -q /work/livepi-build-*.zip || say "FAIL  unzip"
+cd livepi || { say "FAIL  no livepi directory in the zip"; exit 1; }
+check "binary has no missing libraries" "! ldd ./LivePi | grep -q 'not found'"
 [ -s manifest.json ] && say "manifest: $(cat manifest.json)"
 
 api()  { curl -s -m 5 "http://127.0.0.1:8080$1"; }
-post() { curl -s -m 5 -X POST -H 'X-LiveHost: 1' -H 'Content-Type: application/json' -d "$2" "http://127.0.0.1:8080$1"; }
+post() { curl -s -m 5 -X POST -H 'X-LivePi: 1' -H 'Content-Type: application/json' -d "$2" "http://127.0.0.1:8080$1"; }
 
 run_case() {
   local label="$1"
   say "-- case: $label"
-  rm -rf /root/.livehost
-  mkdir -p /root/.livehost && echo "127.0.0.0/8" > /root/.livehost/trusted.txt   # the test client is local
+  rm -rf /root/.livepi
+  mkdir -p /root/.livepi && echo "127.0.0.0/8" > /root/.livepi/trusted.txt   # the test client is local
   rm -f /tmp/lh.rc /tmp/lh.pid
-  # Plain background start so the pid really is LiveHost (not a wrapper shell) and its exit code is recorded
-  bash -c 'cd /tmp/lh/livehost && HOME=/root ./LiveHost > /tmp/lh.log 2>&1; echo $? > /tmp/lh.rc' &
-  for i in $(seq 1 30); do pgrep -x LiveHost > /tmp/lh.pid 2>/dev/null && break; sleep 0.2; done
+  # Plain background start so the pid really is LivePi (not a wrapper shell) and its exit code is recorded
+  bash -c 'cd /tmp/lh/livepi && HOME=/root ./LivePi > /tmp/lh.log 2>&1; echo $? > /tmp/lh.rc' &
+  for i in $(seq 1 30); do pgrep -x LivePi > /tmp/lh.pid 2>/dev/null && break; sleep 0.2; done
   for i in $(seq 1 30); do api /api/info | jq -e .version >/dev/null 2>&1 && break; sleep 1; done
   check "$label: web API answers" "api /api/info | jq -e .version >/dev/null"
   if ! api /api/info | jq -e .version >/dev/null 2>&1; then say "---- log"; tail -n 25 /tmp/lh.log | tee -a "$RES"; return; fi
@@ -85,15 +85,15 @@ run_case() {
   check "$label: stops cleanly on SIGTERM within 5 s (what systemd sends)" "! kill -0 $pid 2>/dev/null"
   sleep 1; say "exit code: $(cat /tmp/lh.rc 2>/dev/null)"
   check "$label: exit code 0" "[ \"$(cat /tmp/lh.rc 2>/dev/null)\" = 0 ]"
-  say "viewer log: $(grep -v 'keysym\|xkbcomp\|XKEYBOARD' /root/.livehost/viewer.log 2>/dev/null | tail -n 4 | tr '\n' '|')"
+  say "viewer log: $(grep -v 'keysym\|xkbcomp\|XKEYBOARD' /root/.livepi/viewer.log 2>/dev/null | tail -n 4 | tr '\n' '|')"
   check "$label: log shows the clean shutdown path" "grep -q 'Shutdown complete' /tmp/lh.log"
-  pkill -9 LiveHost 2>/dev/null; sleep 1
+  pkill -9 LivePi 2>/dev/null; sleep 1
   say "log tail:"; tail -n 6 /tmp/lh.log | tee -a "$RES"
 }
 
 unset DISPLAY
-run_case "no DISPLAY given (LiveHost starts its own virtual screen)"
-check "self-started virtual screen ended with LiveHost" "! ps -eo stat=,comm= | grep -v '^Z' | grep -q Xvfb"
+run_case "no DISPLAY given (LivePi starts its own virtual screen)"
+check "self-started virtual screen ended with LivePi" "! ps -eo stat=,comm= | grep -v '^Z' | grep -q Xvfb"
 Xvfb :99 -screen 0 1024x768x24 >/dev/null 2>&1 &
 sleep 2
 export DISPLAY=:99

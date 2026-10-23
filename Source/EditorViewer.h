@@ -14,7 +14,7 @@
 #include <cstdlib>
 #include "LiveView.h"
 
-// A child process that dies with LiveHost (PR_SET_PDEATHSIG), however LiveHost ends: a clean stop,
+// A child process that dies with LivePi (PR_SET_PDEATHSIG), however LivePi ends: a clean stop,
 // a crash, or a kill -9. Its output goes to a log file.
 class HelperProcess
 {
@@ -102,7 +102,7 @@ public:
     ~EditorViewer()
     {
         // Xvfb is not stopped here: JUCE may still talk to it during shutdown. It ends by itself
-        // once LiveHost has exited (PDEATHSIG).
+        // once LivePi has exited (PDEATHSIG).
         if (xvfb != nullptr) xvfb->release();
     }
 
@@ -197,7 +197,7 @@ private:
                 log (problem);
                 return;
             }
-            displaySource = "livehost";
+            displaySource = "livepi";
             for (int i = 0; i < 50 && ! unixSocketAlive (sock); ++i)
                 juce::Thread::sleep (100);
             if (! unixSocketAlive (sock))
