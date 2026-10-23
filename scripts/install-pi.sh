@@ -84,6 +84,17 @@ if [[ $WITH_EDITOR -eq 1 ]]; then
   apt-get install -y xvfb x11vnc novnc websockify
 
   HOME_DIR="$(getent passwd "$USER_NAME" | cut -d: -f6)"
+  GROUP_NAME="$(id -gn "$USER_NAME")"
+  install -d -o "$USER_NAME" -g "$GROUP_NAME" -m 700 "${HOME_DIR}/.livehost"
+  # The viewer uses its own random password; the web page fetches it (only for logged-in or trusted
+  # clients) and signs in automatically, so nobody has to type it.
+  if [[ ! -s "${HOME_DIR}/.livehost/vnc.txt" || ! -s "${HOME_DIR}/.livehost/vnc.pass" ]]; then
+    VNCPW="$(head -c 64 /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 8)"
+    ( umask 077; printf '%s' "$VNCPW" > "${HOME_DIR}/.livehost/vnc.txt" )
+    x11vnc -storepasswd "$VNCPW" "${HOME_DIR}/.livehost/vnc.pass" >/dev/null 2>&1
+    chown "$USER_NAME:$GROUP_NAME" "${HOME_DIR}/.livehost/vnc.txt" "${HOME_DIR}/.livehost/vnc.pass"
+    chmod 600 "${HOME_DIR}/.livehost/vnc.txt" "${HOME_DIR}/.livehost/vnc.pass"
+  fi
 
   cat > /etc/systemd/system/livehost-display.service <<EOF
 [Unit]
@@ -205,11 +216,11 @@ PY
   elif [[ -n "$NET" ]]; then
     echo "To unlock uploads and updates without a password, run: sudo /opt/livehost/trusted-network.sh add $NET"
   fi
-  echo "Note: the plugin window viewer (Edit button) needs a password. Add one any time with: sudo /opt/livehost/set-password.sh"
-fi
+  fi
 
 if [[ $WITH_EDITOR -eq 1 ]]; then
-  systemctl enable --now livehost-display.service
+  systemctl daemon-reload
+  systemctl enable --now livehost-display.service livehost-vnc.service livehost-novnc.service
 fi
 systemctl enable --now livehost.service
 systemctl restart livehost.service

@@ -256,7 +256,7 @@ void WebServer::setupRoutes()
         }
 
         const String path (req.path);
-        if (! passwordSet && ! trustedClient && (path.startsWith ("/api/plugins/upload") || path.startsWith ("/api/plugins/delete") || path.startsWith ("/api/testfile")
+        if (! passwordSet && ! trustedClient && (path.startsWith ("/api/plugins/upload") || path.startsWith ("/api/plugins/delete") || path.startsWith ("/api/testfile") || path.startsWith ("/api/editor")
                               || path.startsWith ("/api/system/")))
         {
             res.status = 403;
@@ -738,6 +738,14 @@ void WebServer::setupRoutes()
     });
 
     // Plugin editor windows (shown on the virtual display)
+    svr.Get ("/api/editor/viewer", [] (const httplib::Request&, httplib::Response& res)
+    {
+        auto* o = new DynamicObject();
+        o->setProperty ("port", 6080);
+        o->setProperty ("password", HostEngine::dataDir().getChildFile ("vnc.txt").loadFileAsString().trim());
+        reply (res, var (o));
+    });
+
     svr.Post ("/api/editor/open", [this] (const httplib::Request& req, httplib::Response& res)
     {
         auto b = body (req);

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>LiveHost</title>
 <style>
   :root { --bg:#0d1015; --card:#151a21; --card2:#1b2129; --line:#252c36; --fg:#d8dee6; --dim:#7c8794; --faint:#4c5561; --acc:#4c8dff; --teal:#2ec4b6; --bad:#ef4c4c; --ok:#3ecf6e; --warn:#f2c94c; --inset:#0b0e12; --ctl:#1b2129; --knob:#d8dee6; --onacc:#0d1015; --shadow:var(--shadow); }
@@ -28,7 +28,7 @@
   .side button:hover { color:var(--fg); border-color:var(--line); }
   .side button.on { background:var(--card); border-color:var(--line); color:var(--acc); box-shadow:inset 3px 0 0 var(--acc); }
   .pane { flex:1; min-width:0; }
-  @media (max-width:720px) { .setup { flex-direction:column; } .side { flex-direction:row; width:auto; flex:none; overflow-x:auto; position:static; } .side button span { display:none; } .side button { padding:8px 12px; } }
+  @media (max-width:720px) { .setup { flex-direction:column; } .side { flex-direction:row; width:auto; flex:none; overflow-x:auto; position:static; } }
   .drop { border:1px dashed var(--line); border-radius:8px; padding:14px; text-align:center; color:var(--dim); background:var(--card2); cursor:pointer; }
   .drop.over { border-color:var(--acc); color:var(--acc); }
   .seg { display:inline-flex; gap:0; } .seg button { border-radius:0; } .seg button:first-child { border-radius:6px 0 0 6px; } .seg button:last-child { border-radius:0 6px 6px 0; }
@@ -88,6 +88,42 @@
   .param span:last-child { color:var(--dim); text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   #msg { position:fixed; bottom:12px; left:12px; right:12px; background:var(--card2); border:1px solid var(--line); box-shadow:0 4px 18px var(--shadow); padding:8px 12px; border-radius:8px; display:none; z-index:40; }
   .note { color:var(--dim); font-size:12px; }
+
+  .fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin-bottom:12px; }
+  .f { display:flex; flex-direction:column; gap:5px; font-size:11px; text-transform:uppercase; letter-spacing:.08em; font-weight:700; color:var(--dim); }
+  .f.wide { grid-column:1 / -1; }
+  .f select { text-transform:none; letter-spacing:0; font-weight:400; color:var(--fg); font-size:14px; }
+  html { -webkit-text-size-adjust:100%; }
+  button, select, input, .fader, .drop { touch-action:manipulation; }
+  .fader { touch-action:none; }
+  @media (pointer:coarse), (max-width:720px) {
+    body { font-size:15px; }
+    select, input, button { min-height:44px; font-size:16px; }
+    input[type=range] { min-height:32px; }
+    input[type=checkbox] { width:22px; height:22px; min-height:0; }
+    button.sm { min-height:38px; padding:6px 12px; font-size:14px; }
+    .strip { width:min(78vw,230px); flex-basis:min(78vw,230px); scroll-snap-align:start; }
+    .strip.master { width:130px; flex-basis:130px; }
+    .strips { scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; }
+    .fm { height:260px; }
+    .fader { width:72px; }
+    .fader .knob { height:30px; border-radius:7px; }
+    .meter { width:14px; }
+    .map { gap:8px 14px; font-size:13px; } .map label { gap:6px; min-height:30px; }
+    .send { font-size:13px; }
+    .card { padding:12px; }
+    .bar > * { flex:1 1 auto; } .bar select.grow { max-width:none !important; }
+    #status { order:5; flex-basis:100%; }
+    header { padding:8px 12px; padding-top:calc(8px + env(safe-area-inset-top)); }
+    #app { padding-left:calc(12px + env(safe-area-inset-left)); padding-right:calc(12px + env(safe-area-inset-right)); padding-bottom:calc(14px + env(safe-area-inset-bottom)); }
+    .side button { min-height:48px; padding:8px 14px; } .side button span { display:inline; }
+    .side { gap:6px; }
+    .param { grid-template-columns:1fr; gap:4px; margin:12px 0; }
+    .param span:last-child { text-align:left; }
+    .modal { padding:0; } .modal .box { width:100%; min-height:100%; border-radius:0; }
+    .obar { padding-top:calc(8px + env(safe-area-inset-top)); flex-wrap:wrap; }
+    #msg { bottom:calc(12px + env(safe-area-inset-bottom)); }
+  }
 </style>
 </head>
 <body>
@@ -99,7 +135,6 @@
     <button data-tab="mix" class="on">Mixer</button>
     <button data-tab="setup">Setup</button>
   </nav>
-  <button id="themeBtn" class="ico" title="Switch dark / light">Theme</button>
 </header>
 <div id="app">
 
@@ -136,29 +171,31 @@
     <button data-sub="plugins"><svg viewBox="0 0 24 24"><path d="M12 3v6M8 3v6M16 3v6M6 9h12v4a6 6 0 0 1-12 0z M12 19v2"/></svg><span>Plugins</span></button>
     <button data-sub="updates"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span>Updates</span></button>
     <button data-sub="system"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="11" rx="2"/><path d="M8 20h8M12 16v4"/></svg><span>System</span></button>
+    <button data-sub="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg><span>Settings</span></button>
   </div>
   <div class="pane">
   <div data-pane="audio">
   <div class="card">
-    <h2>Audio device</h2>
-    <div class="row"><select id="devType" class="grow"></select></div>
-    <div class="row">
-      <select id="devIn" class="grow"></select>
-      <select id="devOut" class="grow"></select>
+    <h2>Audio interface</h2>
+    <div class="fields">
+      <label class="f wide">Driver<select id="devType"></select></label>
+      <label class="f">Input<select id="devIn"></select></label>
+      <label class="f">Output<select id="devOut"></select></label>
+      <label class="f">Sample rate<select id="devRate"></select></label>
+      <label class="f">Buffer<select id="devBuf"></select></label>
     </div>
-    <div class="row">
-      <select id="devRate"></select>
-      <select id="devBuf"></select>
-      <button id="devApply">Apply</button>
-    </div>
-    <div class="note">Lower buffer = lower latency but more CPU. Watch the xrun counter at the top.</div>
-    <div class="note">No audio interface? Choose the type <b>Virtual (no audio hardware)</b>: the input becomes a test tone, noise, sweep or an audio file of your own, and the output is discarded. Use <b>Listen</b> on the Mixer tab to hear the result.</div>
+    <div class="row"><button id="devApply" class="on">Apply</button><span id="devNow" class="note grow"></span></div>
+    <div class="note">Smaller buffer = lower latency but more CPU. Watch the xrun counter at the top.</div>
+  </div>
+  <div class="card hide" id="virtCard">
+    <h2>Simulated sound card</h2>
+    <div class="note" style="margin-bottom:8px">No hardware needed: the input is a test tone, noise, sweep, silence or your own audio file, and the output is discarded. Use <b>Listen</b> on the Mixer tab to hear the result.</div>
     <div class="row">
       <input id="tfFile" type="file" accept="audio/*,.wav,.aif,.aiff,.flac,.ogg" class="grow">
       <button id="tfGo">Upload test file</button>
       <button id="tfDel" class="danger hide">Remove</button>
     </div>
-    <div id="tfStat" class="note">A test file (for example a spoken voice recording, up to 10 minutes) appears as the input <b>Test file (loop)</b> of the virtual card.</div>
+    <div id="tfStat" class="note">A test file (for example a spoken voice recording, up to 10 minutes) appears as the input <b>Test file (loop)</b>.</div>
   </div>
   </div>
   <div data-pane="channels" class="hide">
@@ -210,6 +247,15 @@
     </div>
     <pre id="osLog" class="hide" style="max-height:200px;overflow:auto;background:var(--inset);padding:8px;border-radius:8px;font-size:12px;white-space:pre-wrap;margin:6px 0"></pre>
     <div class="note">Runs apt-get update / upgrade on the Pi and needs internet. Don't run it before a service: it can cause audio dropouts while it runs, and may need a reboot afterwards.</div>
+  </div>
+  </div>
+  <div data-pane="settings" class="hide">
+  <div class="card">
+    <h2>Appearance</h2>
+    <div class="seg" id="themeSeg">
+      <button data-theme="auto">Auto</button><button data-theme="dark">Dark</button><button data-theme="light">Light</button>
+    </div>
+    <div class="note" style="margin-top:8px">Auto follows this device's dark / light setting. The choice is remembered on this device only.</div>
   </div>
   </div>
   <div data-pane="updates" class="hide">
@@ -309,12 +355,16 @@ document.querySelectorAll('#sub button').forEach(b => b.onclick = () => showSub(
 })();
 
 /* ---------- theme ---------- */
-function applyTheme(t) { document.documentElement.dataset.theme = t; }
 (function () {
-  let t = null; try { t = localStorage.getItem('lh.theme'); } catch (e) {}
-  if (!t) t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-  applyTheme(t);
-  $('themeBtn').onclick = () => { t = t === 'light' ? 'dark' : 'light'; applyTheme(t); try { localStorage.setItem('lh.theme', t); } catch (e) {} };
+  let pref = 'auto'; try { pref = localStorage.getItem('lh.theme') || 'auto'; } catch (e) {}
+  const mq = matchMedia('(prefers-color-scheme: light)');
+  const apply = () => {
+    document.documentElement.dataset.theme = pref === 'auto' ? (mq.matches ? 'light' : 'dark') : pref;
+    document.querySelectorAll('#themeSeg button').forEach(b => b.classList.toggle('on', b.dataset.theme === pref));
+  };
+  document.querySelectorAll('#themeSeg button').forEach(b => b.onclick = () => { pref = b.dataset.theme; try { localStorage.setItem('lh.theme', pref); } catch (e) {} apply(); });
+  if (mq.addEventListener) mq.addEventListener('change', apply);
+  apply();
 })();
 
 /* ---------- faders ---------- */
@@ -340,7 +390,8 @@ function makeFader(onChange) {
     const db = dbFromPos(p);
     paintFader(f, db); onChange(db);
   };
-  f.addEventListener('pointerdown', e => { drag = true; f.dataset.drag = 1; f.setPointerCapture(e.pointerId); upd(e); });
+  let lastTap = 0;
+  f.addEventListener('pointerdown', e => { const now = Date.now(); if (now - lastTap < 320) { lastTap = 0; paintFader(f, 0); onChange(0); return; } lastTap = now; drag = true; f.dataset.drag = 1; f.setPointerCapture(e.pointerId); upd(e); });
   f.addEventListener('pointermove', e => { if (drag) upd(e); });
   const end = () => { drag = false; delete f.dataset.drag; };
   f.addEventListener('pointerup', end); f.addEventListener('pointercancel', end);
@@ -507,7 +558,8 @@ async function openEditor(ch, slot, title) {
   const r = await api('/api/editor/open', { channel: ch, slot });
   if (!r.ok) return;
   curEditor = { ch, slot };
-  const url = `http://${location.hostname}:6080/vnc.html?autoconnect=1&resize=scale&reconnect=1`;
+  const v = await api('/api/editor/viewer');
+  const url = `http://${location.hostname}:${v.port || 6080}/vnc.html?autoconnect=1&resize=scale&reconnect=1` + (v.password ? '&password=' + encodeURIComponent(v.password) : '');
   $('edTitle').textContent = title;
   $('edNew').href = url;
   $('edFrame').src = url;
@@ -597,16 +649,20 @@ async function loadDevices() {
   fill($('devType'), devices.types.map(t => t.type), cur.type);
   refreshDeviceLists();
   fill($('devRate'), cur.sampleRates, cur.sampleRate);
+  [...$('devRate').options].forEach(o => o.textContent = (o.value / 1000).toFixed(o.value % 1000 ? 1 : 0) + ' kHz');
   fill($('devBuf'), cur.bufferSizes, cur.bufferSize);
   $('devIn').value = cur.input; $('devOut').value = cur.output;
-  tfSync();
+  tfSync(); virtSync();
+  const kh = v => (v / 1000).toFixed(v % 1000 ? 1 : 0) + ' kHz';
+  $('devNow').textContent = 'Running: ' + cur.type + ' · ' + kh(cur.sampleRate) + ' · ' + cur.bufferSize + ' samples';
 }
 function refreshDeviceLists() {
   const t = devices.types.find(t => t.type === $('devType').value);
   if (!t) return;
   fill($('devIn'), t.inputs); fill($('devOut'), t.outputs);
 }
-$('devType').onchange = refreshDeviceLists;
+function virtSync() { $('virtCard').classList.toggle('hide', !/^virtual/i.test($('devType').value)); }
+$('devType').onchange = () => { refreshDeviceLists(); virtSync(); };
 function tfSync() { $('tfDel').classList.toggle('hide', !(devices && devices.testFile)); }
 $('tfGo').onclick = async () => {
   const f = $('tfFile').files[0]; if (!f) return toast('Choose an audio file first');
@@ -803,7 +859,7 @@ async function refresh() {
   if (!st.chains) return;
   S = st;
   const cpu = (st.cpu * 100).toFixed(0);
-  $('status').innerHTML = `${st.deviceName} · <b>${st.sampleRate}</b> Hz · <b>${st.bufferSize}</b> smp · latency <b>${(st.latencyMs || 0).toFixed(1)}</b> ms · <span class="${st.cpu > 0.7 ? 'bad' : ''}">CPU <b>${cpu}%</b></span> · <span class="${st.xruns > 0 ? 'bad' : ''}">xruns <b>${st.xruns ?? 0}</b></span>`
+  $('status').innerHTML = `${st.deviceName} · <b>${(st.sampleRate / 1000).toFixed(st.sampleRate % 1000 ? 1 : 0)}</b> kHz · <b>${st.bufferSize}</b> smp · latency <b>${(st.latencyMs || 0).toFixed(1)}</b> ms · <span class="${st.cpu > 0.7 ? 'bad' : ''}">CPU <b>${cpu}%</b></span> · <span class="${st.xruns > 0 ? 'bad' : ''}">xruns <b>${st.xruns ?? 0}</b></span>`
     + (st.tempC !== undefined ? ` · <span class="${st.tempC > 75 ? 'bad' : ''}">temp <b>${st.tempC.toFixed(0)}°C</b></span>` : '');
   if (document.activeElement !== $('chCount')) $('chCount').value = st.numChannels;
   const pl = $('presetList'), prev = pl.value; fill(pl, st.presets || [], prev);

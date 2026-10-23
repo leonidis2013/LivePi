@@ -106,7 +106,7 @@ namespace VirtualAudio
         {
             juce::StringArray a;
             if (present)
-                for (int i = 1; i <= 16; ++i)
+                for (int i = 1; i <= 8; ++i)
                     a.add (prefix + juce::String (i));
             return a;
         }

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Set or change the LiveHost web password.
 #   sudo /opt/livehost/set-password.sh [username]
-# The same password protects the plugin-window viewer (VNC only uses the first 8 characters of it).
 # For scripted installs you can pass it as LIVEHOST_PASSWORD=... in the environment.
 set -euo pipefail
 
@@ -37,12 +36,6 @@ SALT="$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 HASH="$(printf '%s%s' "$SALT" "$PASS" | sha256sum | cut -d' ' -f1)"
 ( umask 077; printf '{ "salt": "%s", "hash": "%s" }\n' "$SALT" "$HASH" > "$DIR/auth.json" )
 chown "$USER_NAME:$GROUP_NAME" "$DIR/auth.json"
-
-if command -v x11vnc >/dev/null 2>&1; then
-  x11vnc -storepasswd "$PASS" "$DIR/vnc.pass" >/dev/null 2>&1 || true
-  chown "$USER_NAME:$GROUP_NAME" "$DIR/vnc.pass" 2>/dev/null || true
-  chmod 600 "$DIR/vnc.pass" 2>/dev/null || true
-fi
 
 systemctl try-restart livehost.service 2>/dev/null || true
 if [[ -f /etc/systemd/system/livehost-vnc.service ]]; then

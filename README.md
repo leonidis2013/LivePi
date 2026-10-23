@@ -41,7 +41,7 @@ GitHub's free ARM64 runners are only available for **public** repositories.
 
 ## What the installer does
 
-It copies the app to `/opt/livehost`, installs the runtime libraries, sets real-time limits for the audio group, switches the CPU governor to performance (at every boot), stops PulseAudio and Bluetooth, allows the page to reboot/shut down the Pi and run OS updates, and enables boot services. Unless you pass `--no-editor` it also sets up a virtual screen and browser viewer (port 6080) so plugin windows can be opened from the page. To add or change the password later: `sudo /opt/livehost/set-password.sh`. Without a password the plugin window viewer (Edit button) is unavailable; everything else works, and see "Trusted networks" for unlocking uploads and updates.
+It copies the app to `/opt/livehost`, installs the runtime libraries, sets real-time limits for the audio group, switches the CPU governor to performance (at every boot), stops PulseAudio and Bluetooth, allows the page to reboot/shut down the Pi and run OS updates, and enables boot services. Unless you pass `--no-editor` it also sets up a virtual screen and browser viewer (port 6080) so plugin windows can be opened from the page. To add or change the password later: `sudo /opt/livehost/set-password.sh`. The plugin window viewer (Edit button) signs in automatically with its own generated password, so it works with or without a web password; see "Trusted networks" for unlocking uploads and updates.
 
 ## Troubleshooting
 
