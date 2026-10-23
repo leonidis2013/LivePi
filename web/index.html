@@ -369,6 +369,12 @@
     .sc button { min-height:38px; padding:6px 12px; font-size:15px; }
     .sc .seg button { min-height:34px; padding:4px 10px; font-size:14px; }
   }
+
+  .keys { display:flex; gap:8px; align-items:center; }
+  .keys .mute { flex:1; }
+  .monbtn { flex:0 0 auto; width:46px; height:46px; min-height:0 !important; padding:0; border-radius:50% !important; font-size:10px; font-weight:800; letter-spacing:.04em;
+            border:2px solid var(--line); background:var(--card2); }
+  .monbtn.on { background:var(--warn); border-color:var(--warn); color:#1a1300; box-shadow:0 0 12px color-mix(in srgb, var(--warn) 55%, transparent); }
 </style>
 </head>
 <body>
@@ -855,14 +861,14 @@ function buildStrip(c, ch) {
 
   const mute = el('button', 'mute', 'Mute');
   mute.onclick = () => { const on = !mute.classList.contains('on'); mute.classList.toggle('on', on); api('/api/mixer', { channel: ch, mute: on }); };
-  s.append(mute);
+  const keys = el('div', 'keys'); keys.append(mute); s.append(keys);
 
   if (!isBus) {
-    const mb = el('button', 'monbtn' + (c.sendDb > -60 ? ' on' : ''), 'Monitor');
-    mb.title = 'Send this channel (after its plugins) to the Monitor mix. One channel at a time.';
+    const mb = el('button', 'monbtn' + (c.sendDb > -60 ? ' on' : ''), 'PAFL');
+    mb.title = 'PAFL: listen to this channel on the Monitor mix (tap point is set on the Monitor strip). One channel at a time.';
     mb.dataset.ch = ch;
     mb.onclick = () => setMonitorSource(mb.classList.contains('on') ? 'off' : ch + ':' + (c.sendPre ? 'in' : 'out'));
-    s.append(mb);
+    keys.append(mb);
   } else {
     const map = el('div', 'map'); map.title = 'Which output channels of the audio device carry the monitor mix';
     map.append(el('span', 'mlab', 'OUTPUTS'));
