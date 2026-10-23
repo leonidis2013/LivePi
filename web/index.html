@@ -408,8 +408,6 @@
     <div class="row">
       <label>Channels <input id="chCount" type="number" min="1" max="16" value="1" style="width:70px"></label>
       <button id="chApply">Set</button>
-      <span class="grow"></span>
-      <button id="scan">Scan plugins</button>
     </div>
     <div class="note">With one channel the output feeds both L and R.</div>
   </div>
@@ -430,6 +428,7 @@
     <input id="upBin" type="file" accept=".vst3,.so" class="hide">
     <div id="upStat" class="note"></div>
     <div class="note">Plugins must be Linux ARM64 builds (they need <code>Contents/aarch64-linux/*.so</code>). A bare .so/.vst3 file is wrapped into a bundle for you.</div>
+    <div class="row"><button id="scan">Rescan plugins</button><span class="note grow">Uploads are scanned by themselves. Rescan only if a plugin is missing from the Add list (for example after copying one onto the Pi by hand).</span></div>
     <div id="bundles" style="margin-top:8px"></div>
   </div>
   <div class="card">
@@ -445,20 +444,25 @@
     <h2>LivePi</h2>
     <div id="ver" class="note"></div>
     <div id="rolled" class="note bad hide">The last update did not start and was rolled back automatically.</div>
-    <div id="gh" style="margin:6px 0">
+    <div class="row"><span class="grow">Update from</span>
+      <div class="seg" id="updMode"><button data-v="online">Online</button><button data-v="offline">File</button></div>
+    </div>
+    <div id="updOnline">
       <div id="ghMsg" class="note">Checking internet connection…</div>
       <div class="row">
         <button id="ghCheck" disabled>Check for updates</button>
-        <button id="ghInstall" class="danger hide" disabled>Install latest</button>
+        <button id="ghInstall" class="on" disabled>Install update</button>
       </div>
-      <div class="note">No internet? Upload an update file instead:</div>
     </div>
-    <div class="row">
-      <input id="updFile" type="file" accept=".zip" class="grow">
-      <button id="updGo">Install update</button>
+    <div id="updOffline" class="hide">
+      <div class="row">
+        <input id="updFile" type="file" accept=".zip" class="grow">
+        <button id="updGo" class="on" disabled>Install update</button>
+      </div>
+      <div class="note">Download <b>livepi-build-N.zip</b> from your GitHub repo (Releases) and choose it here.</div>
     </div>
     <div id="updStat" class="note"></div>
-    <div class="note">Download <b>livepi-build-N.zip</b> from your GitHub repo (Releases, or Actions &gt; Artifacts) and upload it here. Presets, plugins and password are kept. If the new version fails to start, the old one is restored automatically.</div>
+    <div class="note">Presets, plugins and password are kept. If the new version fails to start, the old one comes back by itself.</div>
     <div class="row" style="margin-top:12px"><button id="sysRestart">Restart LivePi</button><span class="note grow">Audio stops for a few seconds; this page reconnects by itself.</span></div>
   </div>
   <div class="card">
@@ -690,6 +694,7 @@ function applySession(a) {
   $('pwSave').textContent = a.passwordSet ? 'Change password' : 'Set password';
   $('pwLogout').classList.toggle('hide', !(a.protection && a.loggedIn));
   // trusted access card: only with an active password
+  $('acCard').classList.toggle('hide', !a.protection);
   $('acOff').classList.toggle('hide', a.protection);
   $('acOn').classList.toggle('hide', !a.protection);
   document.querySelectorAll('#acSeg button').forEach(b => b.classList.toggle('on', (b.dataset.v === 'on') === a.trustedAccess));
@@ -1656,10 +1661,21 @@ async function updRefresh() {
   $('ghMsg').textContent = msg;
   $('ghMsg').classList.toggle('bad', !u.online && u.known || u.state === 'error');
   check.disabled = !u.online || busy;
-  inst.classList.toggle('hide', !u.available);
   inst.disabled = !u.online || busy || !u.available;
+  inst.title = u.available ? '' : 'Grayed out until a newer version is found';
+  if (u.known && !updModeChosen) setUpdMode(u.online ? 'online' : 'offline', false);
   if (u.state === 'ok' && !ghRestarted) { ghRestarted = true; waitForRestart(); }
 }
+let updModeChosen = false;
+function setUpdMode(m, remember) {
+  if (remember) { updModeChosen = true; try { localStorage.setItem('lh.upd', m); } catch (e) {} }
+  document.querySelectorAll('#updMode button').forEach(b => b.classList.toggle('on', b.dataset.v === m));
+  $('updOnline').classList.toggle('hide', m !== 'online');
+  $('updOffline').classList.toggle('hide', m !== 'offline');
+}
+try { const m = localStorage.getItem('lh.upd'); if (m) { updModeChosen = true; setUpdMode(m, false); } else setUpdMode('online', false); } catch (e) { setUpdMode('online', false); }
+document.querySelectorAll('#updMode button').forEach(b => b.onclick = () => setUpdMode(b.dataset.v, true));
+$('updFile').addEventListener('change', () => { $('updGo').disabled = !$('updFile').files.length; $('updStat').textContent = ''; });
 $('ghCheck').onclick = async () => { const r = await api('/api/system/update/check', {}); updRefresh(); };
 $('ghInstall').onclick = async () => {
   if (!confirm('Download and install the latest version? LivePi restarts and audio stops for a few seconds.')) return;
