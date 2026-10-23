@@ -147,7 +147,7 @@ namespace Updater
 
         versionOut = root.getChildFile ("VERSION").loadFileAsString().trim();
         if (versionOut.isEmpty())
-            versionOut = manifest["build"].toString();
+            versionOut = "version " + manifest["build"].toString();
         return {};
     }
 }

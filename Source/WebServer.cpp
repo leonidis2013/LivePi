@@ -576,7 +576,7 @@ void WebServer::setupRoutes()
     {
         auto* o = new DynamicObject();
         const String build (LIVEPI_BUILD_STR);
-        o->setProperty ("version", build == "dev" ? build : "build " + build);
+        o->setProperty ("version", build == "dev" ? String ("development version") : "version " + build);
         o->setProperty ("rolledBack", HostEngine::dataDir().getChildFile ("rolled-back").existsAsFile());
         reply (res, var (o));
     });

@@ -65,7 +65,7 @@ jobs:
           cp -r web $D/web
           cp scripts/install-pi.sh scripts/set-password.sh scripts/trusted-network.sh scripts/run.sh scripts/livepi-os scripts/livepi-os-job INSTALLER_LEVEL $D/
           chmod +x $D/install-pi.sh $D/set-password.sh $D/trusted-network.sh $D/run.sh $D/livepi-os $D/livepi-os-job $D/LivePi
-          echo "build ${{ github.run_number }} (${GITHUB_SHA::7})" > $D/VERSION
+          echo "version ${{ github.run_number }} (${GITHUB_SHA::7})" > $D/VERSION
           printf '{ "build": "%s", "installerLevel": %s, "sha256": "%s" }\n' \
             "${{ github.run_number }}" "$(tr -d '[:space:]' < INSTALLER_LEVEL)" "$(sha256sum $D/LivePi | cut -d' ' -f1)" > $D/manifest.json
           # One package for both uses: upload it on the Setup tab to update, or unzip it for a fresh install
@@ -87,6 +87,6 @@ jobs:
         run: |
           gh release create "build-${{ github.run_number }}" \
             "livepi-build-${{ github.run_number }}.zip" livepi-linux-arm64.tar.gz \
-            --title "LivePi build ${{ github.run_number }}" \
+            --title "LivePi version ${{ github.run_number }}" \
             --notes "Update an installed Pi: upload livepi-build-${{ github.run_number }}.zip on the Setup tab. Fresh install: unzip it and run sudo ./install-pi.sh." \
             --target "${{ github.sha }}"

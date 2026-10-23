@@ -194,7 +194,7 @@ private:
         available = numeric && latest > cfg.currentBuild.getIntValue();
         lastChecked = juce::Time::currentTimeMillis();
         if (! numeric)
-            message = "This is a development build, so it will not update itself.";
+            message = "This is a development version, so it will not update itself.";
         return true;
     }
 
@@ -248,7 +248,7 @@ private:
         {
             std::lock_guard<std::mutex> l (m);
             state = "ok";
-            message = "Installed " + (version.isNotEmpty() ? version : "build " + juce::String (latest)) + ". Restarting…";
+            message = "Installed " + (version.isNotEmpty() ? version : "version " + juce::String (latest)) + ". Restarting…";
         }
         if (cfg.onInstalled)
             cfg.onInstalled();

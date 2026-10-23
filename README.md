@@ -68,7 +68,7 @@ Every channel has a **Mon** send (pre-fader, after the channel's plugins; off by
 
 ## Updating online (from GitHub)
 
-On the **Setup** tab under **System**, **Check for updates** looks at this repo's latest GitHub Release. If a newer build exists, **Install latest** downloads it, verifies it, installs it and restarts LivePi (the old version is restored automatically if the new one fails to start). Both buttons are grayed out with "No internet access" when the Pi cannot reach GitHub. The Pi needs `curl` (the installer adds it). Development builds ("dev") never update themselves.
+On the **Setup** tab under **System**, **Check for updates** looks at this repo's latest GitHub Release. If a newer version exists, **Install update** downloads it, verifies it, installs it and restarts LivePi (the old version is restored automatically if the new one fails to start). Both buttons are grayed out with "No internet access" when the Pi cannot reach GitHub. The Pi needs `curl` (the installer adds it). Development versions ("dev") never update themselves.
 
 ## CPU and temperature
 
