@@ -16,8 +16,8 @@ Built with JUCE. Runs your own Linux ARM64 VST3 plugins, one chain per channel.
    sudo ./install-pi.sh your-user
    ```
 
-   The installer asks you to choose a **web password** (at least 8 characters), then installs and starts everything. When it finishes, run `sudo reboot`.
-4. **Open the page** at `http://livehost.local:8080` from any computer, tablet or phone on the same network. Leave the user name blank and enter the password.
+   The installer installs everything, then asks **"Do you want to set a password? [Y/n]"**. Answer **Y** to choose a web password (at least 8 characters; nothing is shown while you type). Answer **n** to run without one: it then offers to *trust your network* so uploads, updates and reboot still work without a password. Use `--password` or `--no-password` after the user name to skip the question. When it finishes, run `sudo reboot`.
+4. **Open the page** at `http://livehost.local:8080` from any computer, tablet or phone on the same network. If you set a password, leave the user name blank and enter it.
 5. **Set up audio** on the **Setup** tab: pick your audio device, sample rate 48000 and buffer 64 (raise to 128 if the xrun counter climbs), then Apply.
 6. **Add plugins**: on the Setup tab upload each plugin as a `.zip` of its Linux ARM64 `.vst3` folder, press Scan, then add them to a channel on the **Mixer** tab.
 
@@ -41,7 +41,7 @@ GitHub's free ARM64 runners are only available for **public** repositories.
 
 ## What the installer does
 
-It copies the app to `/opt/livehost`, installs the runtime libraries, sets real-time limits for the audio group, switches the CPU governor to performance (at every boot), stops PulseAudio and Bluetooth, allows the page to reboot/shut down the Pi and run OS updates, and enables boot services. Unless you pass `--no-editor` it also sets up a virtual screen and browser viewer (port 6080) so plugin windows can be opened from the page. To change the password later: `sudo /opt/livehost/set-password.sh`.
+It copies the app to `/opt/livehost`, installs the runtime libraries, sets real-time limits for the audio group, switches the CPU governor to performance (at every boot), stops PulseAudio and Bluetooth, allows the page to reboot/shut down the Pi and run OS updates, and enables boot services. Unless you pass `--no-editor` it also sets up a virtual screen and browser viewer (port 6080) so plugin windows can be opened from the page. To add or change the password later: `sudo /opt/livehost/set-password.sh`. Without a password the plugin window viewer (Edit button) is unavailable; everything else works, and see "Trusted networks" for unlocking uploads and updates.
 
 ## Troubleshooting
 

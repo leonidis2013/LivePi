@@ -1,18 +1,22 @@
 #!/usr/bin/env bash
 # Install LiveHost on a Raspberry Pi and tune it for low-latency audio.
 # Run from the unpacked livehost folder:
-#   sudo ./install-pi.sh [username] [--no-editor]
+#   sudo ./install-pi.sh [username] [--no-editor] [--password | --no-password]
 #
 # By default this also sets up a virtual screen + browser viewer (port 6080) so plugin windows
 # can be opened from the web page. Use --no-editor to skip that.
-# You will be asked to choose a password for the web page. Set LIVEHOST_PASSWORD to skip the prompt.
+# You will be asked whether you want a password for the web page (Y/N). Use --password or --no-password to skip
+# the question, or set LIVEHOST_PASSWORD to choose the password without a prompt.
 set -euo pipefail
 
 USER_NAME="pi"
 WITH_EDITOR=1
+PW_MODE=ask      # ask | yes | no
 for a in "$@"; do
   case "$a" in
     --no-editor) WITH_EDITOR=0 ;;
+    --password) PW_MODE=yes ;;
+    --no-password) PW_MODE=no ;;
     *) USER_NAME="$a" ;;
   esac
 done
@@ -158,10 +162,50 @@ EOF
 systemctl daemon-reload
 
 echo "== Web password"
-if [[ -t 0 || -n "${LIVEHOST_PASSWORD:-}" ]]; then
+yesno() {   # yesno "question" default(Y|N)  -> returns 0 for yes
+  local prompt="$1" def="$2" ans
+  read -r -p "$prompt " ans || ans=""
+  ans="${ans:-$def}"
+  [[ "$ans" =~ ^[Yy] ]]
+}
+
+if [[ -n "${LIVEHOST_PASSWORD:-}" ]]; then PW_MODE=yes; fi
+if [[ "$PW_MODE" == ask ]]; then
+  if [[ -t 0 ]]; then
+    echo "A password protects the web page. Without one, anyone on your network can use the mixer,"
+    echo "and plugin upload, updates and reboot stay locked unless you trust your network."
+    if yesno "Do you want to set a password? [Y/n]" Y; then PW_MODE=yes; else PW_MODE=no; fi
+  else
+    PW_MODE=no
+    echo "No terminal available, so no password was set. Run: sudo /opt/livehost/set-password.sh"
+  fi
+fi
+
+if [[ "$PW_MODE" == yes ]]; then
   /opt/livehost/set-password.sh "$USER_NAME" || echo "No password was set. LiveHost will still start; set one later with: sudo /opt/livehost/set-password.sh"
 else
-  echo "No terminal available, so no password was set. Run: sudo /opt/livehost/set-password.sh"
+  echo "Continuing without a password."
+  # Offer to trust the Pi's own network so uploads, updates and reboot work without one
+  NET=""
+  if command -v python3 >/dev/null 2>&1; then
+    NET="$(python3 - <<'PY' 2>/dev/null || true
+import ipaddress, subprocess
+out = subprocess.run(["ip", "-4", "-o", "addr", "show", "scope", "global"], capture_output=True, text=True).stdout.split()
+for i, w in enumerate(out):
+    if w == "inet":
+        print(ipaddress.ip_interface(out[i + 1]).network)
+        break
+PY
+)"
+  fi
+  if [[ -t 0 && -n "$NET" ]]; then
+    if yesno "Trust this network ($NET) so plugin upload, updates and reboot work without a password? [Y/n]" Y; then
+      /opt/livehost/trusted-network.sh add "$NET" || true
+    fi
+  elif [[ -n "$NET" ]]; then
+    echo "To unlock uploads and updates without a password, run: sudo /opt/livehost/trusted-network.sh add $NET"
+  fi
+  echo "Note: the plugin window viewer (Edit button) needs a password. Add one any time with: sudo /opt/livehost/set-password.sh"
 fi
 
 if [[ $WITH_EDITOR -eq 1 ]]; then
