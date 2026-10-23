@@ -1,6 +1,11 @@
 #include "WebServer.h"
 #include "Updater.h"
 #include <atomic>
+#if JUCE_LINUX
+ #include <sys/resource.h>
+ #include <sys/syscall.h>
+ #include <unistd.h>
+#endif
 
 #ifndef LIVEHOST_REPO_STR
  #define LIVEHOST_REPO_STR "leonidis2013/LivePi"
@@ -589,6 +594,61 @@ void WebServer::setupRoutes()
         res.set_header ("X-Rate", std::to_string ((int) engine.monitorTap().rate.load()));
         res.set_header ("Cache-Control", "no-store");
         res.set_content (reinterpret_cast<const char*> (pcm.data()), pcm.size() * sizeof (int16_t), "application/octet-stream");
+    });
+
+    // Continuous low-latency stream of the chosen tap (one long-running response). The audio thread only
+    // copies samples into a ring; everything here runs on web threads, at lower priority than the audio.
+    svr.Get ("/api/monitor/stream", [this] (const httplib::Request&, httplib::Response& res)
+    {
+        static std::atomic<int> listeners { 0 };
+        if (listeners.fetch_add (1) >= 2)
+        {
+            --listeners;
+            res.status = 429;
+            res.set_content ("{\"error\":\"Two browsers are already listening.\"}", "application/json");
+            return;
+        }
+
+        res.set_header ("X-Rate", std::to_string ((int) engine.monitorTap().rate.load()));
+        res.set_header ("Cache-Control", "no-store");
+
+        struct State { uint64_t since = 0; bool niced = false; int idle = 0; };
+        auto st = std::make_shared<State>();
+
+        res.set_chunked_content_provider ("application/octet-stream",
+            [this, st] (size_t, httplib::DataSink& sink)
+            {
+               #if JUCE_LINUX
+                if (! st->niced)
+                {
+                    st->niced = true;
+                    setpriority (PRIO_PROCESS, (id_t) syscall (SYS_gettid), 10);   // below the audio thread and the rest of the app
+                }
+               #endif
+                thread_local std::vector<int16_t> pcm;
+                uint64_t pos = 0;
+                engine.monitorTap().read (st->since, pcm, pos, 256);
+                st->since = pos;
+
+                if (! pcm.empty())
+                {
+                    st->idle = 0;
+                    if (! sink.write (reinterpret_cast<const char*> (pcm.data()), pcm.size() * sizeof (int16_t)))
+                        return false;
+                }
+                else if (++st->idle > 4000)          // 20 s of silence from the device: give up
+                {
+                    return false;
+                }
+                std::this_thread::sleep_for (std::chrono::milliseconds (5));
+                return sink.is_writable();
+            },
+            [this] (bool)
+            {
+                // Browser went away (or stopped): free the slot, and stop copying audio if nobody is listening
+                if (--listeners == 0)
+                    MessageManager::callAsync ([this] { engine.setMonitor (-1, true); });
+            });
     });
 
     // Audio file played in a loop by the virtual sound card's "Test file" input

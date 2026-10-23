@@ -38,7 +38,9 @@ Then open `http://<pi-hostname>.local:8080` from any device. The browser asks fo
 
 On the Setup tab choose the device type **Virtual (no audio hardware)**. It behaves like a sound card (same timing, CPU and xrun counters), but its input is a test tone, pink noise, a sweep, silence, or **a looping audio file you upload** (a spoken voice recording works well), and its output is discarded. If no sound card is found at all, LiveHost starts on the virtual one automatically (this is not remembered, so a real card is used as soon as it is plugged in).
 
-To hear the result, use **Listen** on the Mixer tab: pick any channel (before or after its plugins) or the Monitor mix and press *Listen in this browser*. The audio is streamed to your browser (about 0.3 s delay, so it is for checking, not for performing). This also works with a real interface.
+To hear the result, use **Listen** on the Mixer tab: pick any channel (before or after its plugins) or the Monitor mix and press *Listen in this browser*. The audio is streamed to your browser; the delay is shown on the page and depends on the setting (Lowest / Low / Safe) and your network, typically 100 ms or more, so it is for checking and adjusting, not for performing. This also works with a real interface.
+
+The main audio path always has priority: the audio thread only copies the chosen signal into a small buffer (nothing at all is copied while nobody is listening), and the streaming runs on web threads at lower priority. At most two browsers can listen at once, and listening stops by itself when the page is closed.
 
 ## Monitor mix (mappable monitoring output)
 

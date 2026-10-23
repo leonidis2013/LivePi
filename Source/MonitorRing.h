@@ -18,11 +18,11 @@ struct MonitorRing
     }
 
     // Copies everything after `since` as 16-bit samples. A new or far-behind reader starts ~100 ms back.
-    void read (uint64_t since, std::vector<int16_t>& out, uint64_t& newPos) const
+    void read (uint64_t since, std::vector<int16_t>& out, uint64_t& newPos, uint64_t startBack = 4800) const
     {
         const uint64_t p = pos.load (std::memory_order_acquire);
         if (since == 0 || since > p || p - since > cap / 2)
-            since = p > 4800 ? p - 4800 : 0;
+            since = p > startBack ? p - startBack : 0;
 
         out.clear();
         out.reserve ((size_t) (p - since));
