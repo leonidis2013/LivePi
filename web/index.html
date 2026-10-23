@@ -134,13 +134,13 @@
   .ctl { width:92px; display:flex; flex-direction:column; align-items:center; gap:4px; text-align:center; }
   .ctl .cl { font-size:11px; color:var(--dim); line-height:1.2; height:2.4em; overflow:hidden; display:flex; align-items:flex-end; justify-content:center; }
   .ctl .cv { font-size:12px; font-variant-numeric:tabular-nums; color:var(--fg); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
-  .knob { width:64px; height:64px; touch-action:none; cursor:ns-resize; }
-  .knob .trk { stroke:var(--line); } .knob .val { stroke:var(--acc); } .knob .cap { fill:var(--card2); stroke:var(--line); } .knob .ptr { stroke:var(--fg); }
+  .rk { width:64px; height:64px; touch-action:none; cursor:ns-resize; }
+  .rk .trk { stroke:var(--line); } .rk .val { stroke:var(--acc); } .rk .cap { fill:var(--card2); stroke:var(--line); } .rk .ptr { stroke:var(--fg); }
   .ctl.wide { width:auto; min-width:92px; max-width:100%; align-items:stretch; }
   .tog { min-width:70px; font-weight:700; letter-spacing:.06em; }
   .tog.on { background:var(--acc); border-color:var(--acc); color:var(--onacc); }
   .ctl select { max-width:200px; }
-  @media (pointer:coarse), (max-width:720px) { .ctl { width:84px; } .knob { width:60px; height:60px; } .pvbar button.ico { min-width:44px; } }
+  @media (pointer:coarse), (max-width:720px) { .ctl { width:84px; } .rk { width:60px; height:60px; } .pvbar button.ico { min-width:44px; } }
 
   /* meter scale */
   .mcol { display:flex; flex-direction:column; align-items:center; gap:4px; }
@@ -152,6 +152,8 @@
   .meter b { position:absolute; left:0; right:0; height:1px; background:color-mix(in srgb, var(--bg) 70%, transparent); z-index:1; }
 
   .card.locked > :not(h2):not(.locknote) { opacity:.4; pointer-events:none; filter:grayscale(1); }
+  .dz { border-color:color-mix(in srgb, var(--bad) 45%, var(--line)); }
+  .dz h2::before { background:var(--bad); }
   .locknote { border:1px solid var(--warn); color:var(--fg); background:color-mix(in srgb, var(--warn) 12%, transparent); border-radius:6px; padding:8px 10px; margin-bottom:10px; font-size:13px; }
   .netrow { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; }
   .netrow:last-child { border-bottom:0; }
@@ -265,7 +267,7 @@
     .cb { flex-wrap:nowrap; }
     .och span { min-width:34px; height:34px; }
     .grp .ctls { grid-template-columns:repeat(3,1fr); gap:14px 4px; padding:2px 8px 14px; }
-    .knob { width:58px; height:58px; }
+    .rk { width:58px; height:58px; }
     .ctl .cl { font-size:11px; }
     .ctl.wide { grid-column:span 2; }
     .ctl select { max-width:100%; width:100%; font-size:15px; }
@@ -280,6 +282,46 @@
     .side button { min-height:38px; padding:6px 14px; border-radius:999px; background:var(--card2); font-size:14px; box-shadow:none; border:0; }
     .side button.on { background:var(--acc); color:var(--onacc); box-shadow:none; }
     .side button svg { width:15px; height:15px; }
+  }
+
+  /* folds: plugin chain / outputs (folded on phones only) */
+  .foldsum { display:none; }
+  .fold { display:flex; flex-direction:column; gap:8px; }
+  .foldbody { display:flex; flex-direction:column; gap:8px; }
+  @media (max-width:720px) {
+    .foldsum { display:flex; align-items:center; gap:6px; width:100%; min-height:36px; padding:6px 10px; font-size:13px; text-align:left; }
+    .foldsum span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .foldsum svg { width:16px; height:16px; flex:0 0 16px; stroke:var(--dim); fill:none; stroke-width:2; transition:transform .15s; }
+    .foldsum.warn { color:var(--warn); }
+    .fold.closed .foldbody { display:none; }
+    .fold.closed .foldsum svg { transform:rotate(-90deg); }
+    .fold:not(.closed) .foldsum { background:var(--acc); color:var(--onacc); }
+    .fold:not(.closed) .foldsum svg { stroke:var(--onacc); }
+
+    /* one screen: shorter strips */
+    .strip { gap:6px; padding:8px 8px 10px; }
+    .strip .nm { min-height:30px; padding:2px; }
+    .fm { height:clamp(150px, calc(100svh - 470px), 260px); }
+    .mlab { font-size:9px; }
+    .db { margin-top:-2px; }
+    .mute { min-height:34px; padding:4px; }
+    .send { min-height:28px; }
+
+    /* status: two compact rows, never scrolls */
+    header { flex-wrap:wrap; row-gap:6px; }
+    #status { flex-basis:100%; flex-wrap:wrap; overflow:visible; gap:4px; }
+    .st { padding:2px 8px; font-size:11px; }
+    .st.dev { display:none; }
+    .toolbar { margin-bottom:8px; }
+    .toolbar .pill { min-height:38px; padding:5px 12px; }
+
+    /* Setup: icon rail on the left */
+    .setup { flex-direction:row; align-items:flex-start; gap:10px; }
+    .side { flex-direction:column; width:48px; flex:0 0 48px; overflow:visible; position:sticky; top:12px; gap:6px; }
+    .side button { width:48px; height:48px; min-height:48px; padding:0; justify-content:center; border-radius:12px; }
+    .side button span { display:none; }
+    .side button svg { width:20px; height:20px; }
+    .pane { min-width:0; }
   }
 </style>
 </head>
@@ -386,28 +428,17 @@
     <div class="note">Plugins must be Linux ARM64 builds (they need <code>Contents/aarch64-linux/*.so</code>). A bare .so/.vst3 file is wrapped into a bundle for you.</div>
     <div id="bundles" style="margin-top:8px"></div>
   </div>
+  <div class="card" data-lock>
+    <h2>Plugin windows</h2>
+    <div id="vwStat" class="note">…</div>
+    <pre id="vwLog" class="hide" style="max-height:160px;overflow:auto;padding:8px;border-radius:8px;font-size:12px;white-space:pre-wrap;margin:6px 0"></pre>
+    <div class="row"><button id="vwRefresh">Refresh</button></div>
+    <div class="note">Press <b>Plugin</b> on a plugin in the Mixer to see and use its own screen, full screen, right in this page. Use <b>Controls</b> for big touch knobs instead. Both need the installer's plugin window option (the default).</div>
+  </div>
   </div>
   <div data-pane="system" class="hide">
   <div class="card" data-lock>
-    <h2>System</h2>
-    <div class="row">
-      <button id="sysRestart">Restart LivePi</button>
-      <button id="sysReboot" class="danger">Reboot Pi</button>
-      <button id="sysOff" class="danger">Shut down Pi</button>
-    </div>
-    <div class="note">After a restart or reboot, wait about 30 seconds and this page reconnects.</div>
-    <h2 style="margin-top:14px">Operating system</h2>
-    <div id="osMsg" class="note">…</div>
-    <div class="row">
-      <button id="osCheck" disabled>Check for OS updates</button>
-      <button id="osUpgrade" class="danger" disabled>Install OS updates</button>
-      <button id="osReboot" class="hide">Reboot now</button>
-    </div>
-    <pre id="osLog" class="hide" style="max-height:200px;overflow:auto;background:var(--inset);padding:8px;border-radius:8px;font-size:12px;white-space:pre-wrap;margin:6px 0"></pre>
-    <div class="note">Runs apt-get update / upgrade on the Pi and needs internet. Don't run it before a service: it can cause audio dropouts while it runs, and may need a reboot afterwards.</div>
-  </div>
-  <div class="card" data-lock>
-    <h2>LivePi update</h2>
+    <h2>LivePi</h2>
     <div id="ver" class="note"></div>
     <div id="rolled" class="note bad hide">The last update did not start and was rolled back automatically.</div>
     <div id="gh" style="margin:6px 0">
@@ -424,13 +455,22 @@
     </div>
     <div id="updStat" class="note"></div>
     <div class="note">Download <b>livepi-build-N.zip</b> from your GitHub repo (Releases, or Actions &gt; Artifacts) and upload it here. Presets, plugins and password are kept. If the new version fails to start, the old one is restored automatically.</div>
+    <div class="row" style="margin-top:12px"><button id="sysRestart">Restart LivePi</button><span class="note grow">Audio stops for a few seconds; this page reconnects by itself.</span></div>
   </div>
   <div class="card" data-lock>
-    <h2>Plugin windows</h2>
-    <div id="vwStat" class="note">…</div>
-    <pre id="vwLog" class="hide" style="max-height:160px;overflow:auto;padding:8px;border-radius:8px;font-size:12px;white-space:pre-wrap;margin:6px 0"></pre>
-    <div class="row"><button id="vwRefresh">Refresh</button></div>
-    <div class="note">Press <b>Plugin</b> on a plugin in the Mixer to see and use its own screen, full screen, right in this page. Use <b>Controls</b> for big touch knobs instead. Both need the installer's plugin window option (the default).</div>
+    <h2>Operating system</h2>
+    <div id="osMsg" class="note">…</div>
+    <div class="row">
+      <button id="osCheck" disabled>Check for OS updates</button>
+      <button id="osUpgrade" class="danger" disabled>Install OS updates</button>
+      <button id="osReboot" class="hide">Reboot now</button>
+    </div>
+    <pre id="osLog" class="hide" style="max-height:200px;overflow:auto;background:var(--inset);padding:8px;border-radius:8px;font-size:12px;white-space:pre-wrap;margin:6px 0"></pre>
+    <div class="note">Runs apt-get update / upgrade on the Pi and needs internet. Don't run it before a service: it can cause audio dropouts while it runs, and may need a reboot afterwards.</div>
+  </div>
+  <div class="card dz" data-lock>
+    <h2>Danger zone</h2>
+    <div class="row"><button id="sysReboot" class="danger">Reboot Pi</button><span class="note grow">Audio stops until the Pi is back, about 30 seconds.</span></div>
   </div>
   </div>
   <div data-pane="settings" class="hide">
@@ -645,7 +685,7 @@ const dbFromPos = p => p < 0.005 ? -100 : MINDB + (MAXDB - MINDB) * Math.pow(p, 
 function paintFader(f, db) {
   f._db = db;
   const p = posFromDb(db);
-  f.querySelector('.knob').style.bottom = `calc(${p * 100}% - 9px)`;
+  const kn = f.querySelector('.knob'); kn.style.bottom = `calc(${p * 100}% - ${(kn.offsetHeight || 18) / 2}px)`;
   f.querySelector('.fill').style.height = (p * 100) + '%';
   f.closest('.strip').querySelector('.db').textContent = db <= MINDB ? '-inf' : db.toFixed(1) + ' dB';
 }
@@ -685,6 +725,7 @@ function ib(icon, title, cls = '') {
   const b = el('button', 'ib ' + cls); b.title = title; b.setAttribute('aria-label', title);
   b.innerHTML = `<svg viewBox="0 0 24 24">${ICON[icon]}</svg>`; return b;
 }
+const openFolds = new Set();
 const TICKS = [6, 0, -6, -12, -24, -36, -48];
 const meterPct = db => Math.max(0, Math.min(1, (db - MINDB) / (MAXDB - MINDB))) * 100;
 function meterCol(kind, label, side, tip) {
@@ -744,8 +785,13 @@ function buildStrip(c, ch) {
       cb.onchange = () => api('/api/monitorbus', { outputs: [...map.querySelectorAll('input:checked')].map(x => +x.dataset.o) });
       map.append(lb);
     }
-    s.append(map);
-    s.append(el('div', 'cpu', '* also carries a channel'));
+    const on = outs.map(o => o + 1);
+    const box = el('div', 'fold' + (openFolds.has('out') ? '' : ' closed'));
+    const sumBtn = el('button', 'foldsum');
+    sumBtn.innerHTML = `<span>Outputs ${on.length ? on.join(', ') : 'none'}</span><svg viewBox="0 0 24 24">${ICON.chev}</svg>`;
+    sumBtn.onclick = () => { box.classList.toggle('closed'); box.classList.contains('closed') ? openFolds.delete('out') : openFolds.add('out'); };
+    const body = el('div', 'foldbody'); body.append(map, el('div', 'cpu', '* also carries a channel'));
+    box.append(sumBtn, body); s.append(box);
   }
 
   const chain = el('div', 'chain');
@@ -777,11 +823,19 @@ function buildStrip(c, ch) {
     chip.append(head, cb, more);
     chain.append(chip);
   });
-  s.append(chain);
   const sum = c.slots.filter(p => p.cpuAvg !== undefined && !p.bypassed).reduce((a, p) => a + p.cpuAvg, 0);
-  if (c.slots.some(p => p.cpuAvg !== undefined)) s.append(el('div', 'cpu', `chain ≈ ${sum.toFixed(1)}% of one core`));
-
   if (isBus) return s;   // the monitor mix carries no plugins
+  // On a phone the chain folds into one line ("2 plugins · LiveVoice, …"); tap to open it
+  const box = el('div', 'fold' + (openFolds.has('c' + ch) ? '' : ' closed'));
+  const names = c.slots.map(p => p.name).join(', ');
+  const sumBtn = el('button', 'foldsum');
+  sumBtn.innerHTML = `<span>${c.slots.length ? esc(c.slots.length === 1 ? names : c.slots.length + ' plugins · ' + names) : 'No plugins'}</span><svg viewBox="0 0 24 24">${ICON.chev}</svg>`;
+  if (c.slots.some(p => p.bypassed)) sumBtn.classList.add('warn');
+  sumBtn.onclick = () => { box.classList.toggle('closed'); box.classList.contains('closed') ? openFolds.delete('c' + ch) : openFolds.add('c' + ch); };
+  const body = el('div', 'foldbody');
+  body.append(chain);
+  if (c.slots.some(p => p.cpuAvg !== undefined)) body.append(el('div', 'cpu', `chain ≈ ${sum.toFixed(1)}% of one core`));
+  box.append(sumBtn, body); s.append(box);
   const add = el('div', 'add');
   const open = el('button', 'addbtn', '+ Add plugin');
   const row = el('div', 'row hide'); row.style.margin = '0';
@@ -790,7 +844,7 @@ function buildStrip(c, ch) {
   const btn = el('button', 'on', 'Add');
   open.onclick = () => { if (!plugins.length) return toast('Upload or scan for plugins on the Setup tab first'); open.classList.add('hide'); row.classList.remove('hide'); };
   btn.onclick = async () => { btn.disabled = true; await api('/api/chain/add', { channel: ch, id: sel.value }); btn.disabled = false; refresh(); };
-  row.append(sel, btn); add.append(open, row); s.append(add);
+  row.append(sel, btn); add.append(open, row); body.append(add);
   return s;
 }
 
@@ -896,7 +950,7 @@ $('pvFs').onclick = () => {
 /* --- Controls --- */
 function knobSvg() {
   const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
-  svg.setAttribute('viewBox', '0 0 64 64'); svg.classList.add('knob');
+  svg.setAttribute('viewBox', '0 0 64 64'); svg.classList.add('rk');
   const mk = (t, a) => { const e = document.createElementNS(ns, t); for (const k in a) e.setAttribute(k, a[k]); svg.append(e); return e; };
   mk('path', { class: 'trk', d: arcPath(0, 1), fill: 'none', 'stroke-width': 5, 'stroke-linecap': 'round' });
   const val = mk('path', { class: 'val', d: arcPath(0, 0), fill: 'none', 'stroke-width': 5, 'stroke-linecap': 'round' });
@@ -1558,7 +1612,6 @@ setInterval(() => { if (!$('tab-setup').classList.contains('hide')) osRefresh();
 
 $('sysRestart').onclick = () => sys('restart', 'Restart LivePi? Audio stops for a few seconds.');
 $('sysReboot').onclick = () => sys('reboot', 'Reboot the Pi? Audio stops until it is back (about 30 seconds).');
-$('sysOff').onclick = () => sys('shutdown', 'Shut down the Pi? You will need to power it back on by hand.');
 
 /* ---------- status / refresh ---------- */
 async function refresh() {
