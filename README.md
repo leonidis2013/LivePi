@@ -3,36 +3,54 @@
 Headless VST3 host for live voice on a Raspberry Pi, managed entirely from a web page.
 Built with JUCE. Runs your own Linux ARM64 VST3 plugins, one chain per channel.
 
-## Build (no compiling on the Pi)
+## Quick start
 
-Push to `main`. GitHub Actions builds on an ARM64 runner and publishes a **Release** (repo page > Releases)
-containing:
-- `livehost-build-N.zip` - the update package (also works for a fresh install)
-- `livehost-linux-arm64.tar.gz` - the same files as a tarball
+1. **Flash the SD card.** In [Raspberry Pi Imager](https://www.raspberrypi.com/software/) choose your Pi model and **Raspberry Pi OS Lite (64-bit)**. Before writing, open the OS settings and set a hostname (for example `livehost`), a username and password, turn on **SSH**, and enter Wi-Fi if you need it. A network cable is better for live use.
+2. **Fit your audio interface** (HAT, USB card) and follow its own setup steps if it has any. Boot the Pi and wait about a minute.
+3. **Connect from your computer** with `ssh your-user@livehost.local` and download and install LiveHost:
+
+   ```bash
+   curl -L -o livehost.tar.gz https://github.com/leonidis2013/LivePi/releases/latest/download/livehost-linux-arm64.tar.gz
+   tar xzf livehost.tar.gz
+   cd livehost
+   sudo ./install-pi.sh your-user
+   ```
+
+   The installer asks you to choose a **web password** (at least 8 characters), then installs and starts everything. When it finishes, run `sudo reboot`.
+4. **Open the page** at `http://livehost.local:8080` from any computer, tablet or phone on the same network. Leave the user name blank and enter the password.
+5. **Set up audio** on the **Setup** tab: pick your audio device, sample rate 48000 and buffer 64 (raise to 128 if the xrun counter climbs), then Apply.
+6. **Add plugins**: on the Setup tab upload each plugin as a `.zip` of its Linux ARM64 `.vst3` folder, press Scan, then add them to a channel on the **Mixer** tab.
+
+No Pi yet, or no audio interface? You can try everything with the virtual sound card, see "Testing without an audio interface" below.
+
+If the Pi has no internet, download `livehost-linux-arm64.tar.gz` from the Releases page on your computer, copy it over with `scp livehost-linux-arm64.tar.gz your-user@livehost.local:` and continue from `tar xzf`.
+
+## Requirements
+
+- A Raspberry Pi 4 or 5 is recommended (a Pi 3 runs it with less headroom), running **Raspberry Pi OS Lite 64-bit**, Debian 12 "Bookworm" or Debian 13 "Trixie". Both are tested automatically in clean ARM64 containers (see `.github/workflows/compat.yml`); a 32-bit OS will not work.
+- An audio interface that Linux (ALSA) supports, or none at all for testing.
+- Your own plugins built as **VST3 for Linux aarch64**.
+
+## How releases are built
+
+Pushing to `main` starts GitHub Actions, which builds LiveHost on an ARM64 runner and publishes a **Release** (repo page > Releases) with:
+- `livehost-build-N.zip` - the update package (for the Setup tab's offline update, or unzip it for a fresh install)
+- `livehost-linux-arm64.tar.gz` - the same files as a tarball (the file the quick start downloads)
 
 GitHub's free ARM64 runners are only available for **public** repositories.
 
-## Install on the Pi
+## What the installer does
 
-Flash Raspberry Pi OS Lite (64-bit) with Raspberry Pi Imager and, in its settings, set the hostname,
-a user, Wi-Fi/SSH. Then from your computer:
+It copies the app to `/opt/livehost`, installs the runtime libraries, sets real-time limits for the audio group, switches the CPU governor to performance (at every boot), stops PulseAudio and Bluetooth, allows the page to reboot/shut down the Pi and run OS updates, and enables boot services. Unless you pass `--no-editor` it also sets up a virtual screen and browser viewer (port 6080) so plugin windows can be opened from the page. To change the password later: `sudo /opt/livehost/set-password.sh`.
 
-```bash
-ssh your-user@your-pi.local
-# copy livehost-linux-arm64.tar.gz to the Pi (scp), then:
-tar xzf livehost-linux-arm64.tar.gz
-cd livehost
-sudo ./install-pi.sh your-user        # add --no-editor to skip plugin window support
-sudo reboot
-```
+## Troubleshooting
 
-The installer asks you to choose a **web password**. It copies the app to `/opt/livehost`, sets
-real-time limits, switches the CPU governor to performance, stops PulseAudio and Bluetooth, allows
-the page to reboot/shut down the Pi, and enables boot services. Unless you pass `--no-editor` it also
-sets up a virtual screen and browser viewer (port 6080) for plugin windows.
-
-Then open `http://<pi-hostname>.local:8080` from any device. The browser asks for the password
-(user name can be left blank). To change it later: `sudo /opt/livehost/set-password.sh`.
+- **Page does not open:** use the Pi's IP address instead of `livehost.local` (find it with `hostname -I` on the Pi, or in your router), and check `sudo systemctl status livehost`.
+- **See what LiveHost is doing:** `sudo journalctl -u livehost -n 50`.
+- **No audio device in the list:** the Setup tab lists what Linux sees; `aplay -l` on the Pi shows the same. Choose the **Virtual** type to keep working without hardware.
+- **Crackles or xruns:** raise the buffer size (64, then 128), use a wired network, and avoid the per-plugin CPU test and plugin windows during a show.
+- **Forgot the password:** run `sudo /opt/livehost/set-password.sh` on the Pi.
+- **An update did not start:** LiveHost restores the previous version by itself after 3 failed starts and shows a notice on the page.
 
 ## Testing without an audio interface
 
