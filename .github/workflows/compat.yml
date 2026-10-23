@@ -1,0 +1,35 @@
+name: compat
+
+# Runs the latest released LiveHost build in clean Debian containers (ARM64) with no sound card.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - scripts/ci-smoke.sh
+      - .github/workflows/compat.yml
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-22.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [debian:bookworm, debian:trixie]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get the latest release package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download --pattern 'livehost-build-*.zip' --repo "$GITHUB_REPOSITORY"
+      - name: Run in ${{ matrix.image }}
+        run: |
+          set +e
+          docker run --rm -v "$PWD:/work" ${{ matrix.image }} bash /work/scripts/ci-smoke.sh > smoke.log 2>&1
+          rc=$?
+          echo "exit code $rc"
+          # Show every line as a notice so the results are visible on the run page
+          while IFS= read -r line; do echo "::notice::${{ matrix.image }} | $(echo "$line" | cut -c1-400)"; done < result.txt
+          grep -q "ALL PASSED" result.txt || { echo "::error::${{ matrix.image }} smoke test failed"; exit 1; }
