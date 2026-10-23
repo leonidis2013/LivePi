@@ -32,6 +32,7 @@ jobs:
           echo "exit code $rc"
           # One annotation per block (GitHub shows at most 10 per step); %0A is a line break
           enc() { sed -e 's/%/%25/g' -e 's/\r//g' | cut -c1-300 | awk 'BEGIN{ORS="%0A"}{print}'; }
+          echo "::notice title=${{ matrix.image }} failures::$( (grep '^FAIL' result.txt || echo none) | enc)"
           echo "::notice title=${{ matrix.image }} results::$(enc < result.txt)"
           echo "::notice title=${{ matrix.image }} log::$(tail -n 25 smoke.log | enc)"
           grep -q "ALL PASSED" result.txt || { echo "::error::${{ matrix.image }} smoke test failed"; exit 1; }
