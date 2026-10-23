@@ -200,6 +200,8 @@
   .chip { background:var(--card2); border:0; border-radius:10px; padding:8px; }
   .chip .cn { display:flex; align-items:center; gap:6px; margin:0 0 6px; font-size:13px; }
   .chip .cn .ib { width:28px; height:28px; background:transparent; color:var(--dim); }
+  .cnlink { cursor:pointer; text-decoration:underline; text-decoration-color:transparent; text-underline-offset:3px; }
+  .cnlink:hover { text-decoration-color:currentColor; }
   .chip .cn span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .cb { gap:4px; }
   .ib { width:34px; height:34px; padding:0; display:inline-flex; align-items:center; justify-content:center; background:var(--card); border-radius:8px; }
@@ -525,6 +527,7 @@
   <div class="card">
     <h2>Mixer</h2>
     <div class="set"><div class="sl"><b>Master fader</b><span id="masterNote">Hidden, it keeps its level</span></div><div class="sc"><div class="seg" id="masterSeg"><button data-v="on">Show</button><button data-v="off">Hide</button></div></div></div>
+    <div class="set"><div class="sl"><b>Plugins open in</b><span>What tapping a plugin name opens (this device)</span></div><div class="sc"><div class="seg" id="pvDefSeg"><button data-v="controls">Controls</button><button data-v="window">Plugin</button></div></div></div>
     <div class="set"><div class="sl"><b>PAFL mode</b><span>PFL before the fader, AFL after it</span></div><div class="sc"><div class="seg" id="paflSeg"><button data-v="0">PFL</button><button data-v="2">AFL</button><button data-v="1">Input</button></div></div></div>
     <div class="set"><div class="sl"><b>Listen delay</b><span>Lower = less delay, more risk of crackles</span></div><div class="sc"><div class="seg" id="leadSeg"><button data-v="40">Lowest</button><button data-v="80">Low</button><button data-v="200">Safe</button></div></div></div>
   </div>
@@ -800,6 +803,12 @@ function togglePanel(btn, panel) {
 $('tbPresets').onclick = () => togglePanel('tbPresets', 'pnPresets');
 $('presetList').addEventListener('change', () => { $('tbPresetName').textContent = $('presetList').value || ''; });
 
+/* ---------- default plugin view ---------- */
+function pluginViewDefault() { try { return localStorage.getItem('lh.pview') || 'controls'; } catch (e) { return 'controls'; } }
+function pvDefSync() { const v = pluginViewDefault(); document.querySelectorAll('#pvDefSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); }
+document.querySelectorAll('#pvDefSeg button').forEach(b => b.onclick = () => { try { localStorage.setItem('lh.pview', b.dataset.v); } catch (e) {} pvDefSync(); structKey = ''; if (S) renderStrips(S); });
+pvDefSync();
+
 /* ---------- PAFL mode (global, like the desk setting) ---------- */
 function paflSync() { const v = String(S ? S.paflMode || 0 : 0); document.querySelectorAll('#paflSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); }
 document.querySelectorAll('#paflSeg button').forEach(b => b.onclick = async () => { await api('/api/mixer', { paflMode: +b.dataset.v }); structKey = ''; await refresh(); });
@@ -949,7 +958,9 @@ function buildStrip(c, ch) {
   const chain = el('div', 'chain');
   c.slots.forEach((p, i) => {
     const chip = el('div', 'chip' + (p.bypassed ? ' byp' : ''));
-    const head = el('div', 'cn'); head.append(el('span', '', p.name));
+    const head = el('div', 'cn'); const nmLink = el('span', 'cnlink', p.name); head.append(nmLink);
+    nmLink.title = 'Open (' + (pluginViewDefault() === 'window' ? 'plugin screen' : 'controls') + ')';
+    nmLink.onclick = () => openPlugin(ch, i, p.name, pluginViewDefault() === 'window' && S && S.editorAvailable ? 'window' : 'controls');
     const cb = el('div', 'cb');
     const ctl = ib('ctl', 'Controls'); ctl.onclick = () => openPlugin(ch, i, p.name, 'controls');
     cb.append(ctl);
