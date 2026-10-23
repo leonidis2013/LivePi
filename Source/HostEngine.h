@@ -123,6 +123,7 @@ private:
     bool monitorPost = true;
     bool autoFallback = false;                // virtual card chosen automatically: do not remember it
     float masterDb = 0.0f;
+    int paflMode = 0;                                   // global PAFL tap for every channel: 0 = PFL, 1 = input, 2 = AFL
 
     juce::AudioProcessorGraph graph;
     juce::AudioProcessorPlayer player;

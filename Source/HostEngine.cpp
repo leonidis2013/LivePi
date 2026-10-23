@@ -207,6 +207,7 @@ HostEngine::Chain HostEngine::makeChain (int index)
 {
     Chain c;
     c.name = "Ch " + String (index + 1);
+    c.sendTap = paflMode;
     c.tap   = graph.addNode (std::make_unique<ChannelStrip> (nullptr, true));
     c.strip = graph.addNode (std::make_unique<ChannelStrip> (&masterGain, false));
     if (index != kMonBus)
@@ -485,6 +486,14 @@ var HostEngine::setBypass (int channel, int slot, bool bypassed)
 
 var HostEngine::setMixer (const var& body)
 {
+    if (body.hasProperty ("paflMode"))   // global, like PAFL mode on a desk: applies to every channel
+    {
+        paflMode = jlimit (0, 2, (int) body["paflMode"]);
+        for (auto& c : chains) c.sendTap = paflMode;
+        rebuildConnections();
+        markDirty();
+        if (! body.hasProperty ("channel")) return ok();
+    }
     const int ch = (int) body.getProperty ("channel", -1);
     auto* cp = chainFor (ch);
     if (cp == nullptr)
@@ -1122,6 +1131,7 @@ var HostEngine::getState()
     o->setProperty ("numChannels", (int) chains.size());
     o->setProperty ("cpu", deviceManager.getCpuUsage());
     o->setProperty ("masterDb", masterDb);
+    o->setProperty ("paflMode", paflMode);
     o->setProperty ("editorAvailable", std::getenv ("DISPLAY") != nullptr);
     o->setProperty ("monitorChannel", monitorChannel);
     o->setProperty ("monitorPost", monitorPost);
@@ -1209,6 +1219,7 @@ var HostEngine::serialise()
     auto* root = new DynamicObject();
     root->setProperty ("numChannels", (int) chains.size());
     root->setProperty ("masterDb", masterDb);
+    root->setProperty ("paflMode", paflMode);
 
     Array<var> chainArr;
     for (auto& c : chains)
@@ -1244,6 +1255,14 @@ var HostEngine::deserialise (const var& v)
     clearChains();
 
     const int n = jlimit (1, 16, (int) v.getProperty ("numChannels", 1));
+    // older sessions stored the tap per channel: take the first channel's as the global mode
+    {
+        int pm = 0;
+        if (v.hasProperty ("paflMode")) pm = (int) v["paflMode"];
+        else if (auto* ca = v.getProperty ("chains", {}).getArray(); ca != nullptr && ! ca->isEmpty())
+            pm = (*ca)[0].hasProperty ("sendTap") ? (int) (*ca)[0]["sendTap"] : ((bool) (*ca)[0].getProperty ("sendPre", false) ? 1 : 0);
+        paflMode = jlimit (0, 2, pm);
+    }
     for (int i = 0; i < n; ++i)
         chains.push_back (makeChain (i));
 
@@ -1263,7 +1282,7 @@ var HostEngine::deserialise (const var& v)
             applyMix (chain);
 
             chain.sendDb = (float) (double) cv.getProperty ("sendDb", -100.0);
-            chain.sendTap = cv.hasProperty ("sendTap") ? jlimit (0, 2, (int) cv["sendTap"]) : ((bool) cv.getProperty ("sendPre", false) ? 1 : 0);
+            chain.sendTap = paflMode;
             applyMix (chain);
             loadSlots (chain, cv.getProperty ("slots", {}), errors);
         }
