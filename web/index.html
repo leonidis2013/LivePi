@@ -375,6 +375,16 @@
   .monbtn { flex:0 0 auto; width:46px; height:46px; min-height:0 !important; padding:0; border-radius:50% !important; font-size:10px; font-weight:800; letter-spacing:.04em;
             border:2px solid var(--line); background:var(--card2); }
   .monbtn.on { background:var(--warn); border-color:var(--warn); color:#1a1300; box-shadow:0 0 12px color-mix(in srgb, var(--warn) 55%, transparent); }
+
+  /* lost connection: everything grayed out and not pressable until the Pi answers again */
+  .offbar { display:none; position:fixed; left:50%; top:calc(12px + env(safe-area-inset-top)); transform:translateX(-50%); z-index:60;
+            background:var(--bad); color:#fff; padding:10px 16px; border-radius:999px; font-weight:600; font-size:14px; box-shadow:0 6px 24px var(--shadow);
+            align-items:center; gap:10px; white-space:nowrap; }
+  body.offline .offbar { display:flex; }
+  body.offline header > :not(nav), body.offline #app, body.offline nav.seg, body.offline .pv { filter:grayscale(1); opacity:.4; pointer-events:none; user-select:none; }
+  body.offline #msg { display:none !important; }
+  .spin { width:14px; height:14px; border:2px solid #fff6; border-top-color:#fff; border-radius:50%; animation:spin 0.9s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -563,6 +573,7 @@
     <div class="note">Forgot it? On the Pi run <code>sudo /opt/livepi/set-password.sh --off</code></div>
   </form>
 </div>
+<div id="offline" class="offbar"><span class="spin"></span>Connection to LivePi lost. Reconnecting…</div>
 <div id="msg"></div>
 
 <script>
@@ -574,15 +585,29 @@ function esc(t) { return String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<':
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 function toast(t) { const m = $('msg'); m.textContent = t; m.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => m.style.display = 'none', 3500); }
 
+/* ---------- connection: gray everything out while the Pi can't be reached ---------- */
+const NET = { fails: 0, offline: false };
+function netOk() {
+  NET.fails = 0;
+  if (NET.offline) { NET.offline = false; document.body.classList.remove('offline'); structKey = ''; toast('Connected again'); }
+}
+function netFail() {
+  if (++NET.fails >= 2 && !NET.offline) { NET.offline = true; document.body.classList.add('offline'); }
+}
 async function api(path, body, quiet) {
   const opt = body === undefined ? {} : { method: 'POST', headers: {'Content-Type':'application/json', 'X-LivePi':'1'}, body: JSON.stringify(body) };
+  // reads give up after 5 s so a dead connection is noticed quickly; changes may take longer (uploads, updates)
+  const ac = new AbortController(), t = body === undefined ? setTimeout(() => ac.abort(), 5000) : null;
+  opt.signal = ac.signal;
   try {
     const r = await fetch(path, opt);
+    clearTimeout(t);
+    netOk();
     const j = await r.json();
     if (r.status === 401 && j.login) { showLogin(true); return j; }
     if (j.error && !quiet) toast(j.error);
     return j;
-  } catch (e) { toast('Connection lost'); return {}; }
+  } catch (e) { clearTimeout(t); netFail(); if (!NET.offline && !quiet) toast('Connection lost'); return {}; }
 }
 
 const pending = {};
@@ -1736,7 +1761,7 @@ $('sysReboot').onclick = () => sys('reboot', 'Reboot the Pi? Audio stops until i
 
 /* ---------- status / refresh ---------- */
 async function refresh() {
-  const st = await api('/api/state');
+  const st = await api('/api/state', undefined, true);
   if (!st.chains) return;
   S = st;
   const cpu = (st.cpu * 100).toFixed(0);
