@@ -122,6 +122,8 @@ sudo /opt/livehost/trusted-network.sh add 192.168.10.0/24   # a network, or a si
 sudo /opt/livehost/trusted-network.sh list | remove <entry> | clear
 ```
 
+**Trusted access** (Setup > Settings > Access) decides what happens while no password is set. **Off** (the default): everyone on the network can use everything. **On**: uploads, plugin windows, updates and reboot only work from the trusted networks listed there; on other devices those sections are grayed out with a note that a password needs to be set. Turning it on from an untrusted device offers to add that device's network first, so you don't lock yourself out; from the Pi you can always run `sudo /opt/livehost/trusted-network.sh open` (or `lock`).
+
 Computers in a trusted network use LiveHost without a password, including uploads, updates and reboot, even if no password is set at all. Everyone else still needs the password (and without one, the dangerous controls stay locked). Only trust a network you control, such as a dedicated AV VLAN: anyone on it can upload plugins, which are native code, and reboot the Pi. The list is stored in `~/.livehost/trusted.txt`; IPv4 only, and networks wider than /8 are ignored.
 
 ## Notes

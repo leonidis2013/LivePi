@@ -5,6 +5,8 @@
 #   sudo /opt/livehost/trusted-network.sh remove 192.168.10.0/24
 #   sudo /opt/livehost/trusted-network.sh list
 #   sudo /opt/livehost/trusted-network.sh clear
+#   sudo /opt/livehost/trusted-network.sh lock    # trusted access ON: without a password, only these networks get full access
+#   sudo /opt/livehost/trusted-network.sh open    # trusted access OFF: without a password, everyone gets full access (default)
 # Only use a network you control (for example a dedicated AV VLAN). Anyone on it can upload
 # plugins (native code) and reboot the Pi. IPv4 only; networks wider than /8 are refused.
 set -euo pipefail
@@ -45,11 +47,17 @@ case "$CMD" in
     mv "$FILE.new" "$FILE"
     ;;
   clear) : > "$FILE" ;;
+  lock|open)
+    echo "$( [[ $CMD == lock ]] && echo locked || echo open )" > "$DIR/access.txt"
+    chown "$USER_NAME:$GROUP_NAME" "$DIR/access.txt"; chmod 600 "$DIR/access.txt"
+    ;;
   list) ;;
-  *) echo "usage: $0 add|remove|list|clear [network]"; exit 2 ;;
+  *) echo "usage: $0 add|remove|list|clear|lock|open [network]"; exit 2 ;;
 esac
 
 chown "$USER_NAME:$GROUP_NAME" "$FILE"; chmod 600 "$FILE"
+A=$(cat "$DIR/access.txt" 2>/dev/null || echo open)
+echo "Trusted access: $( [[ "$A" == locked ]] && echo "ON (without a password, only trusted networks get full access)" || echo "OFF (without a password, everyone gets full access)" )"
 echo "Trusted networks (no password needed from these):"
 if [[ -s "$FILE" ]]; then sed 's/^/  /' "$FILE"; else echo "  (none)"; fi
 [[ "$CMD" == list ]] || { systemctl try-restart livehost.service 2>/dev/null || true; echo "LiveHost restarted."; }

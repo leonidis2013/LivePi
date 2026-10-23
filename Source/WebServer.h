@@ -27,9 +27,16 @@ private:
     bool checkAuth (const httplib::Request&) const;
     bool isTrusted (const httplib::Request&) const;
 
+    bool isLockedPath (const juce::String& path) const;
+    bool mayUseLocked (const httplib::Request&) const;   // may this client use uploads, updates, reboot...?
+    static juce::String clientIp (const httplib::Request&);
+    juce::String saveTrusted (const juce::StringArray& entries);   // empty = ok, else error
+
     struct Net { juce::uint32 addr, mask; };
+    mutable juce::CriticalSection trustedLock;   // trusted/trustedText/openAccess change at run time
     std::vector<Net> trusted;         // from ~/.livehost/trusted.txt (IPv4 only)
     juce::StringArray trustedText;
+    bool openAccess = true;           // ~/.livehost/access.txt: "open" (default) or "locked"; only used without a password
 
     HostEngine& engine;
     EditorViewer* viewer = nullptr;

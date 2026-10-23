@@ -156,8 +156,14 @@ namespace
 
 void WebServer::loadTrusted()
 {
+    const ScopedLock sl (trustedLock);
     trusted.clear();
     trustedText.clear();
+
+    // Without a password, "open" (the default) lets everyone on the network use everything;
+    // "locked" keeps uploads, updates, reboot and plugin windows for trusted networks only.
+    openAccess = HostEngine::dataDir().getChildFile ("access.txt").loadFileAsString().trim() != "locked";
+
     auto f = HostEngine::dataDir().getChildFile ("trusted.txt");
     if (! f.existsAsFile())
         return;
@@ -182,14 +188,57 @@ void WebServer::loadTrusted()
     }
 }
 
-bool WebServer::isTrusted (const httplib::Request& req) const
+String WebServer::clientIp (const httplib::Request& req)
 {
-    if (trusted.empty())
-        return false;
-
     String ip (req.remote_addr);
     if (ip.startsWithIgnoreCase ("::ffff:"))
         ip = ip.substring (7);                                  // IPv4 seen through a dual-stack socket
+    return ip;
+}
+
+bool WebServer::isLockedPath (const String& path) const
+{
+    return path.startsWith ("/api/plugins/upload") || path.startsWith ("/api/plugins/delete") || path.startsWith ("/api/testfile")
+        || path.startsWith ("/api/editor") || path.startsWith ("/api/system/");
+}
+
+bool WebServer::mayUseLocked (const httplib::Request& req) const
+{
+    if (authHash.isNotEmpty()) return true;      // a password exists: whoever got past it may
+    if (isTrusted (req)) return true;
+    const ScopedLock sl (trustedLock);
+    return openAccess;
+}
+
+String WebServer::saveTrusted (const StringArray& entries)
+{
+    StringArray clean;
+    for (auto e : entries)
+    {
+        e = e.trim();
+        if (e.isEmpty()) continue;
+        const int prefix = e.containsChar ('/') ? e.fromFirstOccurrenceOf ("/", false, false).getIntValue() : 32;
+        uint32 a = 0;
+        if (! parseIPv4 (e.upToFirstOccurrenceOf ("/", false, false), a) || prefix < 8 || prefix > 32
+            || (e.containsChar ('/') && ! e.fromFirstOccurrenceOf ("/", false, false).containsOnly ("0123456789")))
+            return "Not a valid IPv4 address or network (prefix /8 to /32): " + e;
+        clean.addIfNotAlreadyThere (e);
+    }
+    auto f = HostEngine::dataDir().getChildFile ("trusted.txt");
+    if (! f.replaceWithText (clean.joinIntoString ("\n") + (clean.isEmpty() ? "" : "\n")))
+        return "Could not save the trusted networks.";
+    f.setExecutePermission (false);
+    loadTrusted();
+    return {};
+}
+
+bool WebServer::isTrusted (const httplib::Request& req) const
+{
+    const ScopedLock sl (trustedLock);
+    if (trusted.empty())
+        return false;
+
+    const String ip = clientIp (req);
 
     uint32 a = 0;
     if (! parseIPv4 (ip, a))
@@ -257,15 +306,66 @@ void WebServer::setupRoutes()
         }
 
         const String path (req.path);
-        if (! passwordSet && ! trustedClient && (path.startsWith ("/api/plugins/upload") || path.startsWith ("/api/plugins/delete") || path.startsWith ("/api/testfile") || path.startsWith ("/api/editor")
-                              || path.startsWith ("/api/system/")))
+        if (! passwordSet && ! trustedClient && isLockedPath (path) && ! mayUseLocked (req))
         {
             res.status = 403;
-            res.set_content ("{\"error\":\"Set a password (sudo /opt/livehost/set-password.sh) or trust this network (sudo /opt/livehost/trusted-network.sh add <network>) first\"}", "application/json");
+            res.set_content ("{\"error\":\"Access is locked: this device is not in a trusted network. Set a password, or on the Pi run: sudo /opt/livehost/trusted-network.sh open\"}", "application/json");
             return httplib::Server::HandlerResponse::Handled;
         }
 
         return httplib::Server::HandlerResponse::Unhandled;
+    });
+
+    // Access settings: open/locked (without a password) and the trusted networks.
+    // Anyone may lock; opening or editing the list needs a client that may already use locked features.
+    svr.Get ("/api/access", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto* o = new DynamicObject();
+        {
+            const ScopedLock sl (trustedLock);
+            o->setProperty ("mode", openAccess ? "open" : "locked");
+            Array<var> nets; for (auto& t : trustedText) nets.add (t);
+            o->setProperty ("networks", nets);
+        }
+        o->setProperty ("passwordSet", authHash.isNotEmpty());
+        o->setProperty ("trusted", isTrusted (req));
+        o->setProperty ("allowed", mayUseLocked (req));
+        o->setProperty ("canChange", mayUseLocked (req));
+        const auto ip = clientIp (req);
+        o->setProperty ("clientIp", ip);
+        uint32 a = 0;
+        if (parseIPv4 (ip, a))
+            o->setProperty ("clientNet", String ((a >> 24) & 255) + "." + String ((a >> 16) & 255) + "." + String ((a >> 8) & 255) + ".0/24");
+        reply (res, var (o));
+    });
+
+    svr.Post ("/api/access", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto b = body (req);
+        const bool may = mayUseLocked (req);
+
+        if (b.hasProperty ("networks"))
+        {
+            if (! may) { reply (res, errVar ("Only a device that already has full access can change the trusted networks.")); return; }
+            StringArray list;
+            if (auto* arr = b["networks"].getArray()) for (auto& v : *arr) list.add (v.toString());
+            auto e = saveTrusted (list);
+            if (e.isNotEmpty()) { reply (res, errVar (e)); return; }
+        }
+
+        if (b.hasProperty ("mode"))
+        {
+            const auto m = b["mode"].toString();
+            if (m != "open" && m != "locked") { reply (res, errVar ("mode must be open or locked")); return; }
+            if (m == "open" && ! may) { reply (res, errVar ("Only a trusted device can unlock. On the Pi run: sudo /opt/livehost/trusted-network.sh open")); return; }
+            auto f = HostEngine::dataDir().getChildFile ("access.txt");
+            if (! f.replaceWithText (m + "\n")) { reply (res, errVar ("Could not save the setting.")); return; }
+            loadTrusted();
+        }
+
+        auto* o = new DynamicObject();
+        o->setProperty ("ok", true);
+        reply (res, var (o));
     });
 
     svr.Get ("/api/info", [this] (const httplib::Request& req, httplib::Response& res)
@@ -273,7 +373,8 @@ void WebServer::setupRoutes()
         auto* o = new DynamicObject();
         o->setProperty ("passwordSet", authHash.isNotEmpty());
         o->setProperty ("trusted", isTrusted (req));
-        o->setProperty ("trustedNetworks", trustedText.joinIntoString (", "));
+        o->setProperty ("allowed", mayUseLocked (req));
+        { const ScopedLock sl (trustedLock); o->setProperty ("trustedNetworks", trustedText.joinIntoString (", ")); o->setProperty ("access", openAccess ? "open" : "locked"); }
         const String build (LIVEHOST_BUILD_STR);
         o->setProperty ("version", build == "dev" ? build : "build " + build);
         o->setProperty ("rolledBack", HostEngine::dataDir().getChildFile ("rolled-back").existsAsFile());
