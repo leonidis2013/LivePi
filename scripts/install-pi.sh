@@ -159,7 +159,7 @@ systemctl daemon-reload
 
 echo "== Web password"
 if [[ -t 0 || -n "${LIVEHOST_PASSWORD:-}" ]]; then
-  /opt/livehost/set-password.sh "$USER_NAME"
+  /opt/livehost/set-password.sh "$USER_NAME" || echo "No password was set. LiveHost will still start; set one later with: sudo /opt/livehost/set-password.sh"
 else
   echo "No terminal available, so no password was set. Run: sudo /opt/livehost/set-password.sh"
 fi

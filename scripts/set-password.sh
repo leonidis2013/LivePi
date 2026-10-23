@@ -16,9 +16,15 @@ id "$USER_NAME" >/dev/null 2>&1 || { echo "User '$USER_NAME' does not exist. Usa
 
 PASS="${LIVEHOST_PASSWORD:-}"
 if [[ -z "$PASS" ]]; then
-  read -r -s -p "New LiveHost password (at least 8 characters): " PASS; echo
-  read -r -s -p "Repeat it: " PASS2; echo
-  [[ "$PASS" == "$PASS2" ]] || { echo "Passwords do not match."; exit 1; }
+  echo "Choose the password for the LiveHost web page. Nothing is shown while you type."
+  for attempt in 1 2 3; do
+    read -r -s -p "New password (at least 8 characters): " PASS; echo
+    read -r -s -p "Repeat it: " PASS2; echo
+    if (( ${#PASS} < 8 )); then echo "That password is too short - use at least 8 characters."; PASS=""; continue; fi
+    if [[ "$PASS" != "$PASS2" ]]; then echo "The two entries do not match."; PASS=""; continue; fi
+    break
+  done
+  [[ -n "$PASS" ]] || { echo "No password was set."; exit 1; }
 fi
 if (( ${#PASS} < 8 )); then echo "Password must be at least 8 characters."; exit 1; fi
 
