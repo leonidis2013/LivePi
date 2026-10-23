@@ -331,6 +331,14 @@
   #loginMsg { font-variant-numeric:tabular-nums; min-height:1.4em; }
   .pwform { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
   .pwform .row { flex-wrap:nowrap; }
+
+  .monbtn { border-radius:999px; padding:6px; font-size:12px; letter-spacing:.08em; text-transform:uppercase; }
+  .monbtn.on { background:var(--teal); color:var(--onacc); }
+  .listen { display:flex; align-items:center; justify-content:center; gap:7px; border-radius:999px; padding:6px; font-size:12px; letter-spacing:.06em; text-transform:uppercase; }
+  .listen svg { width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .listen.on { background:var(--acc); color:var(--onacc); }
+  .monstat:empty { display:none; }
+  @media (max-width:720px) { .monbtn, .listen { min-height:34px; } }
 </style>
 </head>
 <body>
@@ -349,21 +357,10 @@
 <section id="tab-mix">
   <div class="toolbar">
     <button class="pill" id="tbPresets"><svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></svg><span>Presets</span><b id="tbPresetName"></b></button>
-    <button class="pill" id="tbListen"><svg viewBox="0 0 24 24"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg><span>Listen</span></button>
   </div>
   <div id="pnPresets" class="panel hide">
     <div class="row"><select id="presetList" class="grow"></select><button id="presetLoad">Load</button></div>
     <div class="row"><input id="presetName" class="grow" placeholder="Save current mix as…"><button id="presetSave">Save</button></div>
-  </div>
-  <div id="pnListen" class="panel hide">
-    <div class="row"><select id="monSel" class="grow"></select></div>
-    <div class="row">
-      <select id="monLead" class="grow" title="Smaller = less delay but more risk of crackles on Wi-Fi">
-        <option value="40">Lowest delay</option><option value="80" selected>Low delay</option><option value="200">Safe</option>
-      </select>
-      <button id="monGo" class="on">Listen in this browser</button>
-    </div>
-    <div class="note" id="monInfo">Plays the chosen signal on this device. It only reads a copy of the audio, so it does not take priority over the main inputs and outputs.</div>
   </div>
   <div id="strips" class="strips"></div>
 </section>
@@ -493,6 +490,9 @@
     <h2>Mixer</h2>
     <div class="row"><span class="grow">Master fader</span>
       <div class="seg" id="masterSeg"><button data-v="on">Show</button><button data-v="off">Hide</button></div>
+    </div>
+    <div class="row"><span class="grow">Listen delay (this device)</span>
+      <div class="seg" id="leadSeg"><button data-v="40">Lowest</button><button data-v="80">Low</button><button data-v="200">Safe</button></div>
     </div>
     <div class="note" id="masterNote">Hidden, the master keeps its current level. Remembered on this device only.</div>
   </div>
@@ -755,13 +755,16 @@ $('acAdd').onclick = async () => {
 /* ---------- mixer toolbar ---------- */
 function togglePanel(btn, panel) {
   const open = $(panel).classList.contains('hide');
-  ['pnPresets', 'pnListen'].forEach(p => $(p).classList.add('hide'));
-  ['tbPresets', 'tbListen'].forEach(b => $(b).classList.remove('open'));
+  $('pnPresets').classList.add('hide'); $('tbPresets').classList.remove('open');
   if (open) { $(panel).classList.remove('hide'); $(btn).classList.add('open'); }
 }
 $('tbPresets').onclick = () => togglePanel('tbPresets', 'pnPresets');
-$('tbListen').onclick = () => togglePanel('tbListen', 'pnListen');
 $('presetList').addEventListener('change', () => { $('tbPresetName').textContent = $('presetList').value || ''; });
+
+/* ---------- listen delay ---------- */
+function leadSync() { const v = String(Math.round(monLead() * 1000)); document.querySelectorAll('#leadSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); }
+document.querySelectorAll('#leadSeg button').forEach(b => b.onclick = () => { try { localStorage.setItem('lh.lead', b.dataset.v); } catch (e) {} leadSync(); if (mon.on) mon.next = 0; });
+leadSync();
 
 /* ---------- master fader on/off ---------- */
 function masterSync() {
@@ -860,14 +863,21 @@ function buildStrip(c, ch) {
   s.append(mute);
 
   if (!isBus) {
-    const sw = el('div', 'send'); sw.title = 'How much of this channel (after its plugins, before its fader) goes to the Monitor mix';
-    const r = el('input'); r.type = 'range'; r.min = -60; r.max = 6; r.step = 1; r.className = 'sendr'; r.dataset.ch = ch;
-    r.value = c.sendDb <= -60 ? -60 : c.sendDb;
-    const lbl = el('span', '', ''); lbl.style.minWidth = '34px'; lbl.style.textAlign = 'right';
-    const show = () => { lbl.textContent = +r.value <= -60 ? 'off' : (+r.value) + ' dB'; };
-    show(); r.addEventListener('syncshow', show);
-    r.oninput = () => { show(); throttled('s' + ch, () => api('/api/mixer', { channel: ch, sendDb: +r.value <= -60 ? -100 : +r.value })); };
-    sw.append(el('span', '', 'Mon'), r, lbl); s.append(sw);
+    const mb = el('button', 'monbtn' + (c.sendDb > -60 ? ' on' : ''), 'Monitor');
+    mb.title = 'Send this channel (after its plugins) to the Monitor mix. One channel at a time.';
+    mb.dataset.ch = ch;
+    mb.onclick = async () => {
+      const on = !mb.classList.contains('on');
+      document.querySelectorAll('.monbtn').forEach(x => x.classList.toggle('on', on && x === mb));
+      // only one channel feeds the monitor mix for now
+      const calls = [];
+      (S ? S.chains : []).forEach((cc, i) => {
+        const want = on && i === ch;
+        if (want || cc.sendDb > -60) calls.push(api('/api/mixer', { channel: i, sendDb: want ? 0 : -100 }));
+      });
+      await Promise.all(calls); refresh();
+    };
+    s.append(mb);
   } else {
     const map = el('div', 'map'); map.title = 'Which output channels of the audio device carry the monitor mix';
     map.append(el('span', 'mlab', 'OUTPUTS'));
@@ -882,6 +892,11 @@ function buildStrip(c, ch) {
       cb.onchange = () => api('/api/monitorbus', { outputs: [...map.querySelectorAll('input:checked')].map(x => +x.dataset.o) });
       map.append(lb);
     }
+    const lb = el('button', 'listen' + (mon.on ? ' on' : ''));
+    lb.innerHTML = `<svg viewBox="0 0 24 24"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg><span>${mon.on ? 'Listening' : 'Listen here'}</span>`;
+    lb.title = 'Play the monitor mix on this phone / computer (a copy of the audio; it never delays the Pi)';
+    lb.onclick = () => mon.on ? monStop() : monStart();
+    s.append(lb, el('div', 'cpu monstat', mon.on ? monText() : ''));
     const on = outs.map(o => o + 1);
     const box = el('div', 'fold' + (openFolds.has('out') ? '' : ' closed'));
     const sumBtn = el('button', 'foldsum');
@@ -974,8 +989,8 @@ function syncMix(st) {
     const f = s.querySelector('.fader');
     if (!f.dataset.drag) paintFader(f, c.gainDb);
     s.querySelector('.mute').classList.toggle('on', c.mute);
-    const sr = s.querySelector('.sendr');
-    if (sr && document.activeElement !== sr) { sr.value = c.sendDb <= -60 ? -60 : c.sendDb; sr.dispatchEvent(new Event('syncshow')); }
+    const mb = s.querySelector('.monbtn');
+    if (mb) mb.classList.toggle('on', c.sendDb > -60);
   });
   const m = document.querySelector('.strip.master .fader');
   if (m && !m.dataset.drag) paintFader(m, st.masterDb);
@@ -1430,21 +1445,13 @@ $('vwRefresh').onclick = viewerRefresh;
 
 /* ---------- listen in this browser ---------- */
 const mon = { on: false, ctx: null, since: 0, next: 0, timer: null, key: '' };
-function monFill(st) {
-  const key = st.numChannels + '|' + !!st.monitorBus;
-  if (key === mon.key) return;
-  mon.key = key;
-  const sel = $('monSel'), prev = sel.value; sel.innerHTML = '';
-  for (let i = 0; i < st.numChannels; i++) {
-    const nm = st.chains[i] ? st.chains[i].name : 'Channel ' + (i + 1);
-    [['out', 'output (after plugins)'], ['in', 'input (before plugins)']].forEach(([p, t]) => {
-      const o = el('option', '', nm + ' - ' + t); o.value = i + ':' + p; sel.append(o);
-    });
-  }
-  const o = el('option', '', 'Monitor mix - output'); o.value = '100:out'; sel.append(o);
-  if ([...sel.options].some(x => x.value === prev)) sel.value = prev;
+function monFill() {}
+function monLead() { try { return (+localStorage.getItem('lh.lead') || 80) / 1000; } catch (e) { return 0.08; } }
+function monText() { return mon.delayMs ? `≈ ${mon.delayMs} ms delay` + (mon.under ? ` · ${mon.under} dropouts` : '') : 'Starting…'; }
+function monUi() {
+  document.querySelectorAll('.listen').forEach(b => { b.classList.toggle('on', mon.on); b.querySelector('span').textContent = mon.on ? 'Listening' : 'Listen here'; });
+  document.querySelectorAll('.monstat').forEach(x => x.textContent = mon.on ? monText() : '');
 }
-function monTap() { const [c, p] = $('monSel').value.split(':'); return { channel: +c, post: p === 'out' }; }
 async function monStream() {
   mon.abort = new AbortController();
   mon.under = 0;
@@ -1463,14 +1470,17 @@ async function monStream() {
       carry = u8.slice(n * 2);
       if (!n || !mon.ctx) continue;
       const pcm = new Int16Array(u8.buffer, u8.byteOffset, n);
-      const lead = +$('monLead').value / 1000, now = mon.ctx.currentTime;
+      const lead = monLead(), now = mon.ctx.currentTime;
       if (mon.next - now > lead + 0.25) continue;                      // too far behind: drop to stay current
       const ab = mon.ctx.createBuffer(1, n, rate), d = ab.getChannelData(0);
       for (let i = 0; i < n; i++) d[i] = pcm[i] / 32768;
       const src = mon.ctx.createBufferSource(); src.buffer = ab; src.connect(mon.ctx.destination);
       if (mon.next < now + 0.005) { if (mon.next) mon.under++; mon.next = now + lead; }
       src.start(mon.next); mon.next += ab.duration;
-      $('monInfo').textContent = 'Listening. Delay about ' + Math.round((mon.next - now) * 1000) + ' ms, dropouts ' + mon.under + '.';
+      // steady readout: smoothed, shown about once a second
+      const dl = (mon.next - now) * 1000 + (mon.ctx.outputLatency || mon.ctx.baseLatency || 0) * 1000;
+      mon.avg = mon.avg ? mon.avg * 0.95 + dl * 0.05 : dl;
+      if (performance.now() - (mon.shown || 0) > 1000) { mon.shown = performance.now(); mon.delayMs = Math.round(mon.avg / 10) * 10; monUi(); }
     }
   } catch (e) { if (mon.on) toast('Listening stopped'); }
   if (mon.on) monStop();
@@ -1479,23 +1489,19 @@ async function monStop() {
   mon.on = false;
   if (mon.abort) { try { mon.abort.abort(); } catch (e) {} mon.abort = null; }
   if (mon.ctx) { try { mon.ctx.close(); } catch (e) {} mon.ctx = null; }
-  $('monGo').textContent = 'Listen in this browser'; $('tbListen').classList.remove('live');
-  $('monInfo').textContent = "Plays the chosen signal on this device. It only reads a copy of the audio, so it does not take priority over the main inputs and outputs.";
+  monUi();
   await api('/api/monitor', { channel: -1 });
 }
-$('monGo').onclick = async () => {
-  if (mon.on) return monStop();
+async function monStart() {
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC || !window.ReadableStream) return toast('This browser cannot play audio from the page');
   mon.ctx = new AC({ latencyHint: 'interactive' }); mon.ctx.resume();
-  const r = await api('/api/monitor', monTap());
+  const r = await api('/api/monitor', { channel: 100, post: true });   // the monitor mix, after its fader and mute
   if (!r.ok) { mon.ctx.close(); mon.ctx = null; return; }
-  mon.on = true; mon.next = 0;
-  $('monGo').textContent = 'Stop listening'; $('tbListen').classList.add('live');
+  mon.on = true; mon.next = 0; mon.avg = 0; mon.delayMs = 0; mon.under = 0;
+  monUi();
   monStream();
-};
-$('monSel').onchange = async () => { if (mon.on) { await api('/api/monitor', monTap()); mon.next = 0; } };
-
+}
 
 /* ---------- presets ---------- */
 $('presetLoad').onclick = async () => { const n = $('presetList').value; if (!n) return; const r = await api('/api/presets/load', { name: n }); if (r.ok) toast('Loaded ' + n); structKey = ''; refresh(); };

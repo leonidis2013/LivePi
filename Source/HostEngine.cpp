@@ -681,7 +681,9 @@ var HostEngine::openEditor (int channel, int slot, int viewW, int viewH)
         editors.erase (key);
         return err ("The plugin window could not be shown: LivePi has no connection to its virtual screen. Restart LivePi (Setup > System).");
     }
-    w.fitTo (viewW, viewH, 1920, 1080);
+    auto screen = Rectangle<int> (0, 0, 1920, 1080);
+    if (auto* d = Desktop::getInstance().getDisplays().getPrimaryDisplay()) screen = d->totalArea;
+    w.fitTo (viewW, viewH, screen.getWidth(), screen.getHeight());
     w.toFront (false);
 
     auto* o = new DynamicObject();
@@ -701,7 +703,9 @@ var HostEngine::screenTest (bool show)
     if (! show) { sw.reset(); o->setProperty ("ok", true); return var (o); }
     sw = std::make_unique<Swatch>();
     sw->setOpaque (true);
-    sw->setBounds (1800, 1000, 64, 48);
+    auto screen = Rectangle<int> (0, 0, 1920, 1080);
+    if (auto* d = Desktop::getInstance().getDisplays().getPrimaryDisplay()) screen = d->totalArea;
+    sw->setBounds (screen.getRight() - 80, screen.getBottom() - 60, 64, 48);   // a corner plugins don't use
     sw->addToDesktop (0);
     sw->setVisible (true);
     sw->toFront (false);

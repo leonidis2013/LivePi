@@ -91,7 +91,7 @@ shows a notice. If an update says it needs the newer installer, unzip it on the 
 **Mixer tab**
 - One strip per channel: name, IN meter (before the plugins), fader, OUT meter (after the plugins and fader) with a dB scale, mute, and the plugin chain.
 - Master fader on the right; hide it under Setup > Settings if you don't use it. Double-click (or double-tap) a fader to reset it to 0 dB.
-- The Monitor mix strip takes a send from each channel and goes to the outputs you tick; it carries no plugins.
+- **Monitor** on a channel sends it (after its plugins) to the Monitor mix; one channel at a time for now. The Monitor mix strip has its own fader and mute, goes to the outputs you tick, and carries no plugins. **Listen here** plays the Monitor mix on your phone or computer (after its fader); the listen delay is set in Setup > Settings.
 - Per plugin: **Controls** (big touch knobs, switches and lists, grouped by the plugin's own sections; double-tap a knob for its default), **Plugin** (the plugin's own screen, full screen in the page, with touch, mouse and keyboard; on a phone the ⌨ button opens the keyboard),
   **Bypass**, **x** (remove).
 - Presets (chains, plugin settings, faders, names) are saved/loaded from the top bar.
