@@ -391,6 +391,22 @@
   .ch { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
   .ch h2 { flex:1; margin:0; }
   .ch + #bundles > .set:first-child, .ch + #bundles > .note { border-top:0; }
+
+  /* settings button, top right (replaces the Mixer / Setup tabs) */
+  nav.seg.hide { display:none !important; }
+  .gear { margin-left:auto; display:flex; align-items:center; justify-content:center; gap:6px; width:42px; height:42px; min-height:0 !important; padding:0; border-radius:12px; }
+  .gear svg { width:22px; height:22px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .gear span { display:none; font-size:14px; }
+  .gear.on { width:auto; padding:0 14px; background:var(--acc); color:var(--onacc); }
+  .gear.on svg { display:none; } .gear.on span { display:inline; }
+  @media (max-width:720px) {
+    #app { padding-bottom:calc(20px + env(safe-area-inset-bottom)) !important; }
+    header { flex-wrap:wrap; }
+    header h1 { flex:1; }
+    .gear { order:1; }
+    #status { order:2; }
+    #msg { bottom:calc(12px + env(safe-area-inset-bottom)) !important; }
+  }
 </style>
 </head>
 <body>
@@ -398,7 +414,8 @@
 <header>
   <h1>LivePi<small>live voice host</small></h1>
   <div id="status">…</div>
-  <nav class="seg">
+  <button id="gear" class="gear" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Done</span></button>
+  <nav class="seg hide">
     <button data-tab="mix" class="on"><svg viewBox="0 0 24 24"><path d="M6 4v16M12 4v16M18 4v16"/><rect x="4" y="13" width="4" height="3" rx="1"/><rect x="10" y="7" width="4" height="3" rx="1"/><rect x="16" y="11" width="4" height="3" rx="1"/></svg><span>Mixer</span></button>
     <button data-tab="setup"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg><span>Setup</span></button>
   </nav>
@@ -790,6 +807,20 @@ document.querySelectorAll('#paflSeg button').forEach(b => b.onclick = async () =
 function leadSync() { const v = String(Math.round(monLead() * 1000)); document.querySelectorAll('#leadSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); }
 document.querySelectorAll('#leadSeg button').forEach(b => b.onclick = () => { try { localStorage.setItem('lh.lead', b.dataset.v); } catch (e) {} leadSync(); if (mon.on) mon.next = 0; });
 leadSync();
+
+/* ---------- settings button (top right): opens Setup, Done goes back to the mixer ---------- */
+function gearSync() {
+  const inSetup = !$('tab-setup').classList.contains('hide');
+  $('gear').classList.toggle('on', inSetup);
+  $('gear').title = inSetup ? 'Back to the mixer' : 'Settings';
+}
+$('gear').onclick = () => {
+  const inSetup = !$('tab-setup').classList.contains('hide');
+  document.querySelector(`nav button[data-tab="${inSetup ? 'mix' : 'setup'}"]`).click();
+  gearSync(); scrollTo(0, 0);
+};
+document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', gearSync));
+gearSync();
 
 /* ---------- master fader on/off ---------- */
 function masterSync() {
