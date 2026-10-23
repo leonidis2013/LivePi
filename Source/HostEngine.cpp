@@ -73,6 +73,8 @@ HostEngine::HostEngine()
     outputNode = graph.addNode (std::make_unique<IO> (IO::audioOutputNode));
 
     chains.push_back (makeChain (0));
+    monBus = makeChain (kMonBus);
+    monBus.name = "Monitor mix";
     player.setProcessor (&graph);
 
     if (auto xml = XmlDocument::parse (appDir().getChildFile ("plugins.xml")))
@@ -86,10 +88,29 @@ HostEngine::~HostEngine()
 
 void HostEngine::start()
 {
+    // Create the real device types first, then add the virtual card, so both are in the menu
+    deviceManager.getAvailableDeviceTypes();
+    deviceManager.addAudioDeviceType (std::make_unique<VirtualAudio::DeviceType> (dataDir().getChildFile ("test-input.wav")));
+
     std::unique_ptr<XmlElement> saved = XmlDocument::parse (appDir().getChildFile ("audio.xml"));
     auto e = deviceManager.initialise (16, 16, saved.get(), true);
     if (e.isNotEmpty())
         Logger::writeToLog ("Audio init: " + e);
+
+    // No usable sound card (or none plugged in): run on the virtual one so the page still works
+    if (deviceManager.getCurrentAudioDevice() == nullptr)
+    {
+        autoFallback = true;
+        deviceManager.setCurrentAudioDeviceType (VirtualAudio::typeName, true);
+        auto setup = deviceManager.getAudioDeviceSetup();
+        setup.inputDeviceName = VirtualAudio::inTone;
+        setup.outputDeviceName = VirtualAudio::outName;
+        setup.sampleRate = 48000.0;
+        setup.bufferSize = 128;
+        setup.useDefaultInputChannels = setup.useDefaultOutputChannels = true;
+        auto fe = deviceManager.setAudioDeviceSetup (setup, true);
+        Logger::writeToLog ("No audio device found, using the virtual one. " + fe);
+    }
 
     deviceManager.addAudioCallback (&player);
     deviceManager.addChangeListener (this);
@@ -120,7 +141,8 @@ void HostEngine::shutdown()
 
 void HostEngine::changeListenerCallback (ChangeBroadcaster*)
 {
-    if (auto xml = deviceManager.createStateXml())
+    if (! autoFallback)
+      if (auto xml = deviceManager.createStateXml())
         xml->writeTo (appDir().getChildFile ("audio.xml"));
     rebuildConnections();
 }
@@ -133,21 +155,37 @@ HostEngine::Chain HostEngine::makeChain (int index)
     c.name = "Ch " + String (index + 1);
     c.tap   = graph.addNode (std::make_unique<ChannelStrip> (nullptr, true));
     c.strip = graph.addNode (std::make_unique<ChannelStrip> (&masterGain, false));
+    if (index != kMonBus)
+    {
+        c.send = graph.addNode (std::make_unique<ChannelStrip> (nullptr, false));
+        stripOf (c.send)->setGainDb (c.sendDb);
+    }
+    stripOf (c.tap)->setRing (&monitorRing);
+    stripOf (c.strip)->setRing (&monitorRing);
+    if (index == monitorChannel)
+        stripOf (monitorPost ? c.strip : c.tap)->setMonitorOn (true);
     applyMix (c);
     return c;
 }
 
-void HostEngine::removeChain (Chain& c)
+void HostEngine::clearSlots (Chain& c)
 {
-    for (auto& s : c.slots)
+    for (auto& sl : c.slots)
     {
-        editors.erase (s.node->nodeID.uid);
-        cpu.erase (s.node->nodeID.uid);
-        graph.removeNode (s.node->nodeID);
+        editors.erase (sl.node->nodeID.uid);
+        cpu.erase (sl.node->nodeID.uid);
+        graph.removeNode (sl.node->nodeID);
     }
     c.slots.clear();
+}
+
+void HostEngine::removeChain (Chain& c)
+{
+    clearSlots (c);
     graph.removeNode (c.tap->nodeID);
     graph.removeNode (c.strip->nodeID);
+    if (c.send != nullptr)
+        graph.removeNode (c.send->nodeID);
 }
 
 void HostEngine::clearChains()
@@ -161,6 +199,8 @@ void HostEngine::applyMix (Chain& c)
 {
     stripOf (c.strip)->setGainDb (c.gainDb);
     stripOf (c.strip)->setMuted (c.mute);
+    if (c.send != nullptr)
+        stripOf (c.send)->setGainDb (c.sendDb);
 }
 
 void HostEngine::rebuildConnections()
@@ -174,25 +214,34 @@ void HostEngine::rebuildConnections()
 
     const int n = (int) chains.size();
 
+    // Connect a chain's plugins one after another, starting from src; returns where the audio ends up
+    auto connectSlots = [&] (Chain& chain, NC src)
+    {
+        for (auto& sl : chain.slots)
+        {
+            if (sl.bypassed)
+                continue;
+
+            auto* p = sl.node->getProcessor();
+            for (int i = 0; i < p->getTotalNumInputChannels(); ++i)
+                graph.addConnection (Conn { src, NC { sl.node->nodeID, i } }, UK::none);
+
+            if (p->getTotalNumOutputChannels() > 0)
+                src = NC { sl.node->nodeID, 0 };
+        }
+        return src;
+    };
+
     for (int ch = 0; ch < n; ++ch)
     {
         auto& chain = chains[(size_t) ch];
 
         graph.addConnection (Conn { NC { inputNode->nodeID, ch }, NC { chain.tap->nodeID, 0 } }, UK::none);
-        NC src { chain.tap->nodeID, 0 };
+        NC src = connectSlots (chain, NC { chain.tap->nodeID, 0 });
 
-        for (auto& s : chain.slots)
-        {
-            if (s.bypassed)
-                continue;
-
-            auto* p = s.node->getProcessor();
-            for (int i = 0; i < p->getTotalNumInputChannels(); ++i)
-                graph.addConnection (Conn { src, NC { s.node->nodeID, i } }, UK::none);
-
-            if (p->getTotalNumOutputChannels() > 0)
-                src = NC { s.node->nodeID, 0 };
-        }
+        // Pre-fader send to the monitor mix
+        graph.addConnection (Conn { src, NC { chain.send->nodeID, 0 } }, UK::none);
+        graph.addConnection (Conn { NC { chain.send->nodeID, 0 }, NC { monBus.tap->nodeID, 0 } }, UK::none);
 
         graph.addConnection (Conn { src, NC { chain.strip->nodeID, 0 } }, UK::none);
         graph.addConnection (Conn { NC { chain.strip->nodeID, 0 }, NC { outputNode->nodeID, ch } }, UK::none);
@@ -202,14 +251,32 @@ void HostEngine::rebuildConnections()
             graph.addConnection (Conn { NC { chain.strip->nodeID, 0 }, NC { outputNode->nodeID, 1 } }, UK::none);
     }
 
+    // Monitor mix: sum of the sends -> its own plugins (for example a feedback eliminator) -> fader -> mapped outputs
+    {
+        NC src = connectSlots (monBus, NC { monBus.tap->nodeID, 0 });
+        graph.addConnection (Conn { src, NC { monBus.strip->nodeID, 0 } }, UK::none);
+        for (int o : monOutputs)
+            graph.addConnection (Conn { NC { monBus.strip->nodeID, 0 }, NC { outputNode->nodeID, o } }, UK::none);
+    }
+
     graph.rebuild();
+}
+
+HostEngine::Chain* HostEngine::chainFor (int channel)
+{
+    if (channel == kMonBus)
+        return &monBus;
+    if (channel < 0 || channel >= (int) chains.size())
+        return nullptr;
+    return &chains[(size_t) channel];
 }
 
 HostEngine::Slot* HostEngine::findSlot (int channel, int slot)
 {
-    if (channel < 0 || channel >= (int) chains.size())
+    auto* chain = chainFor (channel);
+    if (chain == nullptr)
         return nullptr;
-    auto& c = chains[(size_t) channel].slots;
+    auto& c = chain->slots;
     if (slot < 0 || slot >= (int) c.size())
         return nullptr;
     return &c[(size_t) slot];
@@ -252,6 +319,7 @@ var HostEngine::getDevices()
     cur->setProperty ("output", setup.outputDeviceName);
     cur->setProperty ("sampleRate", setup.sampleRate);
     cur->setProperty ("bufferSize", setup.bufferSize);
+    root->setProperty ("testFile", dataDir().getChildFile ("test-input.wav").existsAsFile());
 
     Array<var> rates, sizes;
     if (auto* dev = deviceManager.getCurrentAudioDevice())
@@ -270,6 +338,7 @@ var HostEngine::setDevice (const String& type, const String& in, const String& o
     if (type.isNotEmpty() && type != deviceManager.getCurrentAudioDeviceType())
         deviceManager.setCurrentAudioDeviceType (type, true);
 
+    autoFallback = false;                       // a deliberate choice: remember it
     auto setup = deviceManager.getAudioDeviceSetup();
     setup.inputDeviceName = in;
     setup.outputDeviceName = out;
@@ -305,7 +374,8 @@ var HostEngine::setNumChannels (int n)
 
 var HostEngine::addPlugin (int channel, const String& pluginId)
 {
-    if (channel < 0 || channel >= (int) chains.size())
+    auto* chain = chainFor (channel);
+    if (chain == nullptr)
         return err ("bad channel");
 
     auto desc = known.getTypeForIdentifierString (pluginId);
@@ -323,7 +393,7 @@ var HostEngine::addPlugin (int channel, const String& pluginId)
     if (s.node == nullptr)
         return err ("could not add to graph");
 
-    chains[(size_t) channel].slots.push_back (std::move (s));
+    chain->slots.push_back (std::move (s));
     rebuildConnections();
     saveLast();
     return ok();
@@ -334,7 +404,7 @@ var HostEngine::removePlugin (int channel, int slot)
     if (findSlot (channel, slot) == nullptr)
         return err ("no such plugin");
 
-    auto& c = chains[(size_t) channel].slots;
+    auto& c = chainFor (channel)->slots;
     editors.erase (c[(size_t) slot].node->nodeID.uid);
     cpu.erase (c[(size_t) slot].node->nodeID.uid);
     graph.removeNode (c[(size_t) slot].node->nodeID);
@@ -360,12 +430,15 @@ var HostEngine::setBypass (int channel, int slot, bool bypassed)
 var HostEngine::setMixer (const var& body)
 {
     const int ch = (int) body.getProperty ("channel", -1);
-    if (ch < 0 || ch >= (int) chains.size())
+    auto* cp = chainFor (ch);
+    if (cp == nullptr)
         return err ("bad channel");
 
-    auto& c = chains[(size_t) ch];
+    auto& c = *cp;
     if (body.hasProperty ("gainDb")) c.gainDb = jlimit (-100.0f, 6.0f, (float) (double) body["gainDb"]);
     if (body.hasProperty ("mute"))   c.mute = (bool) body["mute"];
+    if (body.hasProperty ("sendDb") && c.send != nullptr)
+        c.sendDb = jlimit (-100.0f, 6.0f, (float) (double) body["sendDb"]);
     applyMix (c);
     markDirty();
     return ok();
@@ -399,6 +472,11 @@ var HostEngine::getMeters()
     auto* o = new DynamicObject();
     o->setProperty ("in", in);
     o->setProperty ("out", out);
+
+    auto* mo = new DynamicObject();
+    mo->setProperty ("in",  Decibels::gainToDecibels (stripOf (monBus.tap)->takePeakIn(),    -100.0f));
+    mo->setProperty ("out", Decibels::gainToDecibels (stripOf (monBus.strip)->takePeakOut(), -100.0f));
+    o->setProperty ("mon", var (mo));
     return var (o);
 }
 
@@ -506,6 +584,95 @@ var HostEngine::openEditor (int channel, int slot)
     return ok();
 }
 
+var HostEngine::installTestFile (const File& f)
+{
+    AudioFormatManager fm;
+    fm.registerBasicFormats();
+    std::unique_ptr<AudioFormatReader> r (fm.createReaderFor (f));
+    if (r == nullptr || r->lengthInSamples <= 0)
+        return err ("Could not read that audio file. Use WAV, AIFF, FLAC or OGG.");
+    if (r->lengthInSamples > (int64) (r->sampleRate * 600))
+        return err ("The file is longer than 10 minutes.");
+
+    const int n = (int) r->lengthInSamples;
+    AudioBuffer<float> in ((int) jmax (1u, r->numChannels), n), mono (1, n);
+    r->read (&in, 0, n, 0, true, true);
+    mono.clear();
+    for (int c = 0; c < in.getNumChannels(); ++c)
+        mono.addFrom (0, 0, in, c, 0, n, 1.0f / (float) in.getNumChannels());
+
+    dataDir().createDirectory();
+    auto tmp = dataDir().getChildFile ("test-input.new.wav");
+    tmp.deleteFile();
+    bool wrote = false;
+    if (auto os = tmp.createOutputStream())
+    {
+        WavAudioFormat wav;
+        std::unique_ptr<AudioFormatWriter> w (wav.createWriterFor (os.get(), r->sampleRate, 1, 16, {}, 0));
+        if (w != nullptr)
+        {
+            os.release();                       // the writer owns the stream now
+            wrote = w->writeFromAudioSampleBuffer (mono, 0, n);
+        }
+    }
+    if (! wrote || ! tmp.moveFileTo (dataDir().getChildFile ("test-input.wav")))
+    {
+        tmp.deleteFile();
+        return err ("Could not save the test file (disk full?).");
+    }
+    return ok();
+}
+
+var HostEngine::removeTestFile()
+{
+    dataDir().getChildFile ("test-input.wav").deleteFile();
+    return ok();
+}
+
+var HostEngine::setMonitor (int channel, bool afterPlugins)
+{
+    for (auto& c : chains)
+    {
+        stripOf (c.tap)->setMonitorOn (false);
+        stripOf (c.strip)->setMonitorOn (false);
+    }
+    stripOf (monBus.tap)->setMonitorOn (false);
+    stripOf (monBus.strip)->setMonitorOn (false);
+
+    auto* c = chainFor (channel);
+    monitorChannel = c != nullptr ? channel : -1;
+    monitorPost = afterPlugins;
+    if (c != nullptr)
+        stripOf (afterPlugins ? c->strip : c->tap)->setMonitorOn (true);
+    return ok();
+}
+
+var HostEngine::setMonitorBus (const var& body)
+{
+    if (body.hasProperty ("gainDb")) monBus.gainDb = jlimit (-100.0f, 6.0f, (float) (double) body["gainDb"]);
+    if (body.hasProperty ("mute"))   monBus.mute = (bool) body["mute"];
+    applyMix (monBus);
+
+    if (auto* arr = body.getProperty ("outputs", {}).getArray())
+    {
+        std::vector<int> o;
+        for (auto& v : *arr)
+        {
+            const int ch = (int) v;
+            if (ch >= 0 && ch < 16 && std::find (o.begin(), o.end(), ch) == o.end())
+                o.push_back (ch);
+        }
+        std::sort (o.begin(), o.end());
+        if (o != monOutputs)
+        {
+            monOutputs = o;
+            rebuildConnections();
+        }
+    }
+    markDirty();
+    return ok();
+}
+
 var HostEngine::measurePlugin (int channel, int slot)
 {
     auto* s = findSlot (channel, slot);
@@ -595,6 +762,9 @@ bool HostEngine::pluginInUse (const File& bundle)
         for (auto& s : c.slots)
             if (s.desc.fileOrIdentifier.startsWith (path))
                 return true;
+    for (auto& s : monBus.slots)
+        if (s.desc.fileOrIdentifier.startsWith (path))
+            return true;
     return false;
 }
 
@@ -723,6 +893,80 @@ var HostEngine::getInstalledPlugins()
     return var (root);
 }
 
+var HostEngine::slotsState (const Chain& c)
+{
+    Array<var> slots;
+    for (auto& sl : c.slots)
+    {
+        auto* so = new DynamicObject();
+        so->setProperty ("name", sl.desc.name);
+        so->setProperty ("bypassed", sl.bypassed);
+        if (auto it = cpu.find (sl.node->nodeID.uid); it != cpu.end())
+        {
+            so->setProperty ("cpuMeasuring", it->second.measuring);
+            if (it->second.valid)
+            {
+                so->setProperty ("cpuAvg", it->second.avg);
+                so->setProperty ("cpuPeak", it->second.peak);
+            }
+        }
+        slots.add (var (so));
+    }
+    return slots;
+}
+
+var HostEngine::slotsSerialised (Chain& c)
+{
+    Array<var> slots;
+    for (auto& sl : c.slots)
+    {
+        auto* so = new DynamicObject();
+        if (auto xml = sl.desc.createXml())
+            so->setProperty ("desc", xml->toString (XmlElement::TextFormat().singleLine()));
+        so->setProperty ("bypassed", sl.bypassed);
+
+        MemoryBlock state;
+        sl.node->getProcessor()->getStateInformation (state);
+        so->setProperty ("state", state.toBase64Encoding());
+        slots.add (var (so));
+    }
+    return slots;
+}
+
+void HostEngine::loadSlots (Chain& chain, const var& slotsVar, String& errors)
+{
+    auto* slots = slotsVar.getArray();
+    if (slots == nullptr)
+        return;
+
+    for (auto& sv : *slots)
+    {
+        auto xml = XmlDocument::parse (sv.getProperty ("desc", {}).toString());
+        PluginDescription desc;
+        if (xml == nullptr || ! desc.loadFromXml (*xml))
+            continue;
+
+        String e;
+        auto inst = createInstance (desc, e);
+        if (inst == nullptr)
+        {
+            errors << desc.name << ": " << e << "\n";
+            continue;
+        }
+
+        MemoryBlock state;
+        if (state.fromBase64Encoding (sv.getProperty ("state", {}).toString()) && state.getSize() > 0)
+            inst->setStateInformation (state.getData(), (int) state.getSize());
+
+        Slot sl;
+        sl.desc = desc;
+        sl.bypassed = (bool) sv.getProperty ("bypassed", false);
+        sl.node = graph.addNode (std::move (inst));
+        if (sl.node != nullptr)
+            chain.slots.push_back (std::move (sl));
+    }
+}
+
 // ---------------------------------------------------------------- state
 
 var HostEngine::getState()
@@ -732,6 +976,9 @@ var HostEngine::getState()
     o->setProperty ("cpu", deviceManager.getCpuUsage());
     o->setProperty ("masterDb", masterDb);
     o->setProperty ("editorAvailable", std::getenv ("DISPLAY") != nullptr);
+    o->setProperty ("monitorChannel", monitorChannel);
+    o->setProperty ("monitorPost", monitorPost);
+    o->setProperty ("virtualDevice", deviceManager.getCurrentAudioDeviceType() == VirtualAudio::typeName);
 
     // Raspberry Pi / Linux SoC temperature
     {
@@ -760,31 +1007,38 @@ var HostEngine::getState()
     Array<var> chainArr;
     for (auto& c : chains)
     {
-        Array<var> slots;
-        for (auto& s : c.slots)
-        {
-            auto* so = new DynamicObject();
-            so->setProperty ("name", s.desc.name);
-            so->setProperty ("bypassed", s.bypassed);
-            if (auto it = cpu.find (s.node->nodeID.uid); it != cpu.end())
-            {
-                so->setProperty ("cpuMeasuring", it->second.measuring);
-                if (it->second.valid)
-                {
-                    so->setProperty ("cpuAvg", it->second.avg);
-                    so->setProperty ("cpuPeak", it->second.peak);
-                }
-            }
-            slots.add (var (so));
-        }
         auto* co = new DynamicObject();
         co->setProperty ("name", c.name);
         co->setProperty ("gainDb", c.gainDb);
         co->setProperty ("mute", c.mute);
-        co->setProperty ("slots", slots);
+        co->setProperty ("sendDb", c.sendDb);
+        co->setProperty ("slots", slotsState (c));
         chainArr.add (var (co));
     }
     o->setProperty ("chains", chainArr);
+
+    {
+        auto* mb = new DynamicObject();
+        mb->setProperty ("name", monBus.name);
+        mb->setProperty ("gainDb", monBus.gainDb);
+        mb->setProperty ("mute", monBus.mute);
+        mb->setProperty ("slots", slotsState (monBus));
+        Array<var> outs;
+        for (int ch : monOutputs) outs.add (ch);
+        mb->setProperty ("outputs", outs);
+        o->setProperty ("monitorBus", var (mb));
+    }
+
+    if (auto* dev = deviceManager.getCurrentAudioDevice())
+    {
+        Array<var> names;
+        auto all = dev->getOutputChannelNames();
+        auto active = dev->getActiveOutputChannels();
+        for (int i = 0; i < all.size(); ++i)
+            if (active[i])
+                names.add (all[i]);
+        o->setProperty ("outputNames", names);
+    }
 
     Array<var> presets;
     for (auto& f : appDir().getChildFile ("presets").findChildFiles (File::findFiles, false, "*.json"))
@@ -811,25 +1065,23 @@ var HostEngine::serialise()
     Array<var> chainArr;
     for (auto& c : chains)
     {
-        Array<var> slots;
-        for (auto& s : c.slots)
-        {
-            auto* so = new DynamicObject();
-            if (auto xml = s.desc.createXml())
-                so->setProperty ("desc", xml->toString (XmlElement::TextFormat().singleLine()));
-            so->setProperty ("bypassed", s.bypassed);
-
-            MemoryBlock state;
-            s.node->getProcessor()->getStateInformation (state);
-            so->setProperty ("state", state.toBase64Encoding());
-            slots.add (var (so));
-        }
         auto* co = new DynamicObject();
         co->setProperty ("name", c.name);
         co->setProperty ("gainDb", c.gainDb);
         co->setProperty ("mute", c.mute);
-        co->setProperty ("slots", slots);
+        co->setProperty ("sendDb", c.sendDb);
+        co->setProperty ("slots", slotsSerialised (c));
         chainArr.add (var (co));
+    }
+    {
+        auto* mb = new DynamicObject();
+        mb->setProperty ("gainDb", monBus.gainDb);
+        mb->setProperty ("mute", monBus.mute);
+        mb->setProperty ("slots", slotsSerialised (monBus));
+        Array<var> outs;
+        for (int ch : monOutputs) outs.add (ch);
+        mb->setProperty ("outputs", outs);
+        root->setProperty ("monitorBus", var (mb));
     }
     root->setProperty ("chains", chainArr);
     return var (root);
@@ -861,37 +1113,30 @@ var HostEngine::deserialise (const var& v)
             chain.mute   = (bool) cv.getProperty ("mute", false);
             applyMix (chain);
 
-            auto* slots = cv.getProperty ("slots", {}).getArray();
-            if (slots == nullptr)
-                continue;
-
-            for (auto& sv : *slots)
-            {
-                auto xml = XmlDocument::parse (sv.getProperty ("desc", {}).toString());
-                PluginDescription desc;
-                if (xml == nullptr || ! desc.loadFromXml (*xml))
-                    continue;
-
-                String e;
-                auto inst = createInstance (desc, e);
-                if (inst == nullptr)
-                {
-                    errors << desc.name << ": " << e << "\n";
-                    continue;
-                }
-
-                MemoryBlock state;
-                if (state.fromBase64Encoding (sv.getProperty ("state", {}).toString()) && state.getSize() > 0)
-                    inst->setStateInformation (state.getData(), (int) state.getSize());
-
-                Slot s;
-                s.desc = desc;
-                s.bypassed = (bool) sv.getProperty ("bypassed", false);
-                s.node = graph.addNode (std::move (inst));
-                if (s.node != nullptr)
-                    chain.slots.push_back (std::move (s));
-            }
+            chain.sendDb = (float) (double) cv.getProperty ("sendDb", -100.0);
+            applyMix (chain);
+            loadSlots (chain, cv.getProperty ("slots", {}), errors);
         }
+    }
+
+    // Monitor mix
+    clearSlots (monBus);
+    monOutputs.clear();
+    monBus.gainDb = 0.0f;
+    monBus.mute = false;
+    {
+        const var mv = v.getProperty ("monitorBus", {});
+        if (mv.isObject())
+        {
+            monBus.gainDb = (float) (double) mv.getProperty ("gainDb", 0.0);
+            monBus.mute = (bool) mv.getProperty ("mute", false);
+            if (auto* outs = mv.getProperty ("outputs", {}).getArray())
+                for (auto& o : *outs)
+                    if ((int) o >= 0 && (int) o < 16)
+                        monOutputs.push_back ((int) o);
+            loadSlots (monBus, mv.getProperty ("slots", {}), errors);
+        }
+        applyMix (monBus);
     }
 
     rebuildConnections();

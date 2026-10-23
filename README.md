@@ -34,6 +34,16 @@ sets up a virtual screen and browser viewer (port 6080) for plugin windows.
 Then open `http://<pi-hostname>.local:8080` from any device. The browser asks for the password
 (user name can be left blank). To change it later: `sudo /opt/livehost/set-password.sh`.
 
+## Testing without an audio interface
+
+On the Setup tab choose the device type **Virtual (no audio hardware)**. It behaves like a sound card (same timing, CPU and xrun counters), but its input is a test tone, pink noise, a sweep, silence, or **a looping audio file you upload** (a spoken voice recording works well), and its output is discarded. If no sound card is found at all, LiveHost starts on the virtual one automatically (this is not remembered, so a real card is used as soon as it is plugged in).
+
+To hear the result, use **Listen** on the Mixer tab: pick any channel (before or after its plugins) or the Monitor mix and press *Listen in this browser*. The audio is streamed to your browser (about 0.3 s delay, so it is for checking, not for performing). This also works with a real interface.
+
+## Monitor mix (mappable monitoring output)
+
+Every channel has a **Mon** send (pre-fader, after the channel's plugins; off by default). The sends are summed into the **Monitor mix** strip, which has its own plugin chain (for example LiveVoice for feedback control on the monitors), a fader and a mute. Tick the **Out** boxes on that strip to choose which output channels of the audio device carry it (outputs marked * also carry a channel, so the two would add together). The mapping and the monitor mix are saved in presets.
+
 ## Updating online (from GitHub)
 
 On the **Setup** tab, **Check for updates** looks at this repo's latest GitHub Release. If a newer build exists, **Install latest** downloads it, verifies it, installs it and restarts LiveHost (the old version is restored automatically if the new one fails to start). Both buttons are grayed out with "No internet access" when the Pi cannot reach GitHub. The Pi needs `curl` (the installer adds it). Development builds ("dev") never update themselves.

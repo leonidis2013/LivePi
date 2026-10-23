@@ -251,7 +251,7 @@ void WebServer::setupRoutes()
         }
 
         const String path (req.path);
-        if (! passwordSet && ! trustedClient && (path.startsWith ("/api/plugins/upload") || path.startsWith ("/api/plugins/delete")
+        if (! passwordSet && ! trustedClient && (path.startsWith ("/api/plugins/upload") || path.startsWith ("/api/plugins/delete") || path.startsWith ("/api/testfile")
                               || path.startsWith ("/api/system/")))
         {
             res.status = 403;
@@ -562,6 +562,59 @@ void WebServer::setupRoutes()
         {
             return engine.setParam ((int) b["channel"], (int) b["slot"], (int) b["index"], (float) (double) b["value"]);
         }));
+    });
+
+    // Browser monitor: choose a tap, then the page polls raw 16-bit samples and plays them
+    svr.Post ("/api/monitor", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto b = body (req);
+        const int ch = b.hasProperty ("channel") ? (int) b["channel"] : -1;
+        const bool post = ! b.hasProperty ("post") || (bool) b["post"];
+        reply (res, onMT ([this, ch, post] { return engine.setMonitor (ch, post); }));
+    });
+
+    svr.Post ("/api/monitorbus", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto b = body (req);
+        reply (res, onMT ([this, b] { return engine.setMonitorBus (b); }));
+    });
+
+    svr.Get ("/api/monitor/pcm", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        const uint64_t since = (uint64_t) qs (req, "since").getLargeIntValue();
+        std::vector<int16_t> pcm;
+        uint64_t pos = 0;
+        engine.monitorTap().read (since, pcm, pos);
+        res.set_header ("X-Seq", std::to_string (pos));
+        res.set_header ("X-Rate", std::to_string ((int) engine.monitorTap().rate.load()));
+        res.set_header ("Cache-Control", "no-store");
+        res.set_content (reinterpret_cast<const char*> (pcm.data()), pcm.size() * sizeof (int16_t), "application/octet-stream");
+    });
+
+    // Audio file played in a loop by the virtual sound card's "Test file" input
+    svr.Post ("/api/testfile", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto it = req.files.find ("file");
+        if (it == req.files.end())
+            return reply (res, errVar ("No file received."));
+
+        auto staging = HostEngine::dataDir().getChildFile ("staging").getChildFile (Uuid().toString());
+        staging.createDirectory();
+        // keep the original extension so the right decoder is picked
+        auto f = staging.getChildFile ("upload" + File (String (it->second.filename)).getFileExtension().retainCharacters (".abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"));
+        if (! f.replaceWithData (it->second.content.data(), it->second.content.size()))
+        {
+            staging.deleteRecursively();
+            return reply (res, errVar ("Could not save the upload (disk full?)."));
+        }
+        auto r = engine.installTestFile (f);
+        staging.deleteRecursively();
+        reply (res, r);
+    });
+
+    svr.Post ("/api/testfile/delete", [this] (const httplib::Request&, httplib::Response& res)
+    {
+        reply (res, engine.removeTestFile());
     });
 
     svr.Post ("/api/plugins/measure", [this] (const httplib::Request& req, httplib::Response& res)

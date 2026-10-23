@@ -30,6 +30,11 @@
   .bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
   .strips { display:flex; gap:10px; overflow-x:auto; padding-bottom:10px; align-items:stretch; }
   .strip { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:8px; width:176px; flex:0 0 176px; display:flex; flex-direction:column; gap:8px; }
+  .send { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--dim); }
+  .send input { flex:1; min-width:0; }
+  .map { display:flex; flex-wrap:wrap; gap:3px 8px; font-size:11px; color:var(--dim); }
+  .map label { display:flex; align-items:center; gap:3px; }
+  .strip.bus { background:var(--card2); }
   .strip.master { width:110px; flex-basis:110px; background:var(--card2); }
   .strip .nm { width:100%; text-align:center; font-weight:600; padding:5px; }
   .strip .mname { text-align:center; font-weight:600; padding:6px 0; }
@@ -90,6 +95,12 @@
     <input id="presetName" placeholder="New preset name" style="width:160px">
     <button id="presetSave">Save</button>
   </div>
+  <div class="bar">
+    <span class="note" style="margin:0">Listen</span>
+    <select id="monSel" class="grow" style="max-width:300px"></select>
+    <button id="monGo">Listen in this browser</button>
+    <span class="note" id="monInfo" style="margin:0">Plays the chosen signal through this device's speakers (about 0.3 s delay), so you can test without an audio interface.</span>
+  </div>
   <div id="strips" class="strips"></div>
 </section>
 
@@ -107,6 +118,13 @@
       <button id="devApply">Apply</button>
     </div>
     <div class="note">Lower buffer = lower latency but more CPU. Watch the xrun counter at the top.</div>
+    <div class="note">No audio interface? Choose the type <b>Virtual (no audio hardware)</b>: the input becomes a test tone, noise, sweep or an audio file of your own, and the output is discarded. Use <b>Listen</b> on the Mixer tab to hear the result.</div>
+    <div class="row">
+      <input id="tfFile" type="file" accept="audio/*,.wav,.aif,.aiff,.flac,.ogg" class="grow">
+      <button id="tfGo">Upload test file</button>
+      <button id="tfDel" class="danger hide">Remove</button>
+    </div>
+    <div id="tfStat" class="note">A test file (for example a spoken voice recording, up to 10 minutes) appears as the input <b>Test file (loop)</b> of the virtual card.</div>
   </div>
   <div class="card">
     <h2>Channels &amp; plugins</h2>
@@ -257,8 +275,11 @@ function makeFader(onChange) {
 function buildStrip(c, ch) {
   const s = el('div', 'strip'); s.dataset.ch = ch;
 
+  const isBus = ch === 100;
+  if (isBus) s.classList.add('bus');
   const nm = el('input', 'nm'); nm.value = c.name; nm.maxLength = 24;
-  nm.onchange = () => api('/api/channel/name', { channel: ch, name: nm.value });
+  if (isBus) nm.readOnly = true;
+  else nm.onchange = () => api('/api/channel/name', { channel: ch, name: nm.value });
   s.append(nm);
 
   const fm = el('div', 'fm');
@@ -271,6 +292,33 @@ function buildStrip(c, ch) {
   const mute = el('button', 'mute', 'Mute');
   mute.onclick = () => { const on = !mute.classList.contains('on'); mute.classList.toggle('on', on); api('/api/mixer', { channel: ch, mute: on }); };
   s.append(mute);
+
+  if (!isBus) {
+    const sw = el('div', 'send'); sw.title = 'How much of this channel (after its plugins, before its fader) goes to the Monitor mix';
+    const r = el('input'); r.type = 'range'; r.min = -60; r.max = 6; r.step = 1; r.className = 'sendr'; r.dataset.ch = ch;
+    r.value = c.sendDb <= -60 ? -60 : c.sendDb;
+    const lbl = el('span', '', ''); lbl.style.minWidth = '34px'; lbl.style.textAlign = 'right';
+    const show = () => { lbl.textContent = +r.value <= -60 ? 'off' : (+r.value) + ' dB'; };
+    show(); r.addEventListener('syncshow', show);
+    r.oninput = () => { show(); throttled('s' + ch, () => api('/api/mixer', { channel: ch, sendDb: +r.value <= -60 ? -100 : +r.value })); };
+    sw.append(el('span', '', 'Mon'), r, lbl); s.append(sw);
+  } else {
+    const map = el('div', 'map'); map.title = 'Which output channels of the audio device carry the monitor mix';
+    map.append(el('span', '', 'Out:'));
+    const names = (S && S.outputNames) || [];
+    const count = Math.max(names.length, 2);
+    const mains = S && S.numChannels === 1 ? [0, 1] : Array.from({ length: S ? S.numChannels : 0 }, (_, i) => i);
+    const outs = c.outputs || [];
+    for (let i = 0; i < count; i++) {
+      const lb = el('label'); const cb = el('input'); cb.type = 'checkbox'; cb.checked = outs.includes(i); cb.dataset.o = i;
+      lb.title = (names[i] || ('Output ' + (i + 1))) + (mains.includes(i) ? ' (also carries a channel)' : '');
+      lb.append(cb, document.createTextNode((i + 1) + (mains.includes(i) ? '*' : '')));
+      cb.onchange = () => api('/api/monitorbus', { outputs: [...map.querySelectorAll('input:checked')].map(x => +x.dataset.o) });
+      map.append(lb);
+    }
+    s.append(map);
+    s.append(el('div', 'cpu', '* also carries a channel'));
+  }
 
   const chain = el('div', 'chain');
   c.slots.forEach((p, i) => {
@@ -314,23 +362,26 @@ function buildMaster() {
 }
 
 function renderStrips(st) {
-  const key = JSON.stringify(st.chains.map(c => [c.name, c.slots])) + '|' + plugins.length + '|' + !!st.editorAvailable;
+  const key = JSON.stringify(st.chains.map(c => [c.name, c.slots])) + JSON.stringify([st.monitorBus, st.outputNames]) + '|' + plugins.length + '|' + !!st.editorAvailable;
   if (key === structKey) return;
   const a = document.activeElement;
   if (a && a.tagName === 'INPUT' && a.closest('#strips')) return;   // don't rebuild while renaming
   structKey = key;
   const root = $('strips'); root.innerHTML = '';
   st.chains.forEach((c, ch) => root.append(buildStrip(c, ch)));
+  if (st.monitorBus) root.append(buildStrip(st.monitorBus, 100));
   root.append(buildMaster());
   syncMix(st);
 }
 
 function syncMix(st) {
   document.querySelectorAll('.strip[data-ch]').forEach(s => {
-    const c = st.chains[+s.dataset.ch]; if (!c) return;
+    const c = +s.dataset.ch === 100 ? st.monitorBus : st.chains[+s.dataset.ch]; if (!c) return;
     const f = s.querySelector('.fader');
     if (!f.dataset.drag) paintFader(f, c.gainDb);
     s.querySelector('.mute').classList.toggle('on', c.mute);
+    const sr = s.querySelector('.sendr');
+    if (sr && document.activeElement !== sr) { sr.value = c.sendDb <= -60 ? -60 : c.sendDb; sr.dispatchEvent(new Event('syncshow')); }
   });
   const m = document.querySelector('.strip.master .fader');
   if (m && !m.dataset.drag) paintFader(m, st.masterDb);
@@ -352,6 +403,7 @@ async function pollMeters() {
   try {
     const m = await (await fetch('/api/meters')).json();
     if (m.in) { m.in.forEach((db, i) => setMeter(i, 'in', db)); m.out.forEach((db, i) => setMeter(i, 'out', db)); }
+    if (m.mon) { setMeter(100, 'in', m.mon.in); setMeter(100, 'out', m.mon.out); }
   } catch (e) {}
   polling = false;
 }
@@ -387,6 +439,63 @@ async function openEditor(ch, slot, title) {
 $('edHide').onclick = () => { $('ed').classList.add('hide'); $('edFrame').src = 'about:blank'; };
 $('edClosePlugin').onclick = async () => { if (curEditor) await api('/api/editor/close', curEditor); $('edHide').onclick(); };
 
+/* ---------- listen in this browser ---------- */
+const mon = { on: false, ctx: null, since: 0, next: 0, timer: null, key: '' };
+function monFill(st) {
+  const key = st.numChannels + '|' + !!st.monitorBus;
+  if (key === mon.key) return;
+  mon.key = key;
+  const sel = $('monSel'), prev = sel.value; sel.innerHTML = '';
+  for (let i = 0; i < st.numChannels; i++) {
+    const nm = st.chains[i] ? st.chains[i].name : 'Channel ' + (i + 1);
+    [['out', 'output (after plugins)'], ['in', 'input (before plugins)']].forEach(([p, t]) => {
+      const o = el('option', '', nm + ' - ' + t); o.value = i + ':' + p; sel.append(o);
+    });
+  }
+  const o = el('option', '', 'Monitor mix - output'); o.value = '100:out'; sel.append(o);
+  if ([...sel.options].some(x => x.value === prev)) sel.value = prev;
+}
+function monTap() { const [c, p] = $('monSel').value.split(':'); return { channel: +c, post: p === 'out' }; }
+async function monPoll() {
+  if (!mon.on) return;
+  try {
+    const r = await fetch('/api/monitor/pcm?since=' + mon.since, { cache: 'no-store' });
+    if (r.ok) {
+      const rate = +r.headers.get('X-Rate') || 48000;
+      mon.since = +r.headers.get('X-Seq') || mon.since;
+      const pcm = new Int16Array(await r.arrayBuffer());
+      if (pcm.length && mon.ctx) {
+        const ab = mon.ctx.createBuffer(1, pcm.length, rate), d = ab.getChannelData(0);
+        for (let i = 0; i < pcm.length; i++) d[i] = pcm[i] / 32768;
+        const src = mon.ctx.createBufferSource(); src.buffer = ab; src.connect(mon.ctx.destination);
+        const now = mon.ctx.currentTime;
+        if (mon.next < now + 0.03) mon.next = now + 0.25;
+        src.start(mon.next); mon.next += ab.duration;
+      }
+    }
+  } catch (e) {}
+  mon.timer = setTimeout(monPoll, 100);
+}
+async function monStop() {
+  mon.on = false; clearTimeout(mon.timer);
+  if (mon.ctx) { try { mon.ctx.close(); } catch (e) {} mon.ctx = null; }
+  $('monGo').textContent = 'Listen in this browser';
+  await api('/api/monitor', { channel: -1 });
+}
+$('monGo').onclick = async () => {
+  if (mon.on) return monStop();
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return toast('This browser cannot play audio from the page');
+  mon.ctx = new AC(); mon.ctx.resume();
+  const r = await api('/api/monitor', monTap());
+  if (!r.ok) { mon.ctx.close(); mon.ctx = null; return; }
+  mon.on = true; mon.since = 0; mon.next = 0;
+  $('monGo').textContent = 'Stop listening';
+  monPoll();
+};
+$('monSel').onchange = async () => { if (mon.on) { await api('/api/monitor', monTap()); mon.since = 0; mon.next = 0; } };
+
+
 /* ---------- presets ---------- */
 $('presetLoad').onclick = async () => { const n = $('presetList').value; if (!n) return; const r = await api('/api/presets/load', { name: n }); if (r.ok) toast('Loaded ' + n); structKey = ''; refresh(); };
 $('presetSave').onclick = async () => { const n = $('presetName').value.trim(); if (!n) return; const r = await api('/api/presets/save', { name: n }); if (r.ok) { toast('Saved ' + n); $('presetName').value = ''; } refresh(); };
@@ -401,6 +510,7 @@ async function loadDevices() {
   fill($('devRate'), cur.sampleRates, cur.sampleRate);
   fill($('devBuf'), cur.bufferSizes, cur.bufferSize);
   $('devIn').value = cur.input; $('devOut').value = cur.output;
+  tfSync();
 }
 function refreshDeviceLists() {
   const t = devices.types.find(t => t.type === $('devType').value);
@@ -408,6 +518,20 @@ function refreshDeviceLists() {
   fill($('devIn'), t.inputs); fill($('devOut'), t.outputs);
 }
 $('devType').onchange = refreshDeviceLists;
+function tfSync() { $('tfDel').classList.toggle('hide', !(devices && devices.testFile)); }
+$('tfGo').onclick = async () => {
+  const f = $('tfFile').files[0]; if (!f) return toast('Choose an audio file first');
+  const fd = new FormData(); fd.append('file', f, f.name);
+  $('tfStat').textContent = 'Uploading…'; $('tfGo').disabled = true;
+  try {
+    const r = await fetch('/api/testfile', { method: 'POST', headers: { 'X-LiveHost': '1' }, body: fd });
+    const j = await r.json();
+    $('tfStat').textContent = j.ok ? 'Test file saved. Select the input "Test file (loop)" on the virtual card and press Apply.' : (j.error || 'Upload failed');
+    if (j.ok) $('tfFile').value = '';
+  } catch (e) { $('tfStat').textContent = 'Upload failed (connection lost)'; }
+  $('tfGo').disabled = false; await loadDevices();
+};
+$('tfDel').onclick = async () => { if (!confirm('Remove the test file?')) return; await api('/api/testfile/delete', {}); await loadDevices(); };
 $('devApply').onclick = async () => {
   const r = await api('/api/device', { type: $('devType').value, input: $('devIn').value, output: $('devOut').value,
                                         sampleRate: +$('devRate').value, bufferSize: +$('devBuf').value });
@@ -561,6 +685,7 @@ async function refresh() {
     + (st.tempC !== undefined ? ` · <span class="${st.tempC > 75 ? 'bad' : ''}">temp <b>${st.tempC.toFixed(0)}°C</b></span>` : '');
   if (document.activeElement !== $('chCount')) $('chCount').value = st.numChannels;
   const pl = $('presetList'), prev = pl.value; fill(pl, st.presets || [], prev);
+  monFill(st);
   renderStrips(st);
   syncMix(st);
 }

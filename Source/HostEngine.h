@@ -8,6 +8,8 @@
 #include <vector>
 #include "ChannelStrip.h"
 #include "CpuBench.h"
+#include "MonitorRing.h"
+#include "VirtualAudio.h"
 
 class EditorWindow;
 
@@ -28,6 +30,15 @@ public:
     juce::var getDevices();
     juce::var setDevice (const juce::String& type, const juce::String& in, const juce::String& out,
                          double sampleRate, int bufferSize);
+
+    // Test file for the virtual sound card, and browser monitoring
+    juce::var installTestFile (const juce::File& audioFile);
+    juce::var removeTestFile();
+    juce::var setMonitor (int channel, bool afterPlugins);   // browser listening tap; channel < 0 = off, kMonBus = monitor mix
+    juce::var setMonitorBus (const juce::var& body);         // { gainDb?, mute?, outputs?: [0-based output channels] }
+
+    static constexpr int kMonBus = 100;                      // "channel" number of the monitor mix
+    MonitorRing& monitorTap() { return monitorRing; }
 
     // Channels / chains
     juce::var setNumChannels (int n);
@@ -72,10 +83,11 @@ private:
     struct Chain
     {
         juce::String name;
-        juce::AudioProcessorGraph::Node::Ptr tap, strip;
+        juce::AudioProcessorGraph::Node::Ptr tap, strip, send;
         std::vector<Slot> slots;
         float gainDb = 0.0f;
         bool mute = false;
+        float sendDb = -100.0f;                // level sent to the monitor mix (pre-fader); -100 = off
     };
 
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
@@ -85,6 +97,11 @@ private:
     void clearChains();
     void applyMix (Chain&);
     Slot* findSlot (int channel, int slot);
+    Chain* chainFor (int channel);                      // a channel, or the monitor mix (kMonBus)
+    void clearSlots (Chain&);
+    juce::var slotsState (const Chain&);
+    juce::var slotsSerialised (Chain&);
+    void loadSlots (Chain&, const juce::var& slotsVar, juce::String& errors);
     std::unique_ptr<juce::AudioPluginInstance> createInstance (const juce::PluginDescription&, juce::String& error);
     juce::var serialise();
     juce::var deserialise (const juce::var&);
@@ -98,6 +115,10 @@ private:
     juce::KnownPluginList known;
 
     std::atomic<float> masterGain { 1.0f };   // must outlive the graph
+    MonitorRing monitorRing;                  // must outlive the graph
+    int monitorChannel = -1;
+    bool monitorPost = true;
+    bool autoFallback = false;                // virtual card chosen automatically: do not remember it
     float masterDb = 0.0f;
 
     juce::AudioProcessorGraph graph;
@@ -105,6 +126,8 @@ private:
     juce::AudioProcessorGraph::Node::Ptr inputNode, outputNode;
 
     std::vector<Chain> chains;
+    Chain monBus;                                       // monitor mix: sends -> plugins -> fader -> mapped outputs
+    std::vector<int> monOutputs;                        // 0-based device output channels
     std::map<juce::uint32, std::unique_ptr<EditorWindow>> editors;
     bool running = false;
     bool savePending = false;
