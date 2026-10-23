@@ -339,6 +339,34 @@
   .listen.on { background:var(--acc); color:var(--onacc); }
   .monstat:empty { display:none; }
   @media (max-width:720px) { .monbtn, .listen { min-height:34px; } }
+
+  /* settings rows: words left, controls right */
+  .set { display:flex; align-items:center; gap:12px; padding:11px 0; border-top:1px solid var(--line); }
+  .card > h2 + .set, .drop + .set, #updOnline > .set:first-child, #updOffline > .set:first-child, #acOn > .set:first-child, .pwform > input + .set { border-top:0; }
+  .pwform { margin:0; gap:0; }
+  .sl { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+  .sl b { font-weight:600; font-size:14px; }
+  .sl span, .sl i { font-size:12px; color:var(--dim); line-height:1.35; }
+  .sl span.bad { color:var(--bad); }
+  .sl span:empty, .sl b:empty { display:none; }
+  .sc { flex:0 1 auto; display:flex; gap:6px; align-items:center; justify-content:flex-end; flex-wrap:wrap; min-width:0; }
+  .sc:empty { display:none; }
+  .sc select { width:190px; max-width:100%; }
+  .sc input[type=password], .sc input.ip { width:170px; max-width:100%; }
+  .sc .num { width:64px; text-align:center; }
+  .sc .seg button { padding:6px 12px; }
+  .netrow { padding:8px 0; border-top:1px solid var(--line); border-bottom:0 !important; }
+  #bundles .row { padding:8px 0; border-top:1px solid var(--line); margin:0; }
+  #bundles > .note { padding:8px 0; }
+  .drop { margin-bottom:6px; }
+  @media (max-width:720px) {
+    .set { padding:10px 0; gap:10px; }
+    .sc select { width:150px; font-size:15px; }
+    .sc input[type=password] { width:140px; font-size:15px; }
+    .sc input.ip { width:120px; font-size:15px; }
+    .sc button { min-height:38px; padding:6px 12px; font-size:15px; }
+    .sc .seg button { min-height:34px; padding:4px 10px; font-size:14px; }
+  }
 </style>
 </head>
 <body>
@@ -378,157 +406,110 @@
   <div data-pane="audio">
   <div class="card">
     <h2>Audio interface</h2>
-    <div class="fields">
-      <label class="f wide">Driver<select id="devType"></select></label>
-      <label class="f">Input<select id="devIn"></select></label>
-      <label class="f">Output<select id="devOut"></select></label>
-      <label class="f">Sample rate<select id="devRate"></select></label>
-      <label class="f">Buffer<select id="devBuf"></select></label>
-    </div>
-    <div class="row"><button id="devApply" class="on">Apply</button><span id="devNow" class="note grow"></span></div>
-    <div class="note">Smaller buffer = lower latency but more CPU. Watch the xrun counter at the top.</div>
+    <div class="set"><div class="sl"><b>Driver</b><span>ALSA for a sound card, or the virtual card for testing</span></div><div class="sc"><select id="devType"></select></div></div>
+    <div class="set"><div class="sl"><b>Input</b></div><div class="sc"><select id="devIn"></select></div></div>
+    <div class="set"><div class="sl"><b>Output</b></div><div class="sc"><select id="devOut"></select></div></div>
+    <div class="set"><div class="sl"><b>Sample rate</b></div><div class="sc"><select id="devRate"></select></div></div>
+    <div class="set"><div class="sl"><b>Buffer</b><span>Smaller = lower latency, more CPU</span></div><div class="sc"><select id="devBuf"></select></div></div>
+    <div class="set"><div class="sl"><b>Apply changes</b><span id="devNow"></span></div><div class="sc"><button id="devApply" class="on">Apply</button></div></div>
   </div>
   <div class="card hide" id="virtCard">
     <h2>Test audio file</h2>
-    <div class="note" style="margin-bottom:8px">The input <b>Test file (loop)</b> plays an audio file of your own, over and over. Upload it here, then press Apply above. Use <b>Listen</b> on the Mixer tab to hear the result.</div>
-    <div class="row">
-      <input id="tfFile" type="file" accept="audio/*,.wav,.aif,.aiff,.flac,.ogg" class="grow">
-      <button id="tfGo">Upload test file</button>
-      <button id="tfDel" class="danger hide">Remove</button>
-    </div>
-    <div id="tfStat" class="note">A test file (for example a spoken voice recording, up to 10 minutes) appears as the input <b>Test file (loop)</b>.</div>
+    <div class="set"><div class="sl"><b>Audio file</b><span id="tfStat">Plays over and over as the input <i>Test file (loop)</i>. WAV, AIFF, FLAC or OGG, up to 10 minutes.</span></div><div class="sc"><input id="tfFile" type="file" accept="audio/*,.wav,.aif,.aiff,.flac,.ogg" class="hide"><button id="tfPick">Choose…</button><button id="tfGo" class="on">Upload</button><button id="tfDel" class="danger hide">Remove</button></div></div>
   </div>
   </div>
   <div data-pane="channels" class="hide">
   <div class="card">
     <h2>Channels</h2>
-    <div class="row">
-      <label>Channels <input id="chCount" type="number" min="1" max="16" value="1" style="width:70px"></label>
-      <button id="chApply">Set</button>
-    </div>
-    <div class="note">With one channel the output feeds both L and R.</div>
+    <div class="set"><div class="sl"><b>Number of channels</b><span>With one channel the output feeds both left and right.</span></div><div class="sc"><input id="chCount" type="number" min="1" max="16" value="1" class="num"><button id="chApply">Set</button></div></div>
   </div>
   </div>
   <div data-pane="plugins" class="hide">
   <div class="card">
-    <h2>Plugins on this Pi</h2>
-    <div id="upDrop" class="drop">Drop a <b>.zip</b>, a <b>.vst3 folder</b> or a <b>.vst3 / .so file</b> here, or choose below</div>
-    <div class="row">
-      <button id="upPickZip">Choose .zip</button>
-      <button id="upPickDir">Choose .vst3 folder</button>
-      <button id="upPickFile">Choose .vst3 / .so file</button>
-      <span id="upSel" class="note grow"></span>
-      <button id="upGo" class="on">Upload &amp; install</button>
-    </div>
+    <h2>Add a plugin</h2>
+    <div id="upDrop" class="drop">Drop a <b>.zip</b>, a <b>.vst3 folder</b> or a <b>.vst3 / .so file</b> here</div>
+    <div class="set"><div class="sl"><b>Zip file</b><span>A .zip of the plugin folder</span></div><div class="sc"><button id="upPickZip">Choose…</button></div></div>
+    <div class="set"><div class="sl"><b>.vst3 folder</b><span>The whole plugin folder</span></div><div class="sc"><button id="upPickDir">Choose…</button></div></div>
+    <div class="set"><div class="sl"><b>Single file</b><span>A .vst3 or .so file; LivePi wraps it for you</span></div><div class="sc"><button id="upPickFile">Choose…</button></div></div>
+    <div class="set"><div class="sl"><b>Install</b><span id="upSel">Nothing chosen yet</span><span id="upStat"></span></div><div class="sc"><button id="upGo" class="on">Upload &amp; install</button></div></div>
     <input id="upZip" type="file" accept=".zip" class="hide">
     <input id="upDir" type="file" webkitdirectory directory multiple class="hide">
     <input id="upBin" type="file" accept=".vst3,.so" class="hide">
-    <div id="upStat" class="note"></div>
-    <div class="note">Plugins must be Linux ARM64 builds (they need <code>Contents/aarch64-linux/*.so</code>). A bare .so/.vst3 file is wrapped into a bundle for you.</div>
-    <div class="row"><button id="scan">Rescan plugins</button><span class="note grow">Uploads are scanned by themselves. Rescan only if a plugin is missing from the Add list (for example after copying one onto the Pi by hand).</span></div>
-    <div id="bundles" style="margin-top:8px"></div>
+    <div class="note">Plugins must be Linux ARM64 builds (they contain <code>Contents/aarch64-linux/*.so</code>).</div>
+  </div>
+  <div class="card">
+    <h2>Installed plugins</h2>
+    <div id="bundles"></div>
+    <div class="set"><div class="sl"><b>Rescan</b><span>Only needed if a plugin is missing from the Add list</span></div><div class="sc"><button id="scan">Rescan</button></div></div>
   </div>
   <div class="card">
     <h2>Plugin windows</h2>
-    <div id="vwStat" class="note">…</div>
+    <div class="set"><div class="sl"><b>Status</b><span id="vwStat">…</span></div><div class="sc"><button id="vwRefresh">Refresh</button></div></div>
     <pre id="vwLog" class="hide" style="max-height:160px;overflow:auto;padding:8px;border-radius:8px;font-size:12px;white-space:pre-wrap;margin:6px 0"></pre>
-    <div class="row"><button id="vwRefresh">Refresh</button></div>
-    <div class="note">Press <b>Plugin</b> on a plugin in the Mixer to see and use its own screen, full screen, right in this page. Use <b>Controls</b> for big touch knobs instead. Both need the installer's plugin window option (the default).</div>
   </div>
   </div>
   <div data-pane="system" class="hide">
   <div class="card">
     <h2>LivePi</h2>
-    <div id="ver" class="note"></div>
-    <div id="rolled" class="note bad hide">The last update did not start and was rolled back automatically.</div>
-    <div class="row"><span class="grow">Update from</span>
-      <div class="seg" id="updMode"><button data-v="online">Online</button><button data-v="offline">File</button></div>
-    </div>
+    <div class="set"><div class="sl"><b>Version</b><span id="ver"></span><span id="rolled" class="bad hide">The last update did not start and was rolled back.</span></div><div class="sc"></div></div>
+    <div class="set"><div class="sl"><b>Update from</b><span>Online needs internet; File uses a downloaded update</span></div><div class="sc"><div class="seg" id="updMode"><button data-v="online">Online</button><button data-v="offline">File</button></div></div></div>
     <div id="updOnline">
-      <div id="ghMsg" class="note">Checking internet connection…</div>
-      <div class="row">
-        <button id="ghCheck" disabled>Check for updates</button>
-        <button id="ghInstall" class="on" disabled>Install update</button>
-      </div>
+    <div class="set"><div class="sl"><b>Check for updates</b><span id="ghMsg">Checking internet connection…</span></div><div class="sc"><button id="ghCheck" disabled>Check</button></div></div>
+    <div class="set"><div class="sl"><b>Install</b><span>Grayed out until a newer version is found</span></div><div class="sc"><button id="ghInstall" class="on" disabled>Install update</button></div></div>
     </div>
     <div id="updOffline" class="hide">
-      <div class="row">
-        <input id="updFile" type="file" accept=".zip" class="grow">
-        <button id="updGo" class="on" disabled>Install update</button>
-      </div>
-      <div class="note">Download <b>livepi-build-N.zip</b> from your GitHub repo (Releases) and choose it here.</div>
+    <div class="set"><div class="sl"><b>Update file</b><span id="updName">livepi-build-N.zip from GitHub Releases</span></div><div class="sc"><input id="updFile" type="file" accept=".zip" class="hide"><button id="updPick">Choose…</button></div></div>
+    <div class="set"><div class="sl"><b>Install</b><span>Grayed out until a file is chosen</span></div><div class="sc"><button id="updGo" class="on" disabled>Install update</button></div></div>
     </div>
     <div id="updStat" class="note"></div>
-    <div class="note">Presets, plugins and password are kept. If the new version fails to start, the old one comes back by itself.</div>
-    <div class="row" style="margin-top:12px"><button id="sysRestart">Restart LivePi</button><span class="note grow">Audio stops for a few seconds; this page reconnects by itself.</span></div>
+    <div class="set"><div class="sl"><b>Restart LivePi</b><span>Audio stops for a few seconds</span></div><div class="sc"><button id="sysRestart">Restart</button></div></div>
   </div>
   <div class="card">
     <h2>Operating system</h2>
-    <div id="osMsg" class="note">…</div>
-    <div class="row">
-      <button id="osCheck" disabled>Check for OS updates</button>
-      <button id="osUpgrade" class="danger" disabled>Install OS updates</button>
-      <button id="osReboot" class="hide">Reboot now</button>
-    </div>
+    <div class="set"><div class="sl"><b>Check for OS updates</b><span id="osMsg">…</span></div><div class="sc"><button id="osCheck" disabled>Check</button></div></div>
+    <div class="set"><div class="sl"><b>Install OS updates</b><span>Needs internet. Not before a service: it can cause dropouts</span></div><div class="sc"><button id="osUpgrade" class="danger" disabled>Install</button><button id="osReboot" class="hide">Reboot now</button></div></div>
     <pre id="osLog" class="hide" style="max-height:200px;overflow:auto;background:var(--inset);padding:8px;border-radius:8px;font-size:12px;white-space:pre-wrap;margin:6px 0"></pre>
-    <div class="note">Runs apt-get update / upgrade on the Pi and needs internet. Don't run it before a service: it can cause audio dropouts while it runs, and may need a reboot afterwards.</div>
   </div>
   <div class="card dz">
     <h2>Danger zone</h2>
-    <div class="row"><button id="sysReboot" class="danger">Reboot Pi</button><span class="note grow">Audio stops until the Pi is back, about 30 seconds.</span></div>
+    <div class="set"><div class="sl"><b>Reboot Pi</b><span>Audio stops until the Pi is back, about 30 seconds</span></div><div class="sc"><button id="sysReboot" class="danger">Reboot</button></div></div>
   </div>
   </div>
   <div data-pane="settings" class="hide">
   <div class="card">
     <h2>Appearance</h2>
-    <div class="seg" id="themeSeg">
-      <button data-theme="auto">Auto</button><button data-theme="dark">Dark</button><button data-theme="light">Light</button>
-    </div>
-    <div class="note" style="margin-top:8px">Auto follows this device's dark / light setting. The choice is remembered on this device only.</div>
+    <div class="set"><div class="sl"><b>Theme</b><span>Auto follows this device</span></div><div class="sc"><div class="seg" id="themeSeg"><button data-theme="auto">Auto</button><button data-theme="dark">Dark</button><button data-theme="light">Light</button></div></div></div>
   </div>
   <div class="card">
     <h2>Mixer</h2>
-    <div class="row"><span class="grow">Master fader</span>
-      <div class="seg" id="masterSeg"><button data-v="on">Show</button><button data-v="off">Hide</button></div>
-    </div>
-    <div class="row"><span class="grow">Listen delay (this device)</span>
-      <div class="seg" id="leadSeg"><button data-v="40">Lowest</button><button data-v="80">Low</button><button data-v="200">Safe</button></div>
-    </div>
-    <div class="note" id="masterNote">Hidden, the master keeps its current level. Remembered on this device only.</div>
+    <div class="set"><div class="sl"><b>Master fader</b><span id="masterNote">Hidden, it keeps its level</span></div><div class="sc"><div class="seg" id="masterSeg"><button data-v="on">Show</button><button data-v="off">Hide</button></div></div></div>
+    <div class="set"><div class="sl"><b>Listen delay</b><span>Lower = less delay, more risk of crackles</span></div><div class="sc"><div class="seg" id="leadSeg"><button data-v="40">Lowest</button><button data-v="80">Low</button><button data-v="200">Safe</button></div></div></div>
   </div>
   <div class="card">
     <h2>Password</h2>
-    <div class="row"><span class="grow">Password protection</span>
-      <div class="seg" id="pwSeg"><button data-v="on">On</button><button data-v="off">Off</button></div>
-    </div>
-    <div id="pwNote" class="note"></div>
+    <div class="set"><div class="sl"><b>Password protection</b><span id="pwNote"></span></div><div class="sc"><div class="seg" id="pwSeg"><button data-v="on">On</button><button data-v="off">Off</button></div></div></div>
     <form id="pwOnBox" class="pwform hide" autocomplete="on">
-      <div class="note">Enter the password to use from now on (your old one or a new one).</div>
       <input type="text" name="username" value="livepi" autocomplete="username" class="hide" tabindex="-1" aria-hidden="true">
-      <input id="pwOnPw" type="password" placeholder="Password (at least 4 characters)" autocomplete="new-password">
-      <input id="pwOnPw2" type="password" placeholder="Repeat it" autocomplete="new-password">
-      <div class="row"><button type="submit" class="on">Turn on</button><button id="pwOnCancel" type="button">Cancel</button></div>
+    <div class="set"><div class="sl"><b>Password</b><span>Your old one or a new one</span></div><div class="sc"><input id="pwOnPw" type="password" placeholder="At least 4 characters" autocomplete="new-password"></div></div>
+    <div class="set"><div class="sl"><b>Repeat</b></div><div class="sc"><input id="pwOnPw2" type="password" placeholder="Repeat it" autocomplete="new-password"></div></div>
+    <div class="set"><div class="sl"><b></b></div><div class="sc"><button id="pwOnCancel" type="button">Cancel</button><button type="submit" class="on">Turn on</button></div></div>
     </form>
     <form id="pwForm" class="pwform" autocomplete="on">
       <input type="text" name="username" value="livepi" autocomplete="username" class="hide" tabindex="-1" aria-hidden="true">
-      <input id="pwCur" type="password" placeholder="Current password" autocomplete="current-password">
-      <input id="pwNew" type="password" placeholder="New password (at least 4 characters)" autocomplete="new-password">
-      <input id="pwNew2" type="password" placeholder="Repeat new password" autocomplete="new-password">
-      <div class="row"><button id="pwSave" type="submit" class="on">Set password</button><span class="grow"></span><button id="pwLogout" type="button" class="hide">Log out</button></div>
+    <div class="set" id="pwCurRow"><div class="sl"><b>Current password</b></div><div class="sc"><input id="pwCur" type="password" autocomplete="current-password"></div></div>
+    <div class="set"><div class="sl"><b>New password</b><span>At least 4 characters</span></div><div class="sc"><input id="pwNew" type="password" autocomplete="new-password"></div></div>
+    <div class="set"><div class="sl"><b>Repeat</b></div><div class="sc"><input id="pwNew2" type="password" autocomplete="new-password"></div></div>
+    <div class="set"><div class="sl"><b></b></div><div class="sc"><button id="pwSave" type="submit" class="on">Set password</button></div></div>
     </form>
+    <div class="set" id="pwLogoutRow"><div class="sl"><b>Log out</b><span>Only this device</span></div><div class="sc"><button id="pwLogout" type="button">Log out</button></div></div>
   </div>
   <div class="card" id="acCard">
     <h2>Trusted access</h2>
     <div id="acOff" class="note">Available when a password is set and password protection is on.</div>
     <div id="acOn">
-      <div class="row"><span class="grow">Skip the password on trusted networks</span>
-        <div class="seg" id="acSeg"><button data-v="on">On</button><button data-v="off">Off</button></div>
-      </div>
-      <div id="acNote" class="note"></div>
-      <h2 style="margin-top:14px">Trusted networks</h2>
+    <div class="set"><div class="sl"><b>Skip the password on trusted networks</b><span id="acNote"></span></div><div class="sc"><div class="seg" id="acSeg"><button data-v="on">On</button><button data-v="off">Off</button></div></div></div>
       <div id="acNets"></div>
-      <div class="row"><input id="acNew" class="grow" placeholder="192.168.2.0/24 or one address" autocomplete="off"><button id="acAdd">Add</button></div>
-      <div class="note">Use only a network you control (for example a dedicated AV VLAN).</div>
+    <div class="set"><div class="sl"><b>Add network</b><span>Only ones you control</span></div><div class="sc"><input id="acNew" placeholder="192.168.2.0/24" autocomplete="off" class="ip"><button id="acAdd">Add</button></div></div>
     </div>
   </div>
   </div>
@@ -688,11 +669,11 @@ function applySession(a) {
   $('pwNote').textContent = !a.passwordSet ? 'No password is set: everyone on your network can use LivePi. Turn protection on to choose one.'
     : a.protection ? 'On: devices must log in' + (a.trustedAccess ? ' (except on trusted networks).' : '.')
     : 'Off: everyone on your network can use LivePi without logging in. Turning it back on asks you to type the password again.';
-  $('pwCur').classList.toggle('hide', !a.protection);
+  $('pwCurRow').classList.toggle('hide', !a.protection);
   $('pwForm').classList.toggle('hide', a.passwordSet && !a.protection);
   $('pwSeg').querySelector('[data-v="on"]').disabled = false;
   $('pwSave').textContent = a.passwordSet ? 'Change password' : 'Set password';
-  $('pwLogout').classList.toggle('hide', !(a.protection && a.loggedIn));
+  $('pwLogoutRow').classList.toggle('hide', !(a.protection && a.loggedIn));
   // trusted access card: only with an active password
   $('acCard').classList.toggle('hide', !a.protection);
   $('acOff').classList.toggle('hide', a.protection);
@@ -707,7 +688,7 @@ function applySession(a) {
     r.append(x); root.append(r);
   });
   if (!(a.networks || []).length) root.append(el('div', 'note', 'None yet.'));
-  if (a.clientNet) $('acNew').placeholder = a.clientNet + ' (this device\'s network) or one address';
+  if (a.clientNet) $('acNew').placeholder = a.clientNet;
 }
 async function accessRefresh() { applySession(await api('/api/session', undefined, true)); }
 document.querySelectorAll('#pwSeg button').forEach(b => b.onclick = async () => {
@@ -771,7 +752,7 @@ function masterSync() {
   const v = showMaster() ? 'on' : 'off';
   document.querySelectorAll('#masterSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
   const db = S ? S.masterDb : 0;
-  $('masterNote').textContent = 'Hidden, the master keeps its current level' + (S ? ` (${db <= MINDB ? '-inf' : db.toFixed(1) + ' dB'})` : '') + '. Remembered on this device only.';
+  $('masterNote').textContent = v === 'off' ? 'Hidden; stays at ' + (S ? (S.masterDb <= MINDB ? '-inf' : S.masterDb.toFixed(1) + ' dB') : 'its level') : 'Shown on the Mixer';
 }
 document.querySelectorAll('#masterSeg button').forEach(b => b.onclick = () => {
   try { localStorage.setItem('lh.master', b.dataset.v); } catch (e) {}
@@ -1531,6 +1512,8 @@ function virtSync() { $('virtCard').classList.toggle('hide', !(/^virtual/i.test(
 $('devType').onchange = () => { refreshDeviceLists(); virtSync(); };
 $('devIn').addEventListener('change', virtSync);
 function tfSync() { $('tfDel').classList.toggle('hide', !(devices && devices.testFile)); }
+$('tfPick').onclick = () => $('tfFile').click();
+$('tfFile').addEventListener('change', () => { const f = $('tfFile').files[0]; if (f) $('tfStat').textContent = f.name; });
 $('tfGo').onclick = async () => {
   const f = $('tfFile').files[0]; if (!f) return toast('Choose an audio file first');
   const fd = new FormData(); fd.append('file', f, f.name);
@@ -1558,15 +1541,16 @@ async function loadInstalled() {
   const r = await api('/api/plugins/installed');
   const root = $('bundles'); root.innerHTML = '';
   (r.bundles || []).forEach(b => {
-    const row = el('div', 'row');
-    row.append(el('span', 'grow', `${b.name}  (${b.mb.toFixed(1)} MB)${b.inUse ? '  · in use' : ''}`));
-    const del = el('button', 'sm danger', 'Delete'); del.disabled = b.inUse;
+    const row = el('div', 'set');
+    const sl = el('div', 'sl'); sl.append(el('b', '', b.name.replace(/\.vst3$/i, '')), el('span', '', `${b.mb.toFixed(1)} MB${b.inUse ? ' · in use (remove it from the mixer to delete)' : ''}`));
+    row.append(sl);
+    const del = el('button', 'danger', 'Delete'); del.disabled = b.inUse;
     del.onclick = async () => {
       if (!confirm('Delete ' + b.name + ' from the Pi?')) return;
       const x = await api('/api/plugins/delete', { name: b.name });
       if (x.ok) { toast('Deleted ' + b.name); plugins = (await api('/api/plugins')).plugins || []; structKey = ''; loadInstalled(); refresh(); }
     };
-    row.append(del); root.append(row);
+    const sc = el('div', 'sc'); sc.append(del); row.append(sc); root.append(row);
   });
   if (!(r.bundles || []).length) root.append(el('div', 'note', 'No uploaded plugins yet.'));
 }
@@ -1574,7 +1558,7 @@ let upParts = [];   // [{file, name}]
 function setUp(list) {
   upParts = list;
   const n = list.length;
-  $('upSel').textContent = !n ? '' : n === 1 ? list[0].name : n + ' files from ' + list[0].name.split('/')[0];
+  $('upSel').textContent = !n ? 'Nothing chosen yet' : n === 1 ? list[0].name : n + ' files from ' + list[0].name.split('/')[0];
   $('upStat').textContent = '';
 }
 $('upPickZip').onclick = () => $('upZip').click();
@@ -1685,7 +1669,8 @@ function setUpdMode(m, remember) {
 }
 try { const m = localStorage.getItem('lh.upd'); if (m) { updModeChosen = true; setUpdMode(m, false); } else setUpdMode('online', false); } catch (e) { setUpdMode('online', false); }
 document.querySelectorAll('#updMode button').forEach(b => b.onclick = () => setUpdMode(b.dataset.v, true));
-$('updFile').addEventListener('change', () => { $('updGo').disabled = !$('updFile').files.length; $('updStat').textContent = ''; });
+$('updPick').onclick = () => $('updFile').click();
+$('updFile').addEventListener('change', () => { const f = $('updFile').files[0]; $('updGo').disabled = !f; $('updName').textContent = f ? f.name : 'livepi-build-N.zip from GitHub Releases'; $('updStat').textContent = ''; });
 $('ghCheck').onclick = async () => { const r = await api('/api/system/update/check', {}); updRefresh(); };
 $('ghInstall').onclick = async () => {
   if (!confirm('Download and install the latest version? LivePi restarts and audio stops for a few seconds.')) return;
@@ -1757,7 +1742,7 @@ async function refresh() {
   plugins = (await api('/api/plugins')).plugins || [];
   const info = await api('/api/info');
   applySession(sess);
-  $('ver').textContent = 'Version: ' + (info.version || 'unknown');
+  $('ver').textContent = info.version || 'unknown';
   $('rolled').classList.toggle('hide', !info.rolledBack);
   loadInstalled();
   osRefresh();
