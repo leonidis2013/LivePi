@@ -28,6 +28,7 @@ public:
     void pointer (juce::Point<int> screenPos, int button, bool down);   // button 0 = move only
     void wheel (juce::Point<int> screenPos, int dy);                    // dy < 0 = up
     void key (const juce::String& k);                                   // a character or Enter/Backspace/...
+    juce::uint32 pixelAt (int screenX, int screenY);                     // 0xffRRGGBB (0 = could not read)
 
 private:
     struct Impl;

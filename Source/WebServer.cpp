@@ -1045,6 +1045,22 @@ void WebServer::setupRoutes()
         reply (res, viewer != nullptr ? viewer->getStatus() : errVar ("Plugin windows are turned off (--no-editor)."));
     });
 
+    // Draws a small coloured window on the virtual screen and reads it back: proves the plugin view works
+    svr.Get ("/api/editor/selftest", [this] (const httplib::Request&, httplib::Response& res)
+    {
+        if (viewer == nullptr || ! viewer->isDisplayAvailable()) { reply (res, errVar ("No virtual screen.")); return; }
+        auto t = onMT ([this] { return engine.screenTest (true); });
+        Thread::sleep (400);
+        const auto px = viewer->live().pixelAt ((int) t["x"], (int) t["y"]);
+        onMT ([this] { return engine.screenTest (false); });
+        auto* o = new DynamicObject();
+        o->setProperty ("windowCreated", (bool) t["peer"]);
+        o->setProperty ("pixel", String::toHexString ((int) (px & 0xffffff)).paddedLeft ('0', 6));
+        const int r = (int) ((px >> 16) & 255), g = (int) ((px >> 8) & 255), b = (int) (px & 255);
+        o->setProperty ("ok", (bool) t["peer"] && r > 180 && g < 60 && b > 70 && b < 160);
+        reply (res, var (o));
+    });
+
     svr.Post ("/api/editor/open", [this] (const httplib::Request& req, httplib::Response& res)
     {
         auto b = body (req);

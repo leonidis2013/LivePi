@@ -65,6 +65,8 @@ run_case() {
   check "$label: still running" "kill -0 \$(cat /tmp/lh.pid)"
   V=$(api /api/editor/viewer); say "viewer: $(echo "$V" | jq -c '{available,displaySource,input,problem}')"
   check "$label: plugin view ready (virtual screen + touch input)" "echo '$V' | jq -e '.available and .input and (.problem==\"\")' >/dev/null"
+  T=$(api /api/editor/selftest); say "screen self-test: $T"
+  check "$label: plugin view self-test (window drawn on the virtual screen and read back)" "echo '$T' | jq -e '.ok' >/dev/null"
   check "$label: no plugin open -> frame says closed (410)" "[ \"\$(curl -s -m 5 -o /dev/null -w '%{http_code}' 'http://127.0.0.1:8080/api/editor/frame?channel=0&slot=0')\" = 410 ]"
   check "$label: state reports editorAvailable" "api /api/state | jq -e '.editorAvailable==true' >/dev/null"
   # password: none -> open; set one -> login needed (no user name); cookie works; trusted access; turn off

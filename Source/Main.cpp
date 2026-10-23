@@ -46,12 +46,14 @@ public:
         std::signal (SIGINT, onStopSignal);
         stopWatcher = std::make_unique<StopWatcher>();
 
-        engine = std::make_unique<HostEngine>();
-        engine->start();
-
-        // Virtual screen + browser viewer for plugin windows (skipped with --no-editor)
+        // Virtual screen for plugin windows (skipped with --no-editor). This must come first: it sets
+        // DISPLAY, and JUCE connects to the X display only once, the first time anything needs it
+        // (loading a plugin can). Done later, plugin windows would stay invisible (black).
         if (! args.contains ("--no-editor"))
             viewer = std::make_unique<EditorViewer> (HostEngine::dataDir());
+
+        engine = std::make_unique<HostEngine>();
+        engine->start();
 
         web = std::make_unique<WebServer> (*engine, port);
         web->setViewer (viewer.get());

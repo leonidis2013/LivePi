@@ -92,6 +92,18 @@ struct LiveView::Impl
         return true;
     }
 
+    juce::uint32 pixelAt (int px, int py)
+    {
+        std::lock_guard<std::mutex> l (lock);
+        if (dpy == nullptr) return 0;
+        XImage* img = x.GetImage (dpy, root, px, py, 1, 1, AllPlanes, ZPixmap);
+        if (img == nullptr) return 0;
+        juce::uint32 v = 0;
+        if (img->bits_per_pixel == 32) v = 0xff000000u | (*(const juce::uint32*) img->data & 0xffffffu);
+        img->f.destroy_image (img);
+        return v;
+    }
+
     // Pointer: button 0 = move only, 1 left, 3 right; wheel: dy < 0 = up
     void pointer (juce::Point<int> screenPos, int button, bool down)
     {
@@ -209,3 +221,4 @@ bool LiveView::grab (juce::Rectangle<int> a, int w, juce::uint64 s, Frame& f) { 
 void LiveView::pointer (juce::Point<int> p, int b, bool d) { impl->pointer (p, b, d); }
 void LiveView::wheel (juce::Point<int> p, int dy)     { impl->wheel (p, dy); }
 void LiveView::key (const juce::String& k)            { impl->key (k); }
+juce::uint32 LiveView::pixelAt (int x, int y)         { return impl->pixelAt (x, y); }

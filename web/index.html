@@ -1417,6 +1417,10 @@ function viewerText(v) {
 }
 async function viewerRefresh() {
   const v = await viewerStatus();
+  if (v && v.available) {
+    const t = await api('/api/editor/selftest', undefined, true);
+    if (t && t.ok === false) { v.problem = (v.problem ? v.problem + ' · ' : '') + (t.windowCreated ? 'Screen test failed: windows are not drawn (read back ' + t.pixel + ').' : 'Screen test failed: no window could be created. Restart LivePi.'); }
+  }
   $('vwStat').textContent = viewerText(v);
   $('vwStat').classList.toggle('bad', !!(v && (v.problem || !v.available)));
   $('vwLog').classList.toggle('hide', !(v && v.log && (v.problem || !v.available))); $('vwLog').textContent = (v && v.log) || '';

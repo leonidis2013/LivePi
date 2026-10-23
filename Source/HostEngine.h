@@ -58,7 +58,8 @@ public:
     juce::var getParams (int channel, int slot);
     juce::var setParam (int channel, int slot, int index, float value);
     juce::var openEditor (int channel, int slot, int viewW = 0, int viewH = 0);   // view size = the browser's, to fill it
-    juce::Rectangle<int> getEditorArea (int channel, int slot);                  // screen area of an open plugin window (empty if closed)
+    juce::Rectangle<int> getEditorArea (int channel, int slot);
+    juce::var screenTest (bool show);                  // screen area of an open plugin window (empty if closed)
     juce::var closeEditor (int channel, int slot);
     juce::var measurePlugin (int channel, int slot);   // CPU estimate on a separate instance
 

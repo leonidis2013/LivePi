@@ -676,6 +676,11 @@ var HostEngine::openEditor (int channel, int slot, int viewW, int viewH)
     }
 
     auto& w = *editors[key];
+    if (w.getPeer() == nullptr)
+    {
+        editors.erase (key);
+        return err ("The plugin window could not be shown: LivePi has no connection to its virtual screen. Restart LivePi (Setup > System).");
+    }
     w.fitTo (viewW, viewH, 1920, 1080);
     w.toFront (false);
 
@@ -683,6 +688,27 @@ var HostEngine::openEditor (int channel, int slot, int viewW, int viewH)
     o->setProperty ("ok", true);
     o->setProperty ("width", w.getWidth());
     o->setProperty ("height", w.getHeight());
+    return var (o);
+}
+
+// Self-test for the plugin view: a small solid-colour window on the virtual screen.
+// show = true opens it and returns its screen area, false closes it.
+var HostEngine::screenTest (bool show)
+{
+    struct Swatch : Component { void paint (Graphics& g) override { g.fillAll (Colour (0xffe01070)); } };
+    static std::unique_ptr<Swatch> sw;
+    auto* o = new DynamicObject();
+    if (! show) { sw.reset(); o->setProperty ("ok", true); return var (o); }
+    sw = std::make_unique<Swatch>();
+    sw->setOpaque (true);
+    sw->setBounds (1800, 1000, 64, 48);
+    sw->addToDesktop (0);
+    sw->setVisible (true);
+    sw->toFront (false);
+    o->setProperty ("peer", sw->getPeer() != nullptr);
+    if (auto* p = sw->getPeer()) p->performAnyPendingRepaintsNow();
+    const auto r = sw->getScreenBounds();
+    o->setProperty ("x", r.getCentreX()); o->setProperty ("y", r.getCentreY());
     return var (o);
 }
 
