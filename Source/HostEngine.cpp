@@ -39,40 +39,73 @@ namespace
     }
 }
 
-// Plugin editor shown on the (virtual) display so it can be streamed to the browser.
-class EditorWindow : public DocumentWindow
+// Plugin editor on the (virtual) screen: borderless, full screen width available, top-left corner.
+// The web page shows exactly this area, so there is no title bar or frame to get in the way.
+class EditorWindow : public Component, private ComponentListener
 {
 public:
-    EditorWindow (AudioProcessorEditor* ed, const String& title, std::function<void()> onCloseFn)
-        : DocumentWindow (title, Colours::darkgrey, DocumentWindow::closeButton),
-          onClose (std::move (onCloseFn))
+    explicit EditorWindow (AudioProcessorEditor* ed) : editor (ed)
     {
-        setUsingNativeTitleBar (false);
-        const bool resizable = ed->isResizable();
-        setContentOwned (ed, true);
-        setResizable (resizable, false);
-        // Keep the window inside the (virtual) screen so the viewer shows all of it
-        if (auto* d = Desktop::getInstance().getDisplays().getPrimaryDisplay())
-        {
-            const auto area = d->userArea;
-            if (resizable && (getWidth() > area.getWidth() || getHeight() > area.getHeight()))
-            {
-                const float s = jmin ((float) area.getWidth() / (float) jmax (1, getWidth()), (float) area.getHeight() / (float) jmax (1, getHeight()));
-                setSize (jmax (200, (int) (getWidth() * s)), jmax (120, (int) (getHeight() * s)));
-            }
-        }
+        setOpaque (true);
+        addAndMakeVisible (editor.get());
+        editor->addComponentListener (this);
+        setSize (editor->getWidth(), editor->getHeight());
+        addToDesktop (0);           // no title bar, no border
         setTopLeftPosition (0, 0);
         setVisible (true);
-        toFront (true);
+        toFront (false);
     }
 
-    void closeButtonPressed() override
+    ~EditorWindow() override
     {
-        MessageManager::callAsync (onClose);
+        editor->removeComponentListener (this);
+        editor = nullptr;           // deletes the plugin editor while the window still exists
     }
+
+    void paint (Graphics& g) override { g.fillAll (Colours::black); }
+
+    // Sizes a resizable plugin to fill as much of the screen as possible with the viewer's aspect
+    // ratio (full screen on the phone/tablet); fixed-size plugins keep their own size.
+    void fitTo (int viewW, int viewH, int screenW, int screenH)
+    {
+        if (! editor->isResizable() || viewW < 50 || viewH < 50)
+        {
+            clampToScreen (screenW, screenH);
+            return;
+        }
+        const double aspect = (double) viewW / (double) viewH;
+        int w = screenW, h = (int) std::round (screenW / aspect);
+        if (h > screenH) { h = screenH; w = (int) std::round (screenH * aspect); }
+        if (auto* c = editor->getConstrainer())
+        {
+            auto r = editor->getBounds().withSize (w, h);
+            c->checkBounds (r, editor->getBounds(), { 0, 0, screenW, screenH }, false, false, true, true);
+            w = r.getWidth(); h = r.getHeight();
+        }
+        editor->setSize (jmax (100, w), jmax (60, h));
+        clampToScreen (screenW, screenH);
+    }
+
+    Rectangle<int> getEditorScreenArea() const { return editor->getScreenBounds(); }
 
 private:
-    std::function<void()> onClose;
+    std::unique_ptr<AudioProcessorEditor> editor;
+
+    void clampToScreen (int screenW, int screenH)
+    {
+        if (editor->getWidth() > screenW || editor->getHeight() > screenH)
+        {
+            const float sc = jmin ((float) screenW / (float) editor->getWidth(), (float) screenH / (float) editor->getHeight());
+            if (editor->isResizable())
+                editor->setSize ((int) (editor->getWidth() * sc), (int) (editor->getHeight() * sc));
+        }
+    }
+
+    void componentMovedOrResized (Component&, bool, bool wasResized) override
+    {
+        if (wasResized)
+            setSize (editor->getWidth(), editor->getHeight());
+    }
 };
 
 HostEngine::HostEngine()
@@ -535,16 +568,49 @@ var HostEngine::getParams (int channel, int slot)
     if (s == nullptr)
         return err ("no such plugin");
 
+    auto* proc = s->node->getProcessor();
+
+    // Section names come from the plugin's own parameter groups (VST3 units), when it has them
+    std::map<const AudioProcessorParameter*, String> groupOf;
+    std::function<void (const AudioProcessorParameterGroup&, const String&)> walk = [&] (const AudioProcessorParameterGroup& g, const String& path)
+    {
+        for (auto* node : g)
+        {
+            if (auto* sub = node->getGroup())
+                walk (*sub, path.isEmpty() ? sub->getName() : path + " / " + sub->getName());
+            else if (auto* prm = node->getParameter())
+                groupOf[prm] = path;
+        }
+    };
+    walk (proc->getParameterTree(), {});
+
     Array<var> arr;
-    auto& ps = s->node->getProcessor()->getParameters();
+    auto& ps = proc->getParameters();
     for (int i = 0; i < ps.size(); ++i)
     {
         auto* p = ps[i];
         auto* o = new DynamicObject();
+        const auto v = p->getValue();
         o->setProperty ("index", i);
         o->setProperty ("name", p->getName (48));
-        o->setProperty ("value", p->getValue());
-        o->setProperty ("text", (p->getText (p->getValue(), 24) + " " + p->getLabel()).trim());
+        o->setProperty ("value", v);
+        o->setProperty ("default", p->getDefaultValue());
+        o->setProperty ("text", (p->getText (v, 24) + " " + p->getLabel()).trim());
+        o->setProperty ("group", groupOf[p]);
+        const int steps = p->getNumSteps();
+        if (p->isBoolean() || steps == 2)
+            o->setProperty ("type", "bool");
+        else if (p->isDiscrete() && steps > 2 && steps <= 32)
+        {
+            o->setProperty ("type", "choice");
+            Array<var> ch;
+            for (int k = 0; k < steps; ++k)
+                ch.add (p->getText ((float) k / (float) (steps - 1), 24));
+            o->setProperty ("choices", ch);
+        }
+        else
+            o->setProperty ("type", "knob");
+        if (! p->isAutomatable()) o->setProperty ("hidden", true);
         arr.add (var (o));
     }
     auto* root = new DynamicObject();
@@ -562,37 +628,60 @@ var HostEngine::setParam (int channel, int slot, int index, float value)
     if (index < 0 || index >= ps.size())
         return err ("bad parameter");
 
-    ps[index]->setValueNotifyingHost (jlimit (0.0f, 1.0f, value));
-    return ok();
+    auto* p = ps[index];
+    p->setValueNotifyingHost (jlimit (0.0f, 1.0f, value));
+    auto* o = new DynamicObject();
+    o->setProperty ("ok", true);
+    o->setProperty ("value", p->getValue());
+    o->setProperty ("text", (p->getText (p->getValue(), 24) + " " + p->getLabel()).trim());
+    return var (o);
 }
 
-var HostEngine::openEditor (int channel, int slot)
+var HostEngine::openEditor (int channel, int slot, int viewW, int viewH)
 {
     auto* s = findSlot (channel, slot);
     if (s == nullptr)
         return err ("no such plugin");
 
     if (std::getenv ("DISPLAY") == nullptr)
-        return err ("No display for plugin windows. Re-run the installer with the editor option, then reboot.");
+        return err ("No screen for plugin windows. Re-run the installer (without --no-editor), then reboot.");
 
     const auto key = s->node->nodeID.uid;
-    auto it = editors.find (key);
-    if (it != editors.end())
+
+    // One plugin window at a time: they all sit in the same corner of the virtual screen
+    for (auto it = editors.begin(); it != editors.end();)
+        it = it->first == key ? std::next (it) : editors.erase (it);
+
+    if (editors.find (key) == editors.end())
     {
-        it->second->toFront (true);
-        return ok();
+        auto* proc = s->node->getProcessor();
+        if (! proc->hasEditor())
+            return err ("this plugin has no editor");
+
+        auto* ed = proc->createEditorIfNeeded();
+        if (ed == nullptr)
+            return err ("could not create the plugin editor");
+
+        editors[key] = std::make_unique<EditorWindow> (ed);
     }
 
-    auto* proc = s->node->getProcessor();
-    if (! proc->hasEditor())
-        return err ("this plugin has no editor");
+    auto& w = *editors[key];
+    w.fitTo (viewW, viewH, 1920, 1080);
+    w.toFront (false);
 
-    auto* ed = proc->createEditorIfNeeded();
-    if (ed == nullptr)
-        return err ("could not create the plugin editor");
+    auto* o = new DynamicObject();
+    o->setProperty ("ok", true);
+    o->setProperty ("width", w.getWidth());
+    o->setProperty ("height", w.getHeight());
+    return var (o);
+}
 
-    editors[key] = std::make_unique<EditorWindow> (ed, s->desc.name, [this, key] { editors.erase (key); });
-    return ok();
+Rectangle<int> HostEngine::getEditorArea (int channel, int slot)
+{
+    auto* s = findSlot (channel, slot);
+    if (s == nullptr) return {};
+    auto it = editors.find (s->node->nodeID.uid);
+    return it == editors.end() ? Rectangle<int>() : it->second->getEditorScreenArea();
 }
 
 var HostEngine::installTestFile (const File& f)

@@ -741,18 +741,77 @@ void WebServer::setupRoutes()
     // Plugin editor windows (shown on the virtual display)
     svr.Get ("/api/editor/viewer", [this] (const httplib::Request&, httplib::Response& res)
     {
-        reply (res, onMT ([this] { return viewer != nullptr ? viewer->getStatus() : errVar ("No viewer"); }));
-    });
-
-    svr.Post ("/api/editor/viewer/restart", [this] (const httplib::Request&, httplib::Response& res)
-    {
-        reply (res, onMT ([this] { if (viewer != nullptr) viewer->restartHelpers(); return viewer != nullptr ? viewer->getStatus() : errVar ("No viewer"); }));
+        reply (res, viewer != nullptr ? viewer->getStatus() : errVar ("Plugin windows are turned off (--no-editor)."));
     });
 
     svr.Post ("/api/editor/open", [this] (const httplib::Request& req, httplib::Response& res)
     {
         auto b = body (req);
-        reply (res, onMT ([this, b] { return engine.openEditor ((int) b["channel"], (int) b["slot"]); }));
+        if (viewer == nullptr || ! viewer->isDisplayAvailable())
+        {
+            reply (res, errVar (viewer == nullptr ? "Plugin windows are turned off (--no-editor)." : viewer->getStatus()["problem"].toString()));
+            return;
+        }
+        reply (res, onMT ([this, b] { return engine.openEditor ((int) b["channel"], (int) b["slot"], (int) b["viewW"], (int) b["viewH"]); }));
+    });
+
+    // Live view: the plugin window as a JPEG. Waits (up to ~1.5 s) until it differs from `since`,
+    // so an idle plugin costs almost nothing; 204 = unchanged.
+    svr.Get ("/api/editor/frame", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        if (viewer == nullptr) { res.status = 404; return; }
+        const int ch = qs (req, "channel").getIntValue(), slot = qs (req, "slot").getIntValue();
+        const int maxW = qs (req, "w").getIntValue();
+        const auto since = (juce::uint64) qs (req, "since").getLargeIntValue();
+
+        LiveView::Frame f;
+        const auto until = Time::getMillisecondCounter() + 1500;
+        for (;;)
+        {
+            const auto area = onMT ([this, ch, slot]
+            {
+                auto r = engine.getEditorArea (ch, slot);
+                return var (Array<var> { r.getX(), r.getY(), r.getWidth(), r.getHeight() });
+            });
+            const Rectangle<int> r ((int) area[0], (int) area[1], (int) area[2], (int) area[3]);
+            if (r.isEmpty()) { res.status = 410; return; }   // window closed
+            f = {};
+            if (! viewer->live().grab (r, maxW, since, f)) { res.status = 503; return; }
+            if (f.jpeg.getSize() > 0 || Time::getMillisecondCounter() > until) break;
+            Thread::sleep (66);   // ~15 checks a second while nothing changes
+        }
+
+        res.set_header ("Cache-Control", "no-store");
+        res.set_header ("X-Frame", String ((juce::int64) f.hash).toStdString());
+        res.set_header ("X-Size", (String (f.width) + "x" + String (f.height)).toStdString());
+        if (f.jpeg.getSize() == 0) { res.status = 204; return; }
+        res.set_content ((const char*) f.jpeg.getData(), f.jpeg.getSize(), "image/jpeg");
+    });
+
+    // Live view input: [{t:"down"|"up"|"move"|"wheel"|"key", x, y, b, dy, k}], x/y in plugin window pixels
+    svr.Post ("/api/editor/input", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto b = body (req);
+        if (viewer == nullptr) { reply (res, errVar ("Plugin windows are turned off.")); return; }
+        const int ch = (int) b["channel"], slot = (int) b["slot"];
+        const auto area = onMT ([this, ch, slot] { auto r = engine.getEditorArea (ch, slot); return var (Array<var> { r.getX(), r.getY(), r.getWidth(), r.getHeight() }); });
+        const Rectangle<int> r ((int) area[0], (int) area[1], (int) area[2], (int) area[3]);
+        if (r.isEmpty()) { reply (res, errVar ("The plugin window is closed.")); return; }
+
+        auto& lv = viewer->live();
+        if (auto* evs = b["events"].getArray())
+            for (auto& e : *evs)
+            {
+                const auto t = e["t"].toString();
+                const Point<int> p (r.getX() + jlimit (0, r.getWidth() - 1, (int) e["x"]), r.getY() + jlimit (0, r.getHeight() - 1, (int) e["y"]));
+                const int btn = e.hasProperty ("b") ? jlimit (1, 3, (int) e["b"]) : 1;
+                if (t == "move")       lv.pointer (p, 0, false);
+                else if (t == "down")  lv.pointer (p, btn, true);
+                else if (t == "up")    lv.pointer (p, btn, false);
+                else if (t == "wheel") lv.wheel (p, (int) e["dy"]);
+                else if (t == "key")   lv.key (e["k"].toString());
+            }
+        reply (res, var (new DynamicObject()));
     });
 
     svr.Post ("/api/editor/close", [this] (const httplib::Request& req, httplib::Response& res)

@@ -4,10 +4,7 @@
 #include <juce_events/juce_events.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 #include <unistd.h>
-#include <sys/stat.h>
 #include <sys/prctl.h>
 #include <sys/wait.h>
 #include <fcntl.h>
@@ -15,14 +12,8 @@
 #include <vector>
 #include <string>
 #include <cstdlib>
+#include "LiveView.h"
 
-// Makes plugin windows reachable from the browser. Three helpers run as children of LiveHost:
-//   Xvfb       a virtual screen (only when no DISPLAY was given to us)
-//   x11vnc     shares that screen on localhost:5900 with a random password
-//   websockify serves the noVNC viewer on port 6080 and bridges it to x11vnc
-// Running them from here (instead of systemd units) means an online update is enough to get
-// them, a helper that dies is restarted, and the web page can show exactly what is wrong.
-// All methods run on the message thread.
 // A child process that dies with LiveHost (PR_SET_PDEATHSIG), however LiveHost ends: a clean stop,
 // a crash, or a kill -9. Its output goes to a log file.
 class HelperProcess
@@ -79,16 +70,20 @@ public:
     }
 
     int getExitCode() const { return exitCode; }
+    void release() { pid = 0; }   // forget it without stopping it
 
 private:
     pid_t pid = 0;
     int exitCode = 0;
 };
 
-class EditorViewer : private juce::Timer
+// Plugin windows live on a virtual screen (Xvfb, started here when no DISPLAY was given) and are
+// shown inside the web page by LiveView: no VNC, no second port, nothing else to install.
+// Constructed on the message thread; getStatus() and live() are safe from any thread.
+class EditorViewer
 {
 public:
-    static constexpr int vncPort = 5900, webPort = 6080;
+    static constexpr int screenW = 1920, screenH = 1080;
 
     explicit EditorViewer (const juce::File& dataDir) : dir (dataDir)
     {
@@ -97,21 +92,22 @@ public:
         logFile.replaceWithText ({});
         startDisplay();
         if (displayOk)
-            startHelpers();
-        startTimer (3000);
+        {
+            auto e = view.open (displayName);
+            if (e.isNotEmpty()) { problem = e; log (e); }
+            else if (! view.canInput()) { problem = "Touch/mouse input needs libxtst6 (re-run the installer, or: sudo apt install libxtst6)"; log (problem); }
+        }
     }
 
-    ~EditorViewer() override
+    ~EditorViewer()
     {
-        stopTimer();
-        vnc.stop();
-        web.stop();
-        // Xvfb is left alone here on purpose: killing it while JUCE still talks to it would abort the
-        // shutdown. It ends by itself when LiveHost has exited (PDEATHSIG).
-        xvfb.release();
+        // Xvfb is not stopped here: JUCE may still talk to it during shutdown. It ends by itself
+        // once LiveHost has exited (PDEATHSIG).
+        if (xvfb != nullptr) xvfb->release();
     }
 
     bool isDisplayAvailable() const { return displayOk; }
+    LiveView& live() { return view; }
 
     juce::var getStatus() const
     {
@@ -119,33 +115,18 @@ public:
         o->setProperty ("available", displayOk);
         o->setProperty ("display", displayName);
         o->setProperty ("displaySource", displaySource);
-        o->setProperty ("vnc", vncState);
-        o->setProperty ("web", webState);
-        o->setProperty ("webReachable", portListening (webPort));
-        o->setProperty ("port", webPort);
-        o->setProperty ("password", password);
+        o->setProperty ("input", view.canInput());
         o->setProperty ("problem", problem);
         o->setProperty ("log", logTail());
         return juce::var (o);
     }
 
-    void restartHelpers()
-    {
-        vnc.stop();
-        web.stop();
-        restarts = 0;
-        problem.clear();
-        if (displayOk)
-            startHelpers();
-    }
-
 private:
-    juce::File dir, logFile, authFile;
-    HelperProcess vnc, web;
+    juce::File dir, logFile;
     std::unique_ptr<HelperProcess> xvfb;
-    juce::String displayName, displaySource, vncState = "stopped", webState = "stopped", password, problem;
-    bool displayOk = false, haveVnc = false, haveWeb = false;
-    int restarts = 0, healthyTicks = 0;
+    juce::String displayName, displaySource, problem;
+    bool displayOk = false;
+    LiveView view;
 
     static juce::String which (const char* name)
     {
@@ -167,19 +148,6 @@ private:
         return ok;
     }
 
-    static bool portListening (int port)
-    {
-        const int fd = ::socket (AF_INET, SOCK_STREAM, 0);
-        if (fd < 0) return false;
-        sockaddr_in a {};
-        a.sin_family = AF_INET;
-        a.sin_port = htons ((uint16_t) port);
-        a.sin_addr.s_addr = htonl (INADDR_LOOPBACK);
-        const bool ok = ::connect (fd, (sockaddr*) &a, sizeof (a)) == 0;
-        ::close (fd);
-        return ok;
-    }
-
     void log (const juce::String& s) const
     {
         logFile.appendText (juce::Time::getCurrentTime().toString (false, true) + "  " + s + "\n");
@@ -188,18 +156,14 @@ private:
 
     juce::String logTail() const
     {
-        auto all = logFile.loadFileAsString();
-        auto lines = juce::StringArray::fromLines (all);
+        auto lines = juce::StringArray::fromLines (logFile.loadFileAsString());
         lines.removeEmptyStrings();
-        // Xvfb prints pages of harmless keymap warnings; keep the tail useful
         for (int i = lines.size(); --i >= 0;)
             if (lines[i].contains ("Could not resolve keysym") || lines[i].contains ("xkbcomp") || lines[i].contains ("XKEYBOARD"))
                 lines.remove (i);
         while (lines.size() > 12) lines.remove (0);
         return lines.joinIntoString ("\n");
     }
-
-    bool spawn (HelperProcess& p, const juce::StringArray& args) { return p.start (args, logFile); }
 
     void startDisplay()
     {
@@ -226,9 +190,8 @@ private:
                 log (problem);
                 return;
             }
-            // A screen big enough for large plugin windows; x11vnc only scans parts that change.
             xvfb = std::make_unique<HelperProcess>();
-            if (! spawn (*xvfb, { exe, ":99", "-screen", "0", "1920x1080x24", "-nolisten", "tcp", "-nocursor" }))
+            if (! xvfb->start ({ exe, ":99", "-screen", "0", juce::String (screenW) + "x" + juce::String (screenH) + "x24", "-nolisten", "tcp", "-nocursor" }, logFile))
             {
                 problem = "Could not start Xvfb.";
                 log (problem);
@@ -239,113 +202,13 @@ private:
                 juce::Thread::sleep (100);
             if (! unixSocketAlive (sock))
             {
-                problem = "Xvfb did not start. See the viewer log.";
+                problem = "Xvfb did not start. See the log.";
                 log (problem);
                 return;
             }
         }
         ::setenv ("DISPLAY", displayName.toRawUTF8(), 1);
         displayOk = true;
-        log ("display " + displayName + " (" + displaySource + ")");
-    }
-
-    void startHelpers()
-    {
-        auto x11vnc = which ("x11vnc"), websockify = which ("websockify");
-        haveVnc = x11vnc.isNotEmpty();
-        haveWeb = websockify.isNotEmpty() && juce::File ("/usr/share/novnc/vnc.html").existsAsFile();
-
-        if (! haveVnc || ! haveWeb)
-        {
-            problem = "The viewer programs are missing (x11vnc, websockify, novnc). Re-run the installer to add them.";
-            vncState = haveVnc ? vncState : "missing";
-            webState = haveWeb ? webState : "missing";
-            log (problem);
-            return;
-        }
-
-        if (! vnc.isRunning())
-        {
-            if (portListening (vncPort))
-            {
-                problem = "Port 5900 is already used by another VNC server (an old livehost-vnc service?). Re-run the installer to remove it.";
-                vncState = "external";
-                log (problem);
-            }
-            else
-            {
-                if (password.isEmpty())
-                {
-                    password = makePassword();
-                    authFile = dir.getChildFile ("vnc.pass");
-                    HelperProcess mk;
-                    mk.start ({ x11vnc, "-storepasswd", password, authFile.getFullPathName() }, logFile);
-                    for (int i = 0; i < 100 && mk.isRunning(); ++i) juce::Thread::sleep (50);
-                    authFile.setReadOnly (false);
-                    chmod (authFile.getFullPathName().toRawUTF8(), 0600);
-                    auto txt = dir.getChildFile ("vnc.txt");
-                    txt.replaceWithText (password);
-                    chmod (txt.getFullPathName().toRawUTF8(), 0600);
-                }
-                // nice: the audio thread is real-time anyway; this keeps screen polling off the other cores' priorities.
-                // -defer/-wait limit the scan rate to ~20 fps so a busy plugin window cannot eat a core.
-                vncState = spawn (vnc, { "nice", "-n", "10", x11vnc, "-display", displayName, "-localhost", "-rfbport", juce::String (vncPort),
-                                         "-rfbauth", authFile.getFullPathName(), "-forever", "-shared", "-noxdamage", "-defer", "50", "-wait", "50",
-                                         "-cursor", "arrow", "-quiet" }) ? "running" : "failed";
-                log ("x11vnc " + vncState);
-            }
-        }
-
-        if (! web.isRunning())
-        {
-            if (portListening (webPort))
-            {
-                problem = "Port 6080 is already used by another program (an old livehost-novnc service?). Re-run the installer to remove it.";
-                webState = "external";
-                log (problem);
-            }
-            else
-            {
-                webState = spawn (web, { "nice", "-n", "10", websockify, "--web=/usr/share/novnc", juce::String (webPort), "localhost:" + juce::String (vncPort) }) ? "running" : "failed";
-                log ("websockify " + webState);
-            }
-        }
-    }
-
-    static juce::String makePassword()
-    {
-        const char* chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-        juce::String s;
-        auto& r = juce::Random::getSystemRandom();
-        for (int i = 0; i < 8; ++i)
-            s << chars[r.nextInt ((int) std::strlen (chars))];
-        return s;
-    }
-
-    void timerCallback() override
-    {
-        if (! displayOk || ! haveVnc || ! haveWeb)
-            return;
-
-        bool died = false;
-        if (vncState == "running" && ! vnc.isRunning()) { vncState = "stopped"; died = true; log ("x11vnc exited (" + juce::String (vnc.getExitCode()) + ")"); }
-        if (webState == "running" && ! web.isRunning()) { webState = "stopped"; died = true; log ("websockify exited (" + juce::String (web.getExitCode()) + ")"); }
-
-        if (died)
-        {
-            healthyTicks = 0;
-            if (++restarts > 5)
-            {
-                problem = "The viewer keeps stopping. See the log below, then use Restart viewer.";
-                return;
-            }
-            startHelpers();
-        }
-        else if (vncState == "running" && webState == "running")
-        {
-            if (++healthyTicks >= 20) restarts = 0;   // a minute without trouble forgets earlier restarts
-            if (problem.isNotEmpty() && ! problem.startsWith ("Port"))
-                problem.clear();
-        }
+        log ("virtual screen " + displayName + " (" + displaySource + ")");
     }
 };

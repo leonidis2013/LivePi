@@ -38,9 +38,5 @@ HASH="$(printf '%s%s' "$SALT" "$PASS" | sha256sum | cut -d' ' -f1)"
 chown "$USER_NAME:$GROUP_NAME" "$DIR/auth.json"
 
 systemctl try-restart livehost.service 2>/dev/null || true
-if [[ -f /etc/systemd/system/livehost-vnc.service ]]; then
-  systemctl enable livehost-vnc.service livehost-novnc.service 2>/dev/null || true
-  systemctl restart livehost-vnc.service livehost-novnc.service 2>/dev/null || true
-fi
 
 echo "Password set. When the browser asks for a login, leave the user name blank (or type anything) and enter the password."

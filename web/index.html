@@ -56,7 +56,7 @@
   .strip.master { width:110px; flex-basis:110px; background:var(--card2); }
   .strip .nm { width:100%; text-align:center; font-weight:600; padding:5px; }
   .strip .mname { text-align:center; font-weight:600; padding:6px 0; }
-  .fm { display:flex; justify-content:center; gap:10px; height:210px; }
+  .fm { display:flex; justify-content:center; gap:6px; height:220px; }
   .meter { position:relative; width:10px; background:var(--inset); border-radius:3px; overflow:hidden; }
   .meter i { position:absolute; inset:0; background:linear-gradient(to top, #2fbf71 0%, #2fbf71 72%, #e8c23a 86%, #ff4d4d 100%); clip-path: inset(100% 0 0 0); }
   .fader { position:relative; width:46px; touch-action:none; cursor:pointer; }
@@ -124,6 +124,39 @@
     .obar { padding-top:calc(8px + env(safe-area-inset-top)); flex-wrap:wrap; }
     #msg { bottom:calc(12px + env(safe-area-inset-bottom)); }
   }
+
+  /* plugin view (controls + live window) */
+  .pv { position:fixed; inset:0; z-index:30; background:var(--bg); display:flex; flex-direction:column; }
+  .pvbar { display:flex; gap:8px; align-items:center; padding:8px 12px; padding-top:calc(8px + env(safe-area-inset-top)); background:var(--card); border-bottom:1px solid var(--line); }
+  .pvbar b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; letter-spacing:.06em; text-transform:uppercase; font-size:13px; }
+  .pvbody { flex:1; overflow:auto; padding:12px; padding-bottom:calc(12px + env(safe-area-inset-bottom)); }
+  .pvwin { padding:0; overflow:hidden; display:flex; align-items:center; justify-content:center; background:#000; position:relative; }
+  .pvwin img { max-width:100%; max-height:100%; touch-action:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; display:block; }
+  .pvwin .note { position:absolute; left:12px; right:12px; top:12px; color:#ccd; text-align:center; pointer-events:none; }
+  .pvkeys { position:absolute; left:0; bottom:0; width:1px; height:1px; opacity:0; border:0; padding:0; min-height:0 !important; }
+  .grp { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px; margin-bottom:12px; }
+  .grp h3 { margin:0 0 10px; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--fg); }
+  .grp h3::before { content:""; display:inline-block; width:3px; height:11px; background:var(--acc); border-radius:2px; margin-right:7px; vertical-align:-1px; }
+  .ctls { display:flex; flex-wrap:wrap; gap:14px 10px; }
+  .ctl { width:92px; display:flex; flex-direction:column; align-items:center; gap:4px; text-align:center; }
+  .ctl .cl { font-size:11px; color:var(--dim); line-height:1.2; height:2.4em; overflow:hidden; display:flex; align-items:flex-end; justify-content:center; }
+  .ctl .cv { font-size:12px; font-variant-numeric:tabular-nums; color:var(--fg); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+  .knob { width:64px; height:64px; touch-action:none; cursor:ns-resize; }
+  .knob .trk { stroke:var(--line); } .knob .val { stroke:var(--acc); } .knob .cap { fill:var(--card2); stroke:var(--line); } .knob .ptr { stroke:var(--fg); }
+  .ctl.wide { width:auto; min-width:92px; max-width:100%; align-items:stretch; }
+  .tog { min-width:70px; font-weight:700; letter-spacing:.06em; }
+  .tog.on { background:var(--acc); border-color:var(--acc); color:var(--onacc); }
+  .ctl select { max-width:200px; }
+  @media (pointer:coarse), (max-width:720px) { .ctl { width:84px; } .knob { width:60px; height:60px; } .pvbar button.ico { min-width:44px; } }
+
+  /* meter scale */
+  .mcol { display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .mlab { font-size:9px; font-weight:700; letter-spacing:.08em; color:var(--dim); }
+  .mrow { display:flex; gap:2px; flex:1; }
+  .scale { position:relative; width:16px; font-size:9px; color:var(--faint); font-variant-numeric:tabular-nums; }
+  .scale span { position:absolute; transform:translateY(50%); line-height:1; }
+  .scale.l span { right:0; } .scale.r span { left:0; }
+  .meter b { position:absolute; left:0; right:0; height:1px; background:color-mix(in srgb, var(--bg) 70%, transparent); z-index:1; }
 </style>
 </head>
 <body>
@@ -252,8 +285,8 @@
     <h2>Plugin windows</h2>
     <div id="vwStat" class="note">…</div>
     <pre id="vwLog" class="hide" style="max-height:160px;overflow:auto;padding:8px;border-radius:8px;font-size:12px;white-space:pre-wrap;margin:6px 0"></pre>
-    <div class="row"><button id="vwRestart">Restart viewer</button><button id="vwRefresh">Refresh</button></div>
-    <div class="note">Plugin windows are drawn on a virtual screen on the Pi and streamed to this page (press <b>Edit</b> on a plugin in the Mixer). Needs the installer's plugin window option (the default).</div>
+    <div class="row"><button id="vwRefresh">Refresh</button></div>
+    <div class="note">Press <b>Plugin</b> on a plugin in the Mixer to see and use its own screen, full screen, right in this page. Use <b>Controls</b> for big touch knobs instead. Both need the installer's plugin window option (the default).</div>
   </div>
   </div>
   <div data-pane="settings" class="hide">
@@ -263,6 +296,13 @@
       <button data-theme="auto">Auto</button><button data-theme="dark">Dark</button><button data-theme="light">Light</button>
     </div>
     <div class="note" style="margin-top:8px">Auto follows this device's dark / light setting. The choice is remembered on this device only.</div>
+  </div>
+  <div class="card">
+    <h2>Mixer</h2>
+    <div class="row"><span class="grow">Master fader</span>
+      <div class="seg" id="masterSeg"><button data-v="on">Show</button><button data-v="off">Hide</button></div>
+    </div>
+    <div class="note" id="masterNote">Hidden, the master keeps its current level. Remembered on this device only.</div>
   </div>
   </div>
   <div data-pane="updates" class="hide">
@@ -291,22 +331,25 @@
 </section>
 
 </div>
-<div id="pm" class="modal hide">
-  <div class="box">
-    <div class="row"><h2 id="pmTitle" style="margin:0" class="grow"></h2><button id="pmClose">Close</button></div>
-    <div id="pmBody"></div>
+<div id="pv" class="pv hide">
+  <div class="pvbar">
+    <b id="pvTitle" class="grow"></b>
+    <div class="seg" id="pvMode">
+      <button data-m="controls">Controls</button><button data-m="window">Plugin</button>
+    </div>
+    <button id="pvKb" class="ico" title="Keyboard (for typing into the plugin)">⌨</button>
+    <button id="pvFs" class="ico" title="Full screen">⛶</button>
+    <button id="pvClose" class="ico" title="Close">✕</button>
   </div>
-</div>
-
-<div id="ed" class="overlay hide">
-  <div class="obar">
-    <b id="edTitle" class="grow"></b>
-    <a id="edNew" target="_blank" rel="noopener">New tab</a>
-    <button id="edClosePlugin">Close plugin window</button>
-    <button id="edHide">Hide</button>
+  <div id="pvControls" class="pvbody">
+    <div class="row"><input id="pvSearch" class="grow" placeholder="Find a control…" autocomplete="off"></div>
+    <div id="pvGroups"></div>
   </div>
-  <div id="edMsg" class="hide" style="padding:16px;color:var(--fg)"></div>
-  <iframe id="edFrame" title="Plugin window"></iframe>
+  <div id="pvWindow" class="pvbody pvwin hide">
+    <img id="pvImg" alt="" draggable="false">
+    <div id="pvMsg" class="note"></div>
+    <input id="pvKeys" class="pvkeys" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Type into the plugin">
+  </div>
 </div>
 
 <div id="msg"></div>
@@ -314,7 +357,7 @@
 <script>
 const $ = id => document.getElementById(id);
 const MINDB = -60, MAXDB = 6, CURVE = 0.55;
-let S = null, plugins = [], devices = null, structKey = '', disp = {}, curEditor = null, polling = false;
+let S = null, plugins = [], devices = null, structKey = '', disp = {}, polling = false;
 
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 function toast(t) { const m = $('msg'); m.textContent = t; m.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => m.style.display = 'none', 3500); }
@@ -375,6 +418,18 @@ document.querySelectorAll('#sub button').forEach(b => b.onclick = () => showSub(
   apply();
 })();
 
+/* ---------- master fader on/off ---------- */
+function masterSync() {
+  const v = showMaster() ? 'on' : 'off';
+  document.querySelectorAll('#masterSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  const db = S ? S.masterDb : 0;
+  $('masterNote').textContent = 'Hidden, the master keeps its current level' + (S ? ` (${db <= MINDB ? '-inf' : db.toFixed(1) + ' dB'})` : '') + '. Remembered on this device only.';
+}
+document.querySelectorAll('#masterSeg button').forEach(b => b.onclick = () => {
+  try { localStorage.setItem('lh.master', b.dataset.v); } catch (e) {}
+  masterSync(); structKey = ''; if (S) renderStrips(S);
+});
+
 /* ---------- faders ---------- */
 const posFromDb = db => db <= MINDB ? 0 : Math.min(1, Math.pow((db - MINDB) / (MAXDB - MINDB), 1 / CURVE));
 const dbFromPos = p => p < 0.005 ? -100 : MINDB + (MAXDB - MINDB) * Math.pow(p, CURVE);
@@ -408,6 +463,22 @@ function makeFader(onChange) {
 }
 
 /* ---------- mixer strips ---------- */
+const TICKS = [6, 0, -6, -12, -24, -36, -48];
+const meterPct = db => Math.max(0, Math.min(1, (db - MINDB) / (MAXDB - MINDB))) * 100;
+function meterCol(kind, label, side, tip) {
+  const col = el('div', 'mcol'); col.title = tip;
+  const m = el('div', 'meter'); m.dataset.k = kind; m.append(el('i'));
+  const sc = el('div', 'scale ' + side);
+  TICKS.forEach(t => {
+    const tk = el('b'); tk.style.bottom = meterPct(t) + '%'; m.append(tk);
+    const n = el('span', '', t > 0 ? '+' + t : String(t)); n.style.bottom = meterPct(t) + '%'; sc.append(n);
+  });
+  const row = el('div', 'mrow');
+  if (side === 'l') row.append(sc, m); else row.append(m, sc);
+  col.append(row, el('div', 'mlab', label));
+  return col;
+}
+
 function buildStrip(c, ch) {
   const s = el('div', 'strip'); s.dataset.ch = ch;
 
@@ -419,10 +490,9 @@ function buildStrip(c, ch) {
   s.append(nm);
 
   const fm = el('div', 'fm');
-  const mi = el('div', 'meter'); mi.dataset.k = 'in'; mi.append(el('i'));
   const fader = makeFader(db => throttled('g' + ch, () => api('/api/mixer', { channel: ch, gainDb: db })));
-  const mo = el('div', 'meter'); mo.dataset.k = 'out'; mo.append(el('i'));
-  fm.append(mi, fader, mo);
+  fm.append(meterCol('in', isBus ? 'SEND' : 'IN', 'l', isBus ? 'Monitor mix level before its fader' : 'Input level, before the plugins'), fader,
+            meterCol('out', 'OUT', 'r', isBus ? 'Monitor mix level after its fader' : 'Output level, after the plugins and the fader'));
   s.append(fm, el('div', 'db', '0.0 dB'));
 
   const mute = el('button', 'mute', 'Mute');
@@ -461,13 +531,14 @@ function buildStrip(c, ch) {
     const chip = el('div', 'chip' + (p.bypassed ? ' byp' : ''));
     chip.append(el('div', 'cn', p.name));
     const cb = el('div', 'cb');
+    const pr = el('button', 'sm', 'Controls'); pr.onclick = () => openPlugin(ch, i, p.name, 'controls');
+    cb.append(pr);
     if (S && S.editorAvailable) {
-      const e = el('button', 'sm', 'Edit'); e.onclick = () => openEditor(ch, i, p.name); cb.append(e);
+      const e = el('button', 'sm', 'Plugin'); e.title = 'The plugin\'s own screen, full screen'; e.onclick = () => openPlugin(ch, i, p.name, 'window'); cb.append(e);
     }
-    const pr = el('button', 'sm', 'Params'); pr.onclick = () => openParams(ch, i, p.name);
     const by = el('button', 'sm', p.bypassed ? 'Enable' : 'Bypass'); by.onclick = async () => { await api('/api/chain/bypass', { channel: ch, slot: i, bypass: !p.bypassed }); refresh(); };
     const rm = el('button', 'sm danger', '×'); rm.title = 'Remove'; rm.onclick = async () => { await api('/api/chain/remove', { channel: ch, slot: i }); refresh(); };
-    cb.append(pr, by, rm); chip.append(cb);
+    cb.append(by, rm); chip.append(cb);
     const cm = el('button', 'sm', 'CPU'); cm.title = 'Estimate this plugin\'s CPU use with a test signal (not during a show)';
     cm.onclick = async () => { cm.disabled = true; const r = await api('/api/plugins/measure', { channel: ch, slot: i }); if (r.error) { cm.disabled = false; } else refresh(); };
     cb.insertBefore(cm, rm);
@@ -479,6 +550,7 @@ function buildStrip(c, ch) {
   const sum = c.slots.filter(p => p.cpuAvg !== undefined && !p.bypassed).reduce((a, p) => a + p.cpuAvg, 0);
   if (c.slots.some(p => p.cpuAvg !== undefined)) s.append(el('div', 'cpu', `chain ≈ ${sum.toFixed(1)}% of one core`));
 
+  if (isBus) return s;   // the monitor mix carries no plugins
   const add = el('div', 'add');
   const sel = el('select');
   plugins.forEach(p => { const o = el('option', '', p.name); o.value = p.id; sel.append(o); });
@@ -488,6 +560,7 @@ function buildStrip(c, ch) {
   return s;
 }
 
+function showMaster() { try { return localStorage.getItem('lh.master') !== 'off'; } catch (e) { return true; } }
 function buildMaster() {
   const s = el('div', 'strip master');
   s.append(el('div', 'mname', 'Master'));
@@ -498,7 +571,7 @@ function buildMaster() {
 }
 
 function renderStrips(st) {
-  const key = JSON.stringify(st.chains.map(c => [c.name, c.slots])) + JSON.stringify([st.monitorBus, st.outputNames]) + '|' + plugins.length + '|' + !!st.editorAvailable;
+  const key = JSON.stringify(st.chains.map(c => [c.name, c.slots])) + JSON.stringify([st.monitorBus, st.outputNames]) + '|' + plugins.length + '|' + !!st.editorAvailable + '|' + showMaster();
   if (key === structKey) return;
   const a = document.activeElement;
   if (a && a.tagName === 'INPUT' && a.closest('#strips')) return;   // don't rebuild while renaming
@@ -506,7 +579,7 @@ function renderStrips(st) {
   const root = $('strips'); root.innerHTML = '';
   st.chains.forEach((c, ch) => root.append(buildStrip(c, ch)));
   if (st.monitorBus) root.append(buildStrip(st.monitorBus, 100));
-  root.append(buildMaster());
+  if (showMaster()) root.append(buildMaster());
   syncMix(st);
 }
 
@@ -530,7 +603,7 @@ function setMeter(ch, kind, db) {
   disp[key] = d;
   const i = document.querySelector(`.strip[data-ch="${ch}"] .meter[data-k="${kind}"] i`);
   if (!i) return;
-  const pct = Math.max(0, Math.min(1, (d - MINDB) / (MAXDB - MINDB))) * 100;
+  const pct = meterPct(d);
   i.style.clipPath = `inset(${100 - pct}% 0 0 0)`;
 }
 async function pollMeters() {
@@ -544,75 +617,271 @@ async function pollMeters() {
   polling = false;
 }
 
-/* ---------- params dialog ---------- */
-async function openParams(ch, slot, title) {
-  $('pmTitle').textContent = title; $('pmBody').innerHTML = 'Loading…'; $('pm').classList.remove('hide');
-  const r = await api(`/api/params?channel=${ch}&slot=${slot}`);
-  const body = $('pmBody'); body.innerHTML = '';
-  (r.params || []).forEach(p => {
-    const row = el('div', 'param');
-    const name = el('span', '', p.name);
-    const slider = el('input'); slider.type = 'range'; slider.min = 0; slider.max = 1; slider.step = 0.001; slider.value = p.value;
-    const txt = el('span', '', p.text);
-    slider.oninput = () => throttled(`p${ch}.${slot}.${p.index}`, () => api('/api/param', { channel: ch, slot, index: p.index, value: +slider.value }));
-    row.append(name, slider, txt); body.append(row);
-  });
-  if (!(r.params || []).length) body.textContent = 'This plugin exposes no parameters.';
-}
-$('pmClose').onclick = () => $('pm').classList.add('hide');
+/* ---------- plugin view: Controls (touch knobs) and Plugin (its own screen, live) ---------- */
+const PV = { ch: -1, slot: -1, name: '', mode: 'controls', params: [], ctl: {}, poll: null, live: null };
 
-/* ---------- plugin editor (streamed from the Pi's virtual display) ---------- */
+async function openPlugin(ch, slot, name, mode) {
+  PV.ch = ch; PV.slot = slot; PV.name = name;
+  $('pvTitle').textContent = name;
+  $('pv').classList.remove('hide');
+  $('pvMode').querySelector('[data-m="window"]').classList.toggle('hide', !(S && S.editorAvailable));
+  if (mode === 'window') goFullscreen();   // must happen inside the tap, before any await
+  await pvMode(mode);
+}
+async function pvMode(m) {
+  PV.mode = m;
+  $('pvMode').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+  $('pvControls').classList.toggle('hide', m !== 'controls');
+  $('pvWindow').classList.toggle('hide', m !== 'window');
+  $('pvKb').classList.toggle('hide', m !== 'window');
+  if (m === 'controls') { liveStop(); await ctlLoad(); } else { ctlStop(); await liveStart(); }
+}
+$('pvMode').querySelectorAll('button').forEach(b => b.onclick = () => { if (b.dataset.m === 'window') goFullscreen(); pvMode(b.dataset.m); });
+function pvClose() {
+  liveStop(); ctlStop();
+  if (PV.ch >= 0 && S && S.editorAvailable) api('/api/editor/close', { channel: PV.ch, slot: PV.slot });
+  $('pv').classList.add('hide'); PV.ch = -1;
+  const ex = document.exitFullscreen || document.webkitExitFullscreen;
+  if ((document.fullscreenElement || document.webkitFullscreenElement) && ex) ex.call(document);
+}
+$('pvClose').onclick = pvClose;
+function goFullscreen() {
+  const e = $('pv'), rf = e.requestFullscreen || e.webkitRequestFullscreen;
+  if (rf && !(document.fullscreenElement || document.webkitFullscreenElement)) {
+    try { const r = rf.call(e); if (r && r.then) r.then(() => { try { screen.orientation.lock('landscape').catch(() => {}); } catch (x) {} }, () => {}); } catch (x) {}
+  }
+}
+$('pvFs').onclick = () => {
+  if (document.fullscreenElement || document.webkitFullscreenElement) { const ex = document.exitFullscreen || document.webkitExitFullscreen; ex && ex.call(document); }
+  else goFullscreen();
+};
+
+/* --- Controls --- */
+function knobSvg() {
+  const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 64 64'); svg.classList.add('knob');
+  const mk = (t, a) => { const e = document.createElementNS(ns, t); for (const k in a) e.setAttribute(k, a[k]); svg.append(e); return e; };
+  mk('path', { class: 'trk', d: arcPath(0, 1), fill: 'none', 'stroke-width': 5, 'stroke-linecap': 'round' });
+  const val = mk('path', { class: 'val', d: arcPath(0, 0), fill: 'none', 'stroke-width': 5, 'stroke-linecap': 'round' });
+  mk('circle', { class: 'cap', cx: 32, cy: 32, r: 19, 'stroke-width': 1 });
+  const ptr = mk('line', { class: 'ptr', x1: 32, y1: 32, x2: 32, y2: 18, 'stroke-width': 2.5, 'stroke-linecap': 'round' });
+  svg._set = v => {
+    val.setAttribute('d', arcPath(0, v));
+    const ang = (-135 + 270 * v) * Math.PI / 180;
+    ptr.setAttribute('x1', 32 + Math.sin(ang) * 5); ptr.setAttribute('y1', 32 - Math.cos(ang) * 5);
+    ptr.setAttribute('x2', 32 + Math.sin(ang) * 15); ptr.setAttribute('y2', 32 - Math.cos(ang) * 15);
+  };
+  return svg;
+}
+function arcPath(v0, v1) {
+  const r = 26, pt = v => { const a = (-135 + 270 * v) * Math.PI / 180; return [32 + Math.sin(a) * r, 32 - Math.cos(a) * r]; };
+  if (v1 - v0 < 0.002) { const [x, y] = pt(v0); return `M${x} ${y}`; }
+  const [x0, y0] = pt(v0), [x1, y1] = pt(v1);
+  return `M${x0} ${y0} A${r} ${r} 0 ${(v1 - v0) * 270 > 180 ? 1 : 0} 1 ${x1} ${y1}`;
+}
+function sendParam(p, v, ctl) {
+  p.value = v;
+  throttled(`p${PV.ch}.${PV.slot}.${p.index}`, async () => {
+    const r = await api('/api/param', { channel: PV.ch, slot: PV.slot, index: p.index, value: p.value });
+    if (r && r.text !== undefined && ctl) ctl._text(r.text);
+  }, 50);
+}
+function buildCtl(p) {
+  const c = el('div', 'ctl'); c.dataset.name = p.name.toLowerCase();
+  if (p.type === 'bool') {
+    const b = el('button', 'tog');
+    c.append(el('div', 'cl', p.name), b);
+    c._set = v => { b.classList.toggle('on', v >= 0.5); b.textContent = v >= 0.5 ? 'ON' : 'OFF'; };
+    c._text = () => {};
+    b.onclick = () => { const v = p.value >= 0.5 ? 0 : 1; c._set(v); sendParam(p, v, c); };
+  } else if (p.type === 'choice') {
+    c.classList.add('wide');
+    const n = p.choices.length, sel = el('select');
+    p.choices.forEach((t, k) => { const o = el('option', '', t); o.value = k; sel.append(o); });
+    c.append(el('div', 'cl', p.name), sel);
+    c._set = v => { if (document.activeElement !== sel) sel.value = Math.round(v * (n - 1)); };
+    c._text = () => {};
+    sel.onchange = () => { const v = (+sel.value) / (n - 1); sendParam(p, v, c); };
+  } else {
+    const k = knobSvg(), txt = el('div', 'cv', p.text);
+    c.append(el('div', 'cl', p.name), k, txt);
+    c._set = v => k._set(v);
+    c._text = t => { txt.textContent = t; };
+    let y0 = 0, v0 = 0, lastTap = 0;
+    k.addEventListener('pointerdown', e => {
+      const now = Date.now();
+      if (now - lastTap < 320) { lastTap = 0; c._set(p.default); sendParam(p, p.default, c); return; }   // double-tap = default
+      lastTap = now; k.setPointerCapture(e.pointerId); y0 = e.clientY; v0 = p.value; c._drag = true;
+    });
+    k.addEventListener('pointermove', e => {
+      if (!c._drag) return;
+      const v = Math.max(0, Math.min(1, v0 + (y0 - e.clientY) / (e.shiftKey ? 800 : 200)));
+      c._set(v); sendParam(p, v, c);
+    });
+    const end = () => { c._drag = false; };
+    k.addEventListener('pointerup', end); k.addEventListener('pointercancel', end);
+    k.addEventListener('wheel', e => { e.preventDefault(); const v = Math.max(0, Math.min(1, p.value - Math.sign(e.deltaY) * 0.01)); c._set(v); sendParam(p, v, c); }, { passive: false });
+  }
+  c._set(p.value);
+  return c;
+}
+async function ctlLoad() {
+  $('pvGroups').innerHTML = '<div class="note">Loading…</div>';
+  const r = await api(`/api/params?channel=${PV.ch}&slot=${PV.slot}`);
+  PV.params = (r.params || []).filter(p => !p.hidden);
+  PV.ctl = {};
+  const root = $('pvGroups'); root.innerHTML = '';
+  if (!PV.params.length) { root.append(el('div', 'note', 'This plugin has no controls to show. Use Plugin to see its own screen.')); return; }
+  const groups = new Map();
+  PV.params.forEach(p => { const g = p.group || 'Controls'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(p); });
+  groups.forEach((list, g) => {
+    const box = el('div', 'grp'); box.append(el('h3', '', g));
+    const row = el('div', 'ctls');
+    list.forEach(p => { const c = buildCtl(p); PV.ctl[p.index] = c; row.append(c); });
+    box.append(row); root.append(box);
+  });
+  ctlFilter();
+  PV.poll = setInterval(ctlPoll, 800);
+}
+function ctlStop() { clearInterval(PV.poll); PV.poll = null; }
+async function ctlPoll() {
+  if (PV.mode !== 'controls' || $('pv').classList.contains('hide') || document.hidden) return;
+  let r; try { r = await (await fetch(`/api/params?channel=${PV.ch}&slot=${PV.slot}`, { cache: 'no-store' })).json(); } catch (e) { return; }
+  (r.params || []).forEach(q => {
+    const c = PV.ctl[q.index]; if (!c || c._drag || pending[`p${PV.ch}.${PV.slot}.${q.index}`]) return;
+    const p = PV.params.find(x => x.index === q.index); if (!p) return;
+    if (Math.abs(p.value - q.value) > 1e-4) { p.value = q.value; c._set(q.value); }
+    c._text(q.text);
+  });
+}
+function ctlFilter() {
+  const q = $('pvSearch').value.trim().toLowerCase();
+  document.querySelectorAll('#pvGroups .grp').forEach(g => {
+    let any = false;
+    g.querySelectorAll('.ctl').forEach(c => { const hit = !q || c.dataset.name.includes(q); c.classList.toggle('hide', !hit); any = any || hit; });
+    g.classList.toggle('hide', !any);
+  });
+}
+$('pvSearch').oninput = ctlFilter;
+
+/* --- Plugin: its own screen, streamed as pictures; taps and keys go back to it --- */
+function liveSize() { const r = $('pvWindow').getBoundingClientRect(); return { w: Math.round(r.width || innerWidth), h: Math.round(r.height || innerHeight - 50) }; }
+async function liveStart() {
+  liveStop();
+  const L = PV.live = { on: true, since: '0', w: 0, h: 0, url: '', q: [], busy: false, down: false, lastMove: 0 };
+  const img = $('pvImg'); img.removeAttribute('src');
+  $('pvMsg').textContent = 'Opening the plugin…';
+  const vs = liveSize();
+  const r = await api('/api/editor/open', { channel: PV.ch, slot: PV.slot, viewW: vs.w, viewH: vs.h });
+  if (!r.ok) { $('pvMsg').textContent = (r.error || 'Could not open the plugin window.') + ' Controls still work.'; return; }
+  L.w = r.width; L.h = r.height;
+  liveLoop(L);
+}
+function liveStop() { if (PV.live) { PV.live.on = false; if (PV.live.url) URL.revokeObjectURL(PV.live.url); } PV.live = null; }
+async function liveLoop(L) {
+  const img = $('pvImg');
+  let fails = 0;
+  while (L.on && PV.live === L) {
+    if (document.hidden) { await new Promise(r => setTimeout(r, 500)); continue; }
+    const maxW = Math.min(1600, Math.round(liveSize().w * (devicePixelRatio || 1)));
+    let res;
+    try { res = await fetch(`/api/editor/frame?channel=${PV.ch}&slot=${PV.slot}&since=${L.since}&w=${maxW}`, { cache: 'no-store' }); }
+    catch (e) { res = null; }
+    if (!L.on || PV.live !== L) break;
+    if (!res || res.status >= 500 || res.status === 404) {
+      if (++fails > 3) $('pvMsg').textContent = 'Lost the picture, retrying…';
+      await new Promise(r => setTimeout(r, 1000)); continue;
+    }
+    if (res.status === 410) { $('pvMsg').textContent = 'The plugin window was closed.'; break; }
+    if (res.status === 401 || res.status === 403) { $('pvMsg').textContent = 'Not allowed from this device (password or trusted network needed).'; break; }
+    fails = 0;
+    const sz = (res.headers.get('X-Size') || '').split('x'); if (sz.length === 2) { L.w = +sz[0]; L.h = +sz[1]; }
+    L.since = res.headers.get('X-Frame') || L.since;
+    if (res.status === 200) {
+      const blob = await res.blob();
+      const u = URL.createObjectURL(blob);
+      await new Promise(ok => { img.onload = img.onerror = ok; img.src = u; });
+      if (L.url) URL.revokeObjectURL(L.url);
+      L.url = u; $('pvMsg').textContent = '';
+    }
+  }
+}
+function livePos(e) {
+  const L = PV.live, r = $('pvImg').getBoundingClientRect();
+  return { x: Math.round((e.clientX - r.left) / r.width * L.w), y: Math.round((e.clientY - r.top) / r.height * L.h) };
+}
+function liveSend(ev) {
+  const L = PV.live; if (!L) return;
+  const last = L.q[L.q.length - 1];
+  if (ev.t === 'move' && last && last.t === 'move') L.q[L.q.length - 1] = ev; else L.q.push(ev);
+  liveFlush();
+}
+async function liveFlush() {
+  const L = PV.live; if (!L || L.busy || !L.q.length) return;
+  L.busy = true;
+  const events = L.q.splice(0, L.q.length);
+  try { await fetch('/api/editor/input', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-LiveHost': '1' }, body: JSON.stringify({ channel: PV.ch, slot: PV.slot, events }) }); } catch (e) {}
+  L.busy = false;
+  if (L.q.length) liveFlush();
+}
+(function () {
+  const img = $('pvImg');
+  img.addEventListener('contextmenu', e => e.preventDefault());
+  img.addEventListener('pointerdown', e => {
+    if (!PV.live) return; e.preventDefault(); img.setPointerCapture(e.pointerId);
+    PV.live.down = true; const p = livePos(e); liveSend({ t: 'move', ...p }); liveSend({ t: 'down', b: e.button === 2 ? 3 : 1, ...p });
+  });
+  img.addEventListener('pointermove', e => {
+    const L = PV.live; if (!L) return;
+    if (!L.down && e.pointerType !== 'mouse') return;
+    const now = performance.now(); if (!L.down && now - L.lastMove < 50) return; L.lastMove = now;
+    liveSend({ t: 'move', ...livePos(e) });
+  });
+  const up = e => { const L = PV.live; if (!L || !L.down) return; L.down = false; liveSend({ t: 'up', b: e.button === 2 ? 3 : 1, ...livePos(e) }); };
+  img.addEventListener('pointerup', up); img.addEventListener('pointercancel', up);
+  img.addEventListener('wheel', e => { if (!PV.live) return; e.preventDefault(); liveSend({ t: 'wheel', dy: Math.sign(e.deltaY), ...livePos(e) }); }, { passive: false });
+
+  // keyboard: on a phone/tablet the ⌨ button opens the on-screen keyboard
+  const keys = $('pvKeys');
+  $('pvKb').onclick = () => keys.focus();
+  const named = ['Enter', 'Backspace', 'Escape', 'Tab', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
+  const onKey = e => {
+    if (!PV.live || PV.mode !== 'window' || $('pv').classList.contains('hide')) return;
+    if (e.target !== keys && e.target !== document.body) return;
+    if (named.includes(e.key)) { e.preventDefault(); liveSend({ t: 'key', k: e.key }); }
+    else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && e.target !== keys) { e.preventDefault(); liveSend({ t: 'key', k: e.key }); }
+  };
+  document.addEventListener('keydown', onKey);
+  keys.addEventListener('input', () => { for (const ch of keys.value) liveSend({ t: 'key', k: ch }); keys.value = ''; });
+
+  // follow rotation / resizing: give the plugin the new shape
+  let rt = null;
+  addEventListener('resize', () => {
+    if (!PV.live || PV.mode !== 'window') return;
+    clearTimeout(rt);
+    rt = setTimeout(async () => {
+      const vs = liveSize();
+      const r = await api('/api/editor/open', { channel: PV.ch, slot: PV.slot, viewW: vs.w, viewH: vs.h });
+      if (r.ok && PV.live) { PV.live.w = r.width; PV.live.h = r.height; }
+    }, 300);
+  });
+})();
+
+/* --- status card (Setup > System) --- */
 async function viewerStatus() { return await api('/api/editor/viewer'); }
 function viewerText(v) {
   if (!v || v.error || v.available === undefined) return v && v.error ? v.error : 'No answer from LiveHost.';
-  const parts = [];
-  parts.push(v.available ? `Virtual screen ${v.display} (${v.displaySource === 'livehost' ? 'started by LiveHost' : v.displaySource === 'service' ? 'from the service' : 'already running'})` : 'No virtual screen');
-  parts.push('VNC server: ' + v.vnc, 'Browser viewer: ' + v.web + (v.webReachable ? ' (port ' + v.port + ' answering)' : ' (port ' + v.port + ' not answering)'));
-  if (v.problem) parts.push('Problem: ' + v.problem);
-  return parts.join(' · ');
+  if (!v.available) return 'Not available: ' + (v.problem || 'no virtual screen');
+  return `Ready (virtual screen ${v.display}${v.displaySource === 'livehost' ? ', started by LiveHost' : ''})` + (v.input ? '' : ' · touch input unavailable') + (v.problem ? ' · ' + v.problem : '');
 }
 async function viewerRefresh() {
   const v = await viewerStatus();
   $('vwStat').textContent = viewerText(v);
   $('vwStat').classList.toggle('bad', !!(v && (v.problem || !v.available)));
-  $('vwLog').classList.toggle('hide', !(v && v.log)); $('vwLog').textContent = (v && v.log) || '';
+  $('vwLog').classList.toggle('hide', !(v && v.log && (v.problem || !v.available))); $('vwLog').textContent = (v && v.log) || '';
   return v;
 }
 $('vwRefresh').onclick = viewerRefresh;
-$('vwRestart').onclick = async () => { $('vwStat').textContent = 'Restarting…'; await api('/api/editor/viewer/restart', {}); setTimeout(viewerRefresh, 1500); };
-
-// Can the browser reach the viewer port at all? (opaque fetch: resolves if something answers, rejects if nothing listens)
-function probe(url, ms = 4000) {
-  return new Promise(res => { const t = setTimeout(() => res(false), ms); fetch(url, { mode: 'no-cors', cache: 'no-store' }).then(() => { clearTimeout(t); res(true); }, () => { clearTimeout(t); res(false); }); });
-}
-
-async function openEditor(ch, slot, title) {
-  const r = await api('/api/editor/open', { channel: ch, slot });
-  if (!r.ok) return;
-  curEditor = { ch, slot };
-  $('edTitle').textContent = title;
-  $('ed').classList.remove('hide');
-  $('edFrame').classList.add('hide'); $('edMsg').classList.remove('hide'); $('edMsg').textContent = 'Connecting to the plugin window…';
-  const v = await viewerStatus();
-  const port = (v && v.port) || 6080;
-  const base = `http://${location.hostname}:${port}/`;
-  const reachable = v && v.available && !v.problem && await probe(base + 'vnc.html');
-  if (!reachable) {
-    $('edMsg').innerHTML = '';
-    $('edMsg').append(el('p', '', 'The plugin window viewer is not reachable from this device.'), el('p', 'note', viewerText(v)));
-    if (!v || !v.available || v.vnc === 'missing' || v.web === 'missing') $('edMsg').append(el('p', 'note', 'Fix: on the Pi, run the installer again (sudo ./install-pi.sh <user>) and reboot.'));
-    else if (v.webReachable) $('edMsg').append(el('p', 'note', `The Pi answers on port ${port} but this browser cannot reach it. Check that nothing blocks port ${port} between you and the Pi (same Wi-Fi? firewall?), then try again.`));
-    else $('edMsg').append(el('p', 'note', 'Try Setup > System > Restart viewer, then press Edit again.'));
-    return;
-  }
-  // password in the fragment: it stays in the browser and is not sent to the viewer's web server
-  const url = base + 'vnc.html?autoconnect=1&resize=scale&reconnect=1&reconnect_delay=1000' + (v.password ? '#password=' + encodeURIComponent(v.password) : '');
-  $('edNew').href = url;
-  $('edMsg').classList.add('hide'); $('edFrame').classList.remove('hide');
-  $('edFrame').src = url;
-}
-$('edHide').onclick = () => { $('ed').classList.add('hide'); $('edFrame').src = 'about:blank'; };
-$('edClosePlugin').onclick = async () => { if (curEditor) await api('/api/editor/close', curEditor); $('edHide').onclick(); };
 
 /* ---------- listen in this browser ---------- */
 const mon = { on: false, ctx: null, since: 0, next: 0, timer: null, key: '' };
@@ -911,6 +1180,7 @@ async function refresh() {
   const pl = $('presetList'), prev = pl.value; fill(pl, st.presets || [], prev);
   monFill(st);
   renderStrips(st);
+  masterSync();
   syncMix(st);
 }
 

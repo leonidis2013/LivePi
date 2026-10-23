@@ -19,7 +19,7 @@ if apt-get install -y -qq $PKGS jq procps xvfb unzip >/tmp/apt-install.log 2>&1;
 if apt-get install -y -qq libasound2 >/dev/null 2>&1; then say "PASS  libasound2 installs"
 elif apt-get install -y -qq libasound2t64 >/dev/null 2>&1; then say "PASS  libasound2t64 installs (renamed package)"
 else say "FAIL  libasound install"; FAIL=1; fi
-if apt-get install -y -qq xvfb x11vnc novnc websockify fonts-dejavu-core libgl1 >/tmp/apt-viewer.log 2>&1; then say "PASS  plugin window packages install"; else say "FAIL  plugin window packages install"; tail -n 5 /tmp/apt-viewer.log | tee -a "$RES"; FAIL=1; fi
+if apt-get install -y -qq xvfb libxtst6 fonts-dejavu-core libgl1 >/tmp/apt-viewer.log 2>&1; then say "PASS  plugin window packages install"; else say "FAIL  plugin window packages install"; tail -n 5 /tmp/apt-viewer.log | tee -a "$RES"; FAIL=1; fi
 
 rm -rf /tmp/lh && mkdir /tmp/lh && cd /tmp/lh
 ls /work/*.zip | tee -a "$RES"
@@ -63,9 +63,9 @@ run_case() {
   check "$label: update status endpoint" "api /api/update/status | jq -e .state >/dev/null"
   check "$label: OS status endpoint" "api /api/os/status | jq -e .state >/dev/null"
   check "$label: still running" "kill -0 \$(cat /tmp/lh.pid)"
-  V=$(api /api/editor/viewer); say "viewer: $(echo "$V" | jq -c '{available,displaySource,vnc,web,webReachable,problem}')"
-  check "$label: plugin window viewer running (Xvfb + x11vnc + websockify)" "echo '$V' | jq -e '.available and .vnc==\"running\" and .web==\"running\" and .webReachable' >/dev/null"
-  check "$label: noVNC page served on port 6080" "curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:6080/vnc.html | grep -q 200"
+  V=$(api /api/editor/viewer); say "viewer: $(echo "$V" | jq -c '{available,displaySource,input,problem}')"
+  check "$label: plugin view ready (virtual screen + touch input)" "echo '$V' | jq -e '.available and .input and (.problem==\"\")' >/dev/null"
+  check "$label: no plugin open -> frame says closed (410)" "[ \"\$(curl -s -m 5 -o /dev/null -w '%{http_code}' 'http://127.0.0.1:8080/api/editor/frame?channel=0&slot=0')\" = 410 ]"
   check "$label: state reports editorAvailable" "api /api/state | jq -e '.editorAvailable==true' >/dev/null"
   local pid; pid=$(cat /tmp/lh.pid)
   say "signals: $(grep -E 'SigCgt|SigBlk|SigIgn' /proc/$pid/status | tr '\n' ' ') (SIGTERM caught = bit 15 of SigCgt, i.e. 0x4000)"
@@ -75,7 +75,6 @@ run_case() {
   check "$label: stops cleanly on SIGTERM within 5 s (what systemd sends)" "! kill -0 $pid 2>/dev/null"
   sleep 1; say "exit code: $(cat /tmp/lh.rc 2>/dev/null)"
   check "$label: exit code 0" "[ \"$(cat /tmp/lh.rc 2>/dev/null)\" = 0 ]"
-  check "$label: viewer helpers stopped with it (ports 5900/6080 closed)" "! (exec 3<>/dev/tcp/127.0.0.1/6080) 2>/dev/null && ! (exec 3<>/dev/tcp/127.0.0.1/5900) 2>/dev/null"
   say "viewer log: $(grep -v 'keysym\|xkbcomp\|XKEYBOARD' /root/.livehost/viewer.log 2>/dev/null | tail -n 4 | tr '\n' '|')"
   check "$label: log shows the clean shutdown path" "grep -q 'Shutdown complete' /tmp/lh.log"
   pkill -9 LiveHost 2>/dev/null; sleep 1

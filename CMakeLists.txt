@@ -37,7 +37,8 @@ juce_add_gui_app(LiveHost
 target_sources(LiveHost PRIVATE
   Source/Main.cpp
   Source/HostEngine.cpp
-  Source/WebServer.cpp)
+  Source/WebServer.cpp
+  Source/LiveView.cpp)
 
 
 target_compile_definitions(LiveHost PRIVATE
@@ -53,6 +54,7 @@ target_compile_definitions(LiveHost PRIVATE
   LIVEHOST_REPO_STR="${LIVEHOST_REPO}")
 
 target_link_libraries(LiveHost PRIVATE
+  ${CMAKE_DL_LIBS}
   juce::juce_audio_utils
   juce::juce_audio_devices
   juce::juce_audio_processors

@@ -3,7 +3,7 @@
 # Run from the unpacked livehost folder:
 #   sudo ./install-pi.sh [username] [--no-editor] [--password | --no-password]
 #
-# By default this also sets up a virtual screen + browser viewer (port 6080) so plugin windows
+# By default this also installs a virtual screen (Xvfb) so plugin windows
 # can be opened from the web page. Use --no-editor to skip that.
 # You will be asked whether you want a password for the web page (Y/N). Use --password or --no-password to skip
 # the question, or set LIVEHOST_PASSWORD to choose the password without a prompt.
@@ -79,18 +79,20 @@ EOF
 chmod 440 /etc/sudoers.d/livehost
 visudo -c -f /etc/sudoers.d/livehost >/dev/null || { echo "sudoers check failed, removing rule"; rm -f /etc/sudoers.d/livehost; }
 
-# Old installs ran the virtual screen and viewer as separate services; LiveHost now starts them itself.
+# Old installs ran the virtual screen and a VNC viewer as separate services; LiveHost now shows plugin
+# windows inside its own page. (The old VNC packages are left installed; remove them with
+# sudo apt purge x11vnc novnc websockify if you like.)
 for u in livehost-novnc livehost-vnc livehost-display; do
   if [[ -f /etc/systemd/system/$u.service ]]; then
     systemctl disable --now $u.service 2>/dev/null || true
     rm -f /etc/systemd/system/$u.service
   fi
 done
-rm -f "$(getent passwd "$USER_NAME" | cut -d: -f6)/.livehost/vnc.txt"
+rm -f "$(getent passwd "$USER_NAME" | cut -d: -f6)/.livehost/vnc.txt" "$(getent passwd "$USER_NAME" | cut -d: -f6)/.livehost/vnc.pass"
 
 if [[ $WITH_EDITOR -eq 1 ]]; then
-  echo "== Plugin window support (virtual screen + browser viewer, started by LiveHost itself)"
-  apt-get install -y xvfb x11vnc novnc websockify fonts-dejavu-core libgl1
+  echo "== Plugin window support (virtual screen, started by LiveHost itself)"
+  apt-get install -y xvfb libxtst6 fonts-dejavu-core libgl1
   EDITOR_ARG=""
 else
   EDITOR_ARG=" --no-editor"

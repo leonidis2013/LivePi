@@ -41,7 +41,7 @@ GitHub's free ARM64 runners are only available for **public** repositories.
 
 ## What the installer does
 
-It copies the app to `/opt/livehost`, installs the runtime libraries, sets real-time limits for the audio group, switches the CPU governor to performance (at every boot), stops PulseAudio and Bluetooth, allows the page to reboot/shut down the Pi and run OS updates, and enables boot services. Unless you pass `--no-editor` it also installs the pieces for plugin windows (a virtual screen and a browser viewer on port 6080); LiveHost starts and watches those itself, and signs the page in to the viewer automatically, so plugin windows work with or without a web password. To add or change the password later: `sudo /opt/livehost/set-password.sh`; see "Trusted networks" for unlocking uploads and updates without one.
+It copies the app to `/opt/livehost`, installs the runtime libraries, sets real-time limits for the audio group, switches the CPU governor to performance (at every boot), stops PulseAudio and Bluetooth, allows the page to reboot/shut down the Pi and run OS updates, and enables boot services. Unless you pass `--no-editor` it also installs a virtual screen (Xvfb) for plugin windows; LiveHost starts it itself and shows each plugin's own screen inside the web page, so nothing else (no VNC, no second port) is needed. To add or change the password later: `sudo /opt/livehost/set-password.sh`; see "Trusted networks" for unlocking uploads and updates without one.
 
 ## Troubleshooting
 
@@ -87,9 +87,10 @@ shows a notice. If an update says it needs the newer installer, unzip it on the 
 ## Using it (everything from the web page)
 
 **Mixer tab**
-- One strip per channel: name, input meter, fader, output meter, mute, and the plugin chain.
-- Master fader on the right. Double-click a fader to reset it to 0 dB.
-- Per plugin: **Edit** (the real plugin window in your browser), **Params** (generic sliders),
+- One strip per channel: name, IN meter (before the plugins), fader, OUT meter (after the plugins and fader) with a dB scale, mute, and the plugin chain.
+- Master fader on the right; hide it under Setup > Settings if you don't use it. Double-click (or double-tap) a fader to reset it to 0 dB.
+- The Monitor mix strip takes a send from each channel and goes to the outputs you tick; it carries no plugins.
+- Per plugin: **Controls** (big touch knobs, switches and lists, grouped by the plugin's own sections; double-tap a knob for its default), **Plugin** (the plugin's own screen, full screen in the page, with touch, mouse and keyboard; on a phone the ⌨ button opens the keyboard),
   **Bypass**, **x** (remove).
 - Presets (chains, plugin settings, faders, names) are saved/loaded from the top bar.
   The last session is restored automatically on boot.
@@ -112,7 +113,7 @@ Data lives in `~/.livehost` (audio setup, plugin list, `plugins/`, `last.json`, 
   network or VLAN, not exposed to the internet.
 - Zip uploads are checked for path tricks, symbolic links and Windows-style paths before unpacking.
 - Plugin windows are drawn in software on a virtual screen, so use them for setup, not during a show.
-- **Edit shows no plugin window:** open Setup > System > **Plugin windows**. It says which piece is missing or stopped (and shows the viewer log); **Restart viewer** restarts the helpers. If the pieces are missing, run the installer again. Your browser must be able to reach the Pi on port 6080 as well as 8080.
+- **Plugin shows no picture:** open Setup > System > **Plugin windows**; it says what is missing. If it is a package, run the installer again.
 
 ### Trusted networks (optional, no password from your own network)
 
@@ -121,7 +122,7 @@ sudo /opt/livehost/trusted-network.sh add 192.168.10.0/24   # a network, or a si
 sudo /opt/livehost/trusted-network.sh list | remove <entry> | clear
 ```
 
-Computers in a trusted network use LiveHost without a password, including uploads, updates and reboot, even if no password is set at all. Everyone else still needs the password (and without one, the dangerous controls stay locked). Only trust a network you control, such as a dedicated AV VLAN: anyone on it can upload plugins, which are native code, and reboot the Pi. The list is stored in `~/.livehost/trusted.txt`; IPv4 only, and networks wider than /8 are ignored. The plugin-window viewer (port 6080) has its own VNC password and is not affected.
+Computers in a trusted network use LiveHost without a password, including uploads, updates and reboot, even if no password is set at all. Everyone else still needs the password (and without one, the dangerous controls stay locked). Only trust a network you control, such as a dedicated AV VLAN: anyone on it can upload plugins, which are native code, and reboot the Pi. The list is stored in `~/.livehost/trusted.txt`; IPv4 only, and networks wider than /8 are ignored.
 
 ## Notes
 
