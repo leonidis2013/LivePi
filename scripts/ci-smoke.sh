@@ -36,7 +36,8 @@ run_case() {
   say "-- case: $label"
   rm -rf /root/.livehost
   mkdir -p /root/.livehost && echo "127.0.0.0/8" > /root/.livehost/trusted.txt   # the test client is local
-  ( cd /tmp/lh/livehost && HOME=/root ./LiveHost > /tmp/lh.log 2>&1 & echo $! > /tmp/lh.pid )
+  rm -f /tmp/lh.rc
+  ( cd /tmp/lh/livehost && HOME=/root ./LiveHost > /tmp/lh.log 2>&1 & echo $! > /tmp/lh.pid; wait $!; echo $? > /tmp/lh.rc ) &
   for i in $(seq 1 30); do api /api/info | jq -e .version >/dev/null 2>&1 && break; sleep 1; done
   check "$label: web API answers" "api /api/info | jq -e .version >/dev/null"
   if ! api /api/info | jq -e .version >/dev/null 2>&1; then say "---- log"; tail -n 25 /tmp/lh.log | tee -a "$RES"; return; fi
@@ -67,6 +68,10 @@ run_case() {
   local pid; pid=$(cat /tmp/lh.pid); kill -TERM "$pid" 2>/dev/null
   for i in $(seq 1 50); do kill -0 "$pid" 2>/dev/null || break; sleep 0.1; done
   check "$label: stops cleanly on SIGTERM within 5 s (what systemd sends)" "! kill -0 $pid 2>/dev/null"
+  sleep 1; say "exit code: $(cat /tmp/lh.rc 2>/dev/null)"
+  check "$label: exit code 0" "[ \"$(cat /tmp/lh.rc 2>/dev/null)\" = 0 ]"
+  check "$label: viewer helpers stopped with it" "! pgrep -a 'x11vn[c]|websock[i]fy' | grep -v nice"
+  say "viewer log: $(grep -v 'keysym\|xkbcomp\|XKEYBOARD' /root/.livehost/viewer.log 2>/dev/null | tail -n 4 | tr '\n' '|')"
   pkill -9 LiveHost 2>/dev/null; sleep 1
   say "log tail:"; tail -n 6 /tmp/lh.log | tee -a "$RES"
 }

@@ -8,6 +8,12 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/prctl.h>
+#include <sys/wait.h>
+#include <fcntl.h>
+#include <csignal>
+#include <vector>
+#include <string>
 #include <cstdlib>
 
 // Makes plugin windows reachable from the browser. Three helpers run as children of LiveHost:
@@ -17,6 +23,68 @@
 // Running them from here (instead of systemd units) means an online update is enough to get
 // them, a helper that dies is restarted, and the web page can show exactly what is wrong.
 // All methods run on the message thread.
+// A child process that dies with LiveHost (PR_SET_PDEATHSIG), however LiveHost ends: a clean stop,
+// a crash, or a kill -9. Its output goes to a log file.
+class HelperProcess
+{
+public:
+    ~HelperProcess() { stop(); }
+
+    bool start (const juce::StringArray& args, const juce::File& logFile)
+    {
+        stop();
+        std::vector<std::string> strs;
+        for (auto& a : args) strs.push_back (a.toStdString());
+        std::vector<char*> argv;
+        for (auto& x : strs) argv.push_back (x.data());
+        argv.push_back (nullptr);
+        const auto logPath = logFile.getFullPathName().toStdString();
+
+        const pid_t p = fork();
+        if (p < 0) return false;
+        if (p == 0)
+        {
+            prctl (PR_SET_PDEATHSIG, SIGTERM);
+            if (getppid() == 1) _exit (1);           // parent already gone
+            const int fd = open (logPath.c_str(), O_WRONLY | O_APPEND | O_CREAT, 0600);
+            const int in = open ("/dev/null", O_RDONLY);
+            if (in >= 0) dup2 (in, STDIN_FILENO);
+            if (fd >= 0) { dup2 (fd, STDOUT_FILENO); dup2 (fd, STDERR_FILENO); }
+            execvp (argv[0], argv.data());
+            _exit (127);
+        }
+        pid = p;
+        return true;
+    }
+
+    bool isRunning()
+    {
+        if (pid <= 0) return false;
+        int st = 0;
+        const pid_t r = waitpid (pid, &st, WNOHANG);
+        if (r == 0) return true;
+        if (r == pid) { exitCode = WIFEXITED (st) ? WEXITSTATUS (st) : (WIFSIGNALED (st) ? 128 + WTERMSIG (st) : -1); }
+        pid = 0;
+        return false;
+    }
+
+    // SIGTERM, then SIGKILL if it does not go; reaps it so no zombie stays behind.
+    void stop()
+    {
+        if (pid <= 0) return;
+        ::kill (pid, SIGTERM);
+        for (int i = 0; i < 20 && isRunning(); ++i) juce::Thread::sleep (50);
+        if (isRunning()) { ::kill (pid, SIGKILL); for (int i = 0; i < 20 && isRunning(); ++i) juce::Thread::sleep (50); }
+        pid = 0;
+    }
+
+    int getExitCode() const { return exitCode; }
+
+private:
+    pid_t pid = 0;
+    int exitCode = 0;
+};
+
 class EditorViewer : private juce::Timer
 {
 public:
@@ -36,10 +104,11 @@ public:
     ~EditorViewer() override
     {
         stopTimer();
-        stop (vnc);
-        stop (web);
-        // Xvfb is left alone on purpose: killing it while JUCE still talks to it would abort the
-        // shutdown. systemd stops it with the rest of the service.
+        vnc.stop();
+        web.stop();
+        // Xvfb is left alone here on purpose: killing it while JUCE still talks to it would abort the
+        // shutdown. It ends by itself when LiveHost has exited (PDEATHSIG).
+        xvfb.release();
     }
 
     bool isDisplayAvailable() const { return displayOk; }
@@ -62,8 +131,8 @@ public:
 
     void restartHelpers()
     {
-        stop (vnc);
-        stop (web);
+        vnc.stop();
+        web.stop();
         restarts = 0;
         problem.clear();
         if (displayOk)
@@ -72,19 +141,11 @@ public:
 
 private:
     juce::File dir, logFile, authFile;
-    juce::ChildProcess xvfb, vnc, web;
+    HelperProcess vnc, web;
+    std::unique_ptr<HelperProcess> xvfb;
     juce::String displayName, displaySource, vncState = "stopped", webState = "stopped", password, problem;
     bool displayOk = false, haveVnc = false, haveWeb = false;
     int restarts = 0, healthyTicks = 0;
-
-    static void stop (juce::ChildProcess& p)
-    {
-        if (p.isRunning())
-        {
-            p.kill();
-            p.waitForProcessToFinish (2000);   // reaps it, so no zombie is left behind
-        }
-    }
 
     static juce::String which (const char* name)
     {
@@ -138,11 +199,7 @@ private:
         return lines.joinIntoString ("\n");
     }
 
-    // Runs "cmd" with its output appended to the log. exec keeps the pid equal to the real program so kill() works.
-    bool spawn (juce::ChildProcess& p, const juce::String& cmd)
-    {
-        return p.start (juce::StringArray { "/bin/sh", "-c", "exec " + cmd + " >> '" + logFile.getFullPathName() + "' 2>&1" }, 0);
-    }
+    bool spawn (HelperProcess& p, const juce::StringArray& args) { return p.start (args, logFile); }
 
     void startDisplay()
     {
@@ -170,7 +227,8 @@ private:
                 return;
             }
             // A screen big enough for large plugin windows; x11vnc only scans parts that change.
-            if (! spawn (xvfb, exe + " :99 -screen 0 1920x1080x24 -nolisten tcp -nocursor"))
+            xvfb = std::make_unique<HelperProcess>();
+            if (! spawn (*xvfb, { exe, ":99", "-screen", "0", "1920x1080x24", "-nolisten", "tcp", "-nocursor" }))
             {
                 problem = "Could not start Xvfb.";
                 log (problem);
@@ -220,9 +278,9 @@ private:
                 {
                     password = makePassword();
                     authFile = dir.getChildFile ("vnc.pass");
-                    juce::ChildProcess mk;
-                    mk.start (juce::StringArray { x11vnc, "-storepasswd", password, authFile.getFullPathName() }, 0);
-                    mk.waitForProcessToFinish (5000);
+                    HelperProcess mk;
+                    mk.start ({ x11vnc, "-storepasswd", password, authFile.getFullPathName() }, logFile);
+                    for (int i = 0; i < 100 && mk.isRunning(); ++i) juce::Thread::sleep (50);
                     authFile.setReadOnly (false);
                     chmod (authFile.getFullPathName().toRawUTF8(), 0600);
                     auto txt = dir.getChildFile ("vnc.txt");
@@ -231,9 +289,9 @@ private:
                 }
                 // nice: the audio thread is real-time anyway; this keeps screen polling off the other cores' priorities.
                 // -defer/-wait limit the scan rate to ~20 fps so a busy plugin window cannot eat a core.
-                const auto cmd = "nice -n 10 " + x11vnc + " -display " + displayName + " -localhost -rfbport " + juce::String (vncPort)
-                               + " -rfbauth '" + authFile.getFullPathName() + "' -forever -shared -noxdamage -defer 50 -wait 50 -cursor arrow -quiet";
-                vncState = spawn (vnc, cmd) ? "running" : "failed";
+                vncState = spawn (vnc, { "nice", "-n", "10", x11vnc, "-display", displayName, "-localhost", "-rfbport", juce::String (vncPort),
+                                         "-rfbauth", authFile.getFullPathName(), "-forever", "-shared", "-noxdamage", "-defer", "50", "-wait", "50",
+                                         "-cursor", "arrow", "-quiet" }) ? "running" : "failed";
                 log ("x11vnc " + vncState);
             }
         }
@@ -248,8 +306,7 @@ private:
             }
             else
             {
-                const auto cmd = "nice -n 10 " + websockify + " --web=/usr/share/novnc " + juce::String (webPort) + " localhost:" + juce::String (vncPort);
-                webState = spawn (web, cmd) ? "running" : "failed";
+                webState = spawn (web, { "nice", "-n", "10", websockify, "--web=/usr/share/novnc", juce::String (webPort), "localhost:" + juce::String (vncPort) }) ? "running" : "failed";
                 log ("websockify " + webState);
             }
         }
