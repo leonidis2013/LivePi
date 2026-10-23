@@ -345,37 +345,91 @@ void WebServer::setupRoutes()
         reply (res, onMT ([this] { return engine.scanPlugins(); }, 180000));
     });
 
+    // Accepts a .zip, a single .vst3/.so file, or a whole .vst3 folder (many parts named "files",
+    // each carrying its relative path as the filename).
     svr.Post ("/api/plugins/upload", [this] (const httplib::Request& req, httplib::Response& res)
     {
-        auto it = req.files.find ("file");
-        if (it == req.files.end())
+        std::vector<const httplib::MultipartFormData*> parts;
+        for (auto& kv : req.files)
+            if (kv.first == "file" || kv.first == "files")
+                parts.push_back (&kv.second);
+
+        if (parts.empty())
         {
             reply (res, errVar ("No file received."));
             return;
         }
 
-        const auto& up = it->second;
         auto staging = HostEngine::dataDir().getChildFile ("staging").getChildFile (Uuid().toString());
         staging.createDirectory();
-
-        auto zip = staging.getChildFile ("upload.zip");
-        if (! zip.replaceWithData (up.content.data(), up.content.size()))
-        {
-            staging.deleteRecursively();
-            reply (res, errVar ("Could not save the upload (disk full?)."));
-            return;
-        }
-
         auto unpacked = staging.getChildFile ("unpacked");
-        auto e = Updater::extractZipSafely (zip, unpacked);
-        if (e.isNotEmpty())
+        unpacked.createDirectory();
+        String uploadName (parts.front()->filename);
+
+        auto fail = [&] (const String& m) { staging.deleteRecursively(); reply (res, errVar (m)); };
+
+        // Turns a browser-supplied relative path into safe components, or an empty array.
+        auto safeParts = [] (String path)
         {
-            staging.deleteRecursively();
-            reply (res, errVar (e));
-            return;
+            StringArray out;
+            path = path.replaceCharacter ('\\', '/');
+            for (auto& c : StringArray::fromTokens (path, "/", ""))
+            {
+                if (c.isEmpty() || c == ".") continue;
+                if (c == ".." || c.containsAnyOf (":\r\n\t") || c.containsChar (0)) return StringArray();
+                out.add (c);
+            }
+            return out;
+        };
+
+        const auto lower = uploadName.toLowerCase();
+        if (parts.size() == 1 && lower.endsWith (".zip"))
+        {
+            auto zip = staging.getChildFile ("upload.zip");
+            if (! zip.replaceWithData (parts[0]->content.data(), parts[0]->content.size()))
+                return fail ("Could not save the upload (disk full?).");
+            auto e = Updater::extractZipSafely (zip, unpacked);
+            if (e.isNotEmpty())
+                return fail (e);
+        }
+        else if (parts.size() == 1 && (lower.endsWith (".so") || lower.endsWith (".vst3")))
+        {
+            // A bare binary: wrap it as Name.vst3/Contents/aarch64-linux/Name.so
+            auto comps = safeParts (uploadName);
+            if (comps.isEmpty())
+                return fail ("Invalid file name.");
+            auto base = File::createLegalFileName (comps[comps.size() - 1].upToLastOccurrenceOf (".", false, false));
+            if (base.isEmpty())
+                return fail ("Invalid file name.");
+            auto dir = unpacked.getChildFile (base + ".vst3").getChildFile ("Contents").getChildFile ("aarch64-linux");
+            dir.createDirectory();
+            if (! dir.getChildFile (base + ".so").replaceWithData (parts[0]->content.data(), parts[0]->content.size()))
+                return fail ("Could not save the upload (disk full?).");
+        }
+        else
+        {
+            // A folder: every part is one file inside it.
+            int saved = 0;
+            for (auto* p : parts)
+            {
+                auto comps = safeParts (p->filename);
+                if (comps.isEmpty())
+                    return fail ("Unsafe or empty file path in upload: " + p->filename);
+                auto target = unpacked;
+                for (auto& c : comps) target = target.getChildFile (c);
+                if (! target.isAChildOf (unpacked))
+                    return fail ("Unsafe file path in upload: " + p->filename);
+                target.getParentDirectory().createDirectory();
+                if (! target.replaceWithData (p->content.data(), p->content.size()))
+                    return fail ("Could not save the upload (disk full?).");
+                ++saved;
+            }
+            if (saved == 0)
+                return fail ("The folder was empty.");
+            auto first = safeParts (parts.front()->filename);
+            if (! first.isEmpty()) uploadName = first[0];
         }
 
-        const String uploadName (up.filename);
         auto result = onMT ([this, unpacked, uploadName] { return engine.installPlugins (unpacked, uploadName); }, 300000);
         staging.deleteRecursively();
         reply (res, result);

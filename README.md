@@ -19,7 +19,7 @@ Built with JUCE. Runs your own Linux ARM64 VST3 plugins, one chain per channel.
    The installer installs everything, then asks **"Do you want to set a password? [Y/n]"**. Answer **Y** to choose a web password (at least 8 characters; nothing is shown while you type). Answer **n** to run without one: it then offers to *trust your network* so uploads, updates and reboot still work without a password. Use `--password` or `--no-password` after the user name to skip the question. When it finishes, run `sudo reboot`.
 4. **Open the page** at `http://livehost.local:8080` from any computer, tablet or phone on the same network. If you set a password, leave the user name blank and enter it.
 5. **Set up audio** on the **Setup** tab: pick your audio device, sample rate 48000 and buffer 64 (raise to 128 if the xrun counter climbs), then Apply.
-6. **Add plugins**: on the Setup tab upload each plugin as a `.zip` of its Linux ARM64 `.vst3` folder, press Scan, then add them to a channel on the **Mixer** tab.
+6. **Add plugins**: on the Setup tab > Plugins upload each plugin as a `.zip`, a `.vst3` folder, or a single `.vst3`/`.so` file (Linux ARM64), press Scan, then add them to a channel on the **Mixer** tab.
 
 No Pi yet, or no audio interface? You can try everything with the virtual sound card, see "Testing without an audio interface" below.
 
@@ -76,7 +76,7 @@ On the **Setup** tab, **Check for updates** looks at this repo's latest GitHub R
 ## Updating (offline, from the web page)
 
 1. Download `livehost-build-N.zip` from the repo's Releases page on any computer.
-2. Open the Setup tab > System > **Install update** and upload the zip.
+2. Open the Setup tab > Updates > **Install update** and upload the zip.
 
 LiveHost checks the zip (ARM64 program, checksum, compatible installer), keeps the old version as
 `LiveHost.prev`, installs the new one and restarts. Presets, uploaded plugins and the password are kept.
@@ -96,7 +96,7 @@ shows a notice. If an update says it needs the newer installer, unzip it on the 
 
 **Setup tab**
 - Audio device, sample rate and buffer size (start at 48000 Hz / 64) and channel count.
-- **Plugins on this Pi**: upload a `.zip` of a plugin's `.vst3` folder. LiveHost unpacks it, checks it is a
+- **Plugins on this Pi**: upload a `.zip`, drop or choose the whole `.vst3` folder, or upload a bare `.vst3`/`.so` file (it is wrapped into a bundle). LiveHost unpacks it, checks it is a
   Linux ARM64 build (`Contents/aarch64-linux/*.so`), and scans it. Delete uploaded plugins here too.
 - **System**: restart LiveHost, reboot or shut down the Pi, install LiveHost updates, and update the Pi's operating system (apt-get update / upgrade).
   The OS update buttons are grayed out with "No internet access" when the Pi cannot reach its package servers.
