@@ -323,6 +323,13 @@
     .side button svg { width:20px; height:20px; }
     .pane { min-width:0; }
   }
+
+  .login { position:fixed; inset:0; z-index:50; background:var(--bg); display:flex; align-items:center; justify-content:center; padding:20px; }
+  .loginbox { width:min(360px,100%); display:flex; flex-direction:column; gap:12px; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:24px; }
+  .loginlogo { font-weight:800; letter-spacing:.14em; font-size:20px; }
+  .loginbox input, .loginbox button { width:100%; min-height:44px; font-size:16px; }
+  .pwform { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+  .pwform .row { flex-wrap:nowrap; }
 </style>
 </head>
 <body>
@@ -337,10 +344,6 @@
 </header>
 <div id="app">
 
-<div id="nopw" class="card hide" style="max-width:none;border-color:var(--bad)">
-  <b>Access is locked.</b> Without a password, plugin upload, plugin windows, updates and reboot only work from a trusted network, and this device (<span id="nopwIp"></span>) is not in one.
-  Set a password on the Pi (<code>sudo /opt/livepi/set-password.sh</code>), or unlock: <code>sudo /opt/livepi/trusted-network.sh open</code>
-</div>
 
 <section id="tab-mix">
   <div class="toolbar">
@@ -387,7 +390,7 @@
     <div class="row"><button id="devApply" class="on">Apply</button><span id="devNow" class="note grow"></span></div>
     <div class="note">Smaller buffer = lower latency but more CPU. Watch the xrun counter at the top.</div>
   </div>
-  <div class="card hide" data-lock id="virtCard">
+  <div class="card hide" id="virtCard">
     <h2>Test audio file</h2>
     <div class="note" style="margin-bottom:8px">The input <b>Test file (loop)</b> plays an audio file of your own, over and over. Upload it here, then press Apply above. Use <b>Listen</b> on the Mixer tab to hear the result.</div>
     <div class="row">
@@ -411,7 +414,7 @@
   </div>
   </div>
   <div data-pane="plugins" class="hide">
-  <div class="card" data-lock>
+  <div class="card">
     <h2>Plugins on this Pi</h2>
     <div id="upDrop" class="drop">Drop a <b>.zip</b>, a <b>.vst3 folder</b> or a <b>.vst3 / .so file</b> here, or choose below</div>
     <div class="row">
@@ -428,7 +431,7 @@
     <div class="note">Plugins must be Linux ARM64 builds (they need <code>Contents/aarch64-linux/*.so</code>). A bare .so/.vst3 file is wrapped into a bundle for you.</div>
     <div id="bundles" style="margin-top:8px"></div>
   </div>
-  <div class="card" data-lock>
+  <div class="card">
     <h2>Plugin windows</h2>
     <div id="vwStat" class="note">…</div>
     <pre id="vwLog" class="hide" style="max-height:160px;overflow:auto;padding:8px;border-radius:8px;font-size:12px;white-space:pre-wrap;margin:6px 0"></pre>
@@ -437,7 +440,7 @@
   </div>
   </div>
   <div data-pane="system" class="hide">
-  <div class="card" data-lock>
+  <div class="card">
     <h2>LivePi</h2>
     <div id="ver" class="note"></div>
     <div id="rolled" class="note bad hide">The last update did not start and was rolled back automatically.</div>
@@ -457,7 +460,7 @@
     <div class="note">Download <b>livepi-build-N.zip</b> from your GitHub repo (Releases, or Actions &gt; Artifacts) and upload it here. Presets, plugins and password are kept. If the new version fails to start, the old one is restored automatically.</div>
     <div class="row" style="margin-top:12px"><button id="sysRestart">Restart LivePi</button><span class="note grow">Audio stops for a few seconds; this page reconnects by itself.</span></div>
   </div>
-  <div class="card" data-lock>
+  <div class="card">
     <h2>Operating system</h2>
     <div id="osMsg" class="note">…</div>
     <div class="row">
@@ -468,7 +471,7 @@
     <pre id="osLog" class="hide" style="max-height:200px;overflow:auto;background:var(--inset);padding:8px;border-radius:8px;font-size:12px;white-space:pre-wrap;margin:6px 0"></pre>
     <div class="note">Runs apt-get update / upgrade on the Pi and needs internet. Don't run it before a service: it can cause audio dropouts while it runs, and may need a reboot afterwards.</div>
   </div>
-  <div class="card dz" data-lock>
+  <div class="card dz">
     <h2>Danger zone</h2>
     <div class="row"><button id="sysReboot" class="danger">Reboot Pi</button><span class="note grow">Audio stops until the Pi is back, about 30 seconds.</span></div>
   </div>
@@ -489,16 +492,32 @@
     <div class="note" id="masterNote">Hidden, the master keeps its current level. Remembered on this device only.</div>
   </div>
   <div class="card">
-    <h2>Access</h2>
-    <div id="acPw" class="note"></div>
-    <div class="row"><span class="grow">Trusted access</span>
-      <div class="seg" id="acSeg"><button data-v="locked">On</button><button data-v="open">Off</button></div>
+    <h2>Password</h2>
+    <div class="row"><span class="grow">Password protection</span>
+      <div class="seg" id="pwSeg"><button data-v="on">On</button><button data-v="off">Off</button></div>
     </div>
-    <div id="acNote" class="note"></div>
-    <h2 style="margin-top:14px">Trusted networks</h2>
-    <div id="acNets"></div>
-    <div class="row"><input id="acNew" class="grow" placeholder="192.168.2.0/24 or one address" autocomplete="off"><button id="acAdd">Add</button></div>
-    <div class="note">Devices in these networks get full access without a password. Use only a network you control (for example a dedicated AV VLAN).</div>
+    <div id="pwNote" class="note"></div>
+    <form id="pwForm" class="pwform" autocomplete="on">
+      <input type="text" name="username" value="livepi" autocomplete="username" class="hide" tabindex="-1" aria-hidden="true">
+      <input id="pwCur" type="password" placeholder="Current password" autocomplete="current-password">
+      <input id="pwNew" type="password" placeholder="New password (at least 4 characters)" autocomplete="new-password">
+      <input id="pwNew2" type="password" placeholder="Repeat new password" autocomplete="new-password">
+      <div class="row"><button id="pwSave" type="submit" class="on">Set password</button><span class="grow"></span><button id="pwLogout" type="button" class="hide">Log out</button></div>
+    </form>
+  </div>
+  <div class="card" id="acCard">
+    <h2>Trusted access</h2>
+    <div id="acOff" class="note">Available when a password is set and password protection is on.</div>
+    <div id="acOn">
+      <div class="row"><span class="grow">Skip the password on trusted networks</span>
+        <div class="seg" id="acSeg"><button data-v="on">On</button><button data-v="off">Off</button></div>
+      </div>
+      <div id="acNote" class="note"></div>
+      <h2 style="margin-top:14px">Trusted networks</h2>
+      <div id="acNets"></div>
+      <div class="row"><input id="acNew" class="grow" placeholder="192.168.2.0/24 or one address" autocomplete="off"><button id="acAdd">Add</button></div>
+      <div class="note">Use only a network you control (for example a dedicated AV VLAN).</div>
+    </div>
   </div>
   </div>
   </div>
@@ -532,6 +551,17 @@
   </div>
 </div>
 
+<div id="login" class="login hide">
+  <form id="loginForm" class="loginbox" autocomplete="on">
+    <div class="loginlogo">LIVEPI</div>
+    <div class="note">Enter the password to continue.</div>
+    <input type="text" name="username" value="livepi" autocomplete="username" class="hide" tabindex="-1" aria-hidden="true">
+    <input id="loginPw" type="password" placeholder="Password" autocomplete="current-password" required>
+    <button id="loginGo" type="submit" class="on">Log in</button>
+    <div id="loginMsg" class="note bad"></div>
+    <div class="note">Forgot it? On the Pi run <code>sudo /opt/livepi/set-password.sh --off</code></div>
+  </form>
+</div>
 <div id="msg"></div>
 
 <script>
@@ -543,12 +573,13 @@ function esc(t) { return String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<':
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 function toast(t) { const m = $('msg'); m.textContent = t; m.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => m.style.display = 'none', 3500); }
 
-async function api(path, body) {
+async function api(path, body, quiet) {
   const opt = body === undefined ? {} : { method: 'POST', headers: {'Content-Type':'application/json', 'X-LivePi':'1'}, body: JSON.stringify(body) };
   try {
     const r = await fetch(path, opt);
     const j = await r.json();
-    if (j.error) toast(j.error);
+    if (r.status === 401 && j.login) { showLogin(true); return j; }
+    if (j.error && !quiet) toast(j.error);
     return j;
   } catch (e) { toast('Connection lost'); return {}; }
 }
@@ -600,59 +631,76 @@ document.querySelectorAll('#sub button').forEach(b => b.onclick = () => showSub(
 })();
 
 
-/* ---------- access: trusted access on/off, trusted networks, and graying out locked features ---------- */
+/* ---------- login, password and trusted access ---------- */
 let ACC = null;
-const LOCKMSG = 'Locked: a password needs to be set (on the Pi: sudo /opt/livepi/set-password.sh), or this device must be in a trusted network. You can turn Trusted access off under Setup > Settings from a trusted device.';
-function applyLock(allowed) {
-  document.querySelectorAll('.card[data-lock]').forEach(c => {
-    c.classList.toggle('locked', !allowed);
-    let n = c.querySelector(':scope > .locknote');
-    if (!allowed && !n) { n = el('div', 'locknote', LOCKMSG); c.querySelector('h2').after(n); }
-    if (allowed && n) n.remove();
-  });
-  document.querySelectorAll('.chip button[data-needs-access]').forEach(b => { b.disabled = !allowed; b.title = allowed ? '' : 'Locked: a password needs to be set'; });
-  $('nopw').classList.toggle('hide', allowed);
-  if (ACC) $('nopwIp').textContent = ACC.clientIp || 'this device';
+function showLogin(on) {
+  $('login').classList.toggle('hide', !on);
+  if (on) setTimeout(() => $('loginPw').focus(), 50);
 }
-async function accessRefresh() {
-  const a = await api('/api/access');
-  if (a.mode === undefined) return;
+$('loginForm').onsubmit = async e => {
+  e.preventDefault();
+  $('loginGo').disabled = true; $('loginMsg').textContent = '';
+  const r = await api('/api/login', { password: $('loginPw').value }, true);
+  $('loginGo').disabled = false;
+  if (r.error) { $('loginMsg').textContent = r.error; $('loginPw').select(); return; }
+  $('loginPw').value = '';
+  showLogin(false);
+  location.reload();   // load everything now that we're in
+};
+function applySession(a) {
+  if (!a || a.passwordSet === undefined) return;
   ACC = a;
-  applyLock(a.allowed);
-  document.querySelectorAll('#acSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === a.mode));
-  $('acPw').textContent = a.passwordSet ? 'A password is set: everyone outside the trusted networks must enter it, whatever this switch says.' : 'No password is set.';
-  $('acNote').textContent = a.mode === 'open'
-    ? (a.passwordSet ? 'Off: only the password protects LivePi.' : 'Off: everyone on the network can use everything, including uploads, updates and reboot.')
-    : (a.passwordSet ? 'On: trusted networks skip the password.' : 'On: without a password, uploads, plugin windows, updates and reboot only work from trusted networks. Elsewhere they are grayed out.') + (a.trusted ? ' This device is trusted.' : ' This device is NOT trusted.');
-  document.querySelectorAll('#acSeg button').forEach(b => b.disabled = !a.canChange && b.dataset.v === 'open');
+  if (!a.authed) { showLogin(true); return; }
+  // password card
+  document.querySelectorAll('#pwSeg button').forEach(b => { b.classList.toggle('on', (b.dataset.v === 'on') === a.protection); });
+  $('pwSeg').querySelector('[data-v="on"]').disabled = !a.passwordSet;
+  $('pwNote').textContent = !a.passwordSet ? 'No password is set: everyone on your network can use LivePi. Set one below to turn protection on.'
+    : a.protection ? 'On: devices must log in' + (a.trustedAccess ? ' (except on trusted networks).' : '.')
+    : 'Off: everyone on your network can use LivePi without logging in. The password is kept for when you turn it back on.';
+  $('pwCur').classList.toggle('hide', !a.protection);
+  $('pwSave').textContent = a.passwordSet ? 'Change password' : 'Set password';
+  $('pwLogout').classList.toggle('hide', !(a.protection && a.loggedIn));
+  // trusted access card: only with an active password
+  $('acOff').classList.toggle('hide', a.protection);
+  $('acOn').classList.toggle('hide', !a.protection);
+  document.querySelectorAll('#acSeg button').forEach(b => b.classList.toggle('on', (b.dataset.v === 'on') === a.trustedAccess));
+  $('acNote').textContent = a.trustedAccess ? (a.trusted ? 'This device is on a trusted network.' : 'This device is not on a trusted network, so it logs in.') : 'Off: every device logs in.';
   const root = $('acNets'); root.innerHTML = '';
   (a.networks || []).forEach(n => {
     const r = el('div', 'netrow'); r.append(el('span', 'grow', n));
-    const x = el('button', 'sm danger', 'Remove'); x.disabled = !a.canChange;
-    x.onclick = async () => { await api('/api/access', { networks: a.networks.filter(v => v !== n) }); accessRefresh(); };
+    const x = el('button', 'sm danger', 'Remove');
+    x.onclick = async () => applySession(await api('/api/access', { networks: a.networks.filter(v => v !== n) }));
     r.append(x); root.append(r);
   });
-  if (!(a.networks || []).length) root.append(el('div', 'note', 'None.'));
-  $('acNew').disabled = $('acAdd').disabled = !a.canChange;
-  if (!$('acNew').value && a.clientNet) $('acNew').placeholder = a.clientNet + ' (this device\'s network) or one address';
+  if (!(a.networks || []).length) root.append(el('div', 'note', 'None yet.'));
+  if (a.clientNet) $('acNew').placeholder = a.clientNet + ' (this device\'s network) or one address';
 }
+async function accessRefresh() { applySession(await api('/api/session', undefined, true)); }
+document.querySelectorAll('#pwSeg button').forEach(b => b.onclick = async () => {
+  const on = b.dataset.v === 'on';
+  if (!on && !confirm('Turn password protection off? Everyone on your network can then use LivePi without logging in.')) return;
+  const r = await api('/api/password/protection', { enabled: on });
+  if (!r.error) { applySession(r); toast(on ? 'Password protection is on' : 'Password protection is off'); }
+});
+$('pwForm').onsubmit = async e => {
+  e.preventDefault();
+  const n1 = $('pwNew').value, n2 = $('pwNew2').value;
+  if (n1.length < 4) return toast('Use at least 4 characters.');
+  if (n1 !== n2) return toast('The two new passwords do not match.');
+  const r = await api('/api/password', { current: $('pwCur').value, password: n1 });
+  if (!r.error) { $('pwCur').value = $('pwNew').value = $('pwNew2').value = ''; applySession(r); toast('Password saved. Other devices must log in again.'); }
+};
+$('pwLogout').onclick = async () => { await api('/api/logout', {}); location.reload(); };
 document.querySelectorAll('#acSeg button').forEach(b => b.onclick = async () => {
-  const v = b.dataset.v;
-  if (v === 'locked' && ACC && !ACC.passwordSet && !ACC.trusted) {
-    const net = ACC.clientNet;
-    if (net && confirm(`Turn trusted access on and add this device's network (${net}) so you don't lock yourself out?`)) {
-      await api('/api/access', { networks: [...(ACC.networks || []), net], mode: 'locked' });
-    } else if (confirm('This device is not in a trusted network. After this, it can only turn the lock off again from a trusted device or the Pi itself. Continue?')) {
-      await api('/api/access', { mode: 'locked' });
-    }
-  } else await api('/api/access', { mode: v });
-  accessRefresh();
+  const on = b.dataset.v === 'on';
+  let nets = (ACC && ACC.networks) || [];
+  if (on && !nets.length && ACC && ACC.clientNet && confirm(`Add this device's network (${ACC.clientNet}) as trusted?`)) nets = [...nets, ACC.clientNet];
+  applySession(await api('/api/access', { trustedAccess: on, networks: nets }));
 });
 $('acAdd').onclick = async () => {
   const v = $('acNew').value.trim() || (ACC && ACC.clientNet) || ''; if (!v) return;
   const r = await api('/api/access', { networks: [...((ACC && ACC.networks) || []), v] });
-  if (r.ok) $('acNew').value = '';
-  accessRefresh();
+  if (!r.error) { $('acNew').value = ''; applySession(r); }
 };
 
 /* ---------- mixer toolbar ---------- */
@@ -802,7 +850,7 @@ function buildStrip(c, ch) {
     const ctl = ib('ctl', 'Controls'); ctl.onclick = () => openPlugin(ch, i, p.name, 'controls');
     cb.append(ctl);
     if (S && S.editorAvailable) {
-      const e = ib('win', 'Plugin screen'); e.dataset.needsAccess = '1'; e.disabled = !!(ACC && !ACC.allowed);
+      const e = ib('win', 'Plugin screen'); 
       e.onclick = () => openPlugin(ch, i, p.name, 'window'); cb.append(e);
     }
     const by = ib('pw', p.bypassed ? 'Bypassed: tap to enable' : 'On: tap to bypass', 'pw' + (p.bypassed ? '' : ' on'));
@@ -912,8 +960,7 @@ async function openPlugin(ch, slot, name, mode) {
   PV.ch = ch; PV.slot = slot; PV.name = name;
   $('pvTitle').textContent = name;
   $('pv').classList.remove('hide');
-  $('pvMode').querySelector('[data-m="window"]').classList.toggle('hide', !(S && S.editorAvailable) || !!(ACC && !ACC.allowed));
-  if (ACC && !ACC.allowed) mode = 'controls';
+  $('pvMode').querySelector('[data-m="window"]').classList.toggle('hide', !(S && S.editorAvailable));
   if (mode === 'window') goFullscreen();   // must happen inside the tap, before any await
   await pvMode(mode);
 }
@@ -1634,10 +1681,12 @@ async function refresh() {
 }
 
 (async () => {
+  const sess = await api('/api/session', undefined, true);
+  if (sess.passwordSet !== undefined && !sess.authed) { ACC = sess; showLogin(true); return; }
   await loadDevices();
   plugins = (await api('/api/plugins')).plugins || [];
   const info = await api('/api/info');
-  await accessRefresh();
+  applySession(sess);
   $('ver').textContent = 'Version: ' + (info.version || 'unknown');
   $('rolled').classList.toggle('hide', !info.rolledBack);
   loadInstalled();
@@ -1646,7 +1695,7 @@ async function refresh() {
   viewerRefresh();
   await refresh();
   setInterval(refresh, 1500);
-  setInterval(accessRefresh, 15000);
+  setInterval(accessRefresh, 30000);
   setInterval(pollMeters, 80);
 })();
 </script>

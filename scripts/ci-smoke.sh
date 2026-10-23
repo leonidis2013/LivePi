@@ -67,16 +67,26 @@ run_case() {
   check "$label: plugin view ready (virtual screen + touch input)" "echo '$V' | jq -e '.available and .input and (.problem==\"\")' >/dev/null"
   check "$label: no plugin open -> frame says closed (410)" "[ \"\$(curl -s -m 5 -o /dev/null -w '%{http_code}' 'http://127.0.0.1:8080/api/editor/frame?channel=0&slot=0')\" = 410 ]"
   check "$label: state reports editorAvailable" "api /api/state | jq -e '.editorAvailable==true' >/dev/null"
-  # access: default open; lock while trusted; drop trust -> locked out; cannot unlock from the web
-  check "$label: access defaults to open (trusted access off)" "api /api/access | jq -e '.mode==\"open\" and .allowed' >/dev/null"
-  post /api/access '{"mode":"locked"}' >/dev/null
-  check "$label: lock keeps a trusted device allowed" "api /api/access | jq -e '.mode==\"locked\" and .allowed' >/dev/null"
-  post /api/access '{"networks":[]}' >/dev/null
-  check "$label: untrusted + locked -> not allowed" "api /api/access | jq -e '.allowed==false' >/dev/null"
-  check "$label: untrusted + locked -> plugin windows refused (403)" "[ \"\$(curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/editor/viewer)\" = 403 ]"
-  check "$label: untrusted device cannot unlock from the web" "post /api/access '{\"mode\":\"open\"}' | jq -e '.error' >/dev/null && api /api/access | jq -e '.mode==\"locked\"' >/dev/null"
-  check "$label: untrusted device cannot add itself as trusted" "post /api/access '{\"networks\":[\"127.0.0.0/8\"]}' | jq -e '.error' >/dev/null"
-  check "$label: mixer still works while locked" "api /api/state | jq -e '.chains' >/dev/null"
+  # password: none -> open; set one -> login needed (no user name); cookie works; trusted access; turn off
+  check "$label: no password -> open" "api /api/session | jq -e '.passwordSet==false and .authed' >/dev/null"
+  J=/tmp/lh.jar; rm -f $J
+  curl -s -m 5 -c $J -X POST -H 'X-LivePi: 1' -H 'Content-Type: application/json' -d '{"password":"test1234"}' http://127.0.0.1:8080/api/password >/dev/null
+  check "$label: after setting a password, the API needs a login (401)" "[ \"\$(curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/state)\" = 401 ]"
+  check "$label: the device that set it stays logged in (cookie)" "curl -s -m 5 -b $J http://127.0.0.1:8080/api/state | jq -e '.chains' >/dev/null"
+  check "$label: page itself still loads (login screen)" "[ \"\$(curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/)\" = 200 ]"
+  check "$label: wrong password refused" "post /api/login '{\"password\":\"nope\"}' | jq -e '.error' >/dev/null"
+  J2=/tmp/lh.jar2; rm -f $J2
+  curl -s -m 5 -c $J2 -X POST -H 'X-LivePi: 1' -H 'Content-Type: application/json' -d '{"password":"test1234"}' http://127.0.0.1:8080/api/login >/dev/null
+  check "$label: password-only login works" "curl -s -m 5 -b $J2 http://127.0.0.1:8080/api/session | jq -e '.authed and .loggedIn' >/dev/null"
+  check "$label: old Basic auth still works for scripts" "curl -s -m 5 -u x:test1234 http://127.0.0.1:8080/api/state | jq -e '.chains' >/dev/null"
+  curl -s -m 5 -b $J -X POST -H 'X-LivePi: 1' -H 'Content-Type: application/json' -d '{"trustedAccess":true}' http://127.0.0.1:8080/api/access >/dev/null
+  check "$label: trusted access lets the trusted network in without a login" "api /api/state | jq -e '.chains' >/dev/null"
+  curl -s -m 5 -b $J -X POST -H 'X-LivePi: 1' -H 'Content-Type: application/json' -d '{"trustedAccess":false}' http://127.0.0.1:8080/api/access >/dev/null
+  check "$label: trusted access off -> login needed again" "[ \"\$(curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/state)\" = 401 ]"
+  curl -s -m 5 -b $J -X POST -H 'X-LivePi: 1' -H 'Content-Type: application/json' -d '{"enabled":false}' http://127.0.0.1:8080/api/password/protection >/dev/null
+  check "$label: protection off -> open, no login" "api /api/state | jq -e '.chains' >/dev/null"
+  check "$label: protection off -> trusted access unavailable" "post /api/access '{\"trustedAccess\":true}' | jq -e '.error' >/dev/null"
+  check "$label: mixer works" "api /api/state | jq -e '.chains' >/dev/null"
   local pid; pid=$(cat /tmp/lh.pid)
   say "signals: $(grep -E 'SigCgt|SigBlk|SigIgn' /proc/$pid/status | tr '\n' ' ') (SIGTERM caught = bit 15 of SigCgt, i.e. 0x4000)"
   say "threads: $(ls /proc/$pid/task | wc -l)"

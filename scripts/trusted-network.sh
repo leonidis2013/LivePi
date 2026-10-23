@@ -5,8 +5,9 @@
 #   sudo /opt/livepi/trusted-network.sh remove 192.168.10.0/24
 #   sudo /opt/livepi/trusted-network.sh list
 #   sudo /opt/livepi/trusted-network.sh clear
-#   sudo /opt/livepi/trusted-network.sh lock    # trusted access ON: without a password, only these networks get full access
-#   sudo /opt/livepi/trusted-network.sh open    # trusted access OFF: without a password, everyone gets full access (default)
+#   sudo /opt/livepi/trusted-network.sh on      # trusted access ON: these networks skip the password
+#   sudo /opt/livepi/trusted-network.sh off     # trusted access OFF: everyone must log in (default)
+# Trusted access only matters while a password is set and protection is on.
 # Only use a network you control (for example a dedicated AV VLAN). Anyone on it can upload
 # plugins (native code) and reboot the Pi. IPv4 only; networks wider than /8 are refused.
 set -euo pipefail
@@ -47,17 +48,17 @@ case "$CMD" in
     mv "$FILE.new" "$FILE"
     ;;
   clear) : > "$FILE" ;;
-  lock|open)
-    echo "$( [[ $CMD == lock ]] && echo locked || echo open )" > "$DIR/access.txt"
+  on|off|lock|open)
+    echo "$( [[ $CMD == on || $CMD == lock ]] && echo on || echo off )" > "$DIR/access.txt"
     chown "$USER_NAME:$GROUP_NAME" "$DIR/access.txt"; chmod 600 "$DIR/access.txt"
     ;;
   list) ;;
-  *) echo "usage: $0 add|remove|list|clear|lock|open [network]"; exit 2 ;;
+  *) echo "usage: $0 add|remove|list|clear|on|off [network]"; exit 2 ;;
 esac
 
 chown "$USER_NAME:$GROUP_NAME" "$FILE"; chmod 600 "$FILE"
-A=$(cat "$DIR/access.txt" 2>/dev/null || echo open)
-echo "Trusted access: $( [[ "$A" == locked ]] && echo "ON (without a password, only trusted networks get full access)" || echo "OFF (without a password, everyone gets full access)" )"
+A=$(cat "$DIR/access.txt" 2>/dev/null || echo off)
+echo "Trusted access: $( [[ "$A" == on || "$A" == locked ]] && echo "ON (these networks skip the password)" || echo "OFF (everyone must log in when a password is on)" )"
 echo "Trusted networks (no password needed from these):"
 if [[ -s "$FILE" ]]; then sed 's/^/  /' "$FILE"; else echo "  (none)"; fi
 [[ "$CMD" == list ]] || { systemctl try-restart livepi.service 2>/dev/null || true; echo "LivePi restarted."; }

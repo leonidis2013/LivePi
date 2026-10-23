@@ -18,8 +18,8 @@ Built with JUCE. Runs your own Linux ARM64 VST3 plugins, one chain per channel.
    sudo ./install-pi.sh your-user
    ```
 
-   The installer installs everything, then asks **"Do you want to set a password? [Y/n]"**. Answer **Y** to choose a web password (at least 8 characters; nothing is shown while you type). Answer **n** to run without one: it then offers to *trust your network* so uploads, updates and reboot still work without a password. Use `--password` or `--no-password` after the user name to skip the question. When it finishes, run `sudo reboot`.
-4. **Open the page** at `http://livepi.local:8080` from any computer, tablet or phone on the same network. If you set a password, leave the user name blank and enter it.
+   The installer installs everything, then asks **"Do you want to set a password? [Y/n]"**. Answer **Y** to choose a web password (at least 4 characters; nothing is shown while you type); it then offers to skip the password on the Pi's own network. Answer **n** to run without one (everyone on your network can use it). You can change all of this later in Setup > Settings. Use `--password` or `--no-password` after the user name to skip the question. When it finishes, run `sudo reboot`.
+4. **Open the page** at `http://livepi.local:8080` from any computer, tablet or phone on the same network. If you set a password, the page asks for it (no user name).
 5. **Set up audio** on the **Setup** tab: pick your audio device, sample rate 48000 and buffer 64 (raise to 128 if the xrun counter climbs), then Apply.
 6. **Add plugins**: on the Setup tab > Plugins upload each plugin as a `.zip`, a `.vst3` folder, or a single `.vst3`/`.so` file (Linux ARM64), press Scan, then add them to a channel on the **Mixer** tab.
 
@@ -51,7 +51,7 @@ It copies the app to `/opt/livepi`, installs the runtime libraries, sets real-ti
 - **See what LivePi is doing:** `sudo journalctl -u livepi -n 50`.
 - **No audio device in the list:** the Setup tab lists what Linux sees; `aplay -l` on the Pi shows the same. Choose the **Virtual** type to keep working without hardware.
 - **Crackles or xruns:** raise the buffer size (64, then 128), use a wired network, and avoid the per-plugin CPU test and plugin windows during a show.
-- **Forgot the password:** run `sudo /opt/livepi/set-password.sh` on the Pi.
+- **Forgot the password:** run `sudo /opt/livepi/set-password.sh --off` on the Pi.
 - **An update did not start:** LivePi restores the previous version by itself after 3 failed starts and shows a notice on the page.
 
 ## Testing without an audio interface
@@ -109,24 +109,13 @@ Data lives in `~/.livepi` (audio setup, plugin list, `plugins/`, `last.json`, `p
 
 ## Security
 
-- A password is required for everything once set. Upload, delete and reboot stay disabled until a password exists.
+- **Password** (Setup > Settings > Password): set or change it there, no user name. With **password protection on**, every device logs in once on the page (it stays logged in for 30 days); with it **off**, or with no password, everyone on your network can use LivePi. Turning protection off never asks for the password. Changing the password logs out all other devices.
+- **Forgot the password:** on the Pi run `sudo /opt/livepi/set-password.sh --off` (protection off) or `sudo /opt/livepi/set-password.sh` (new password).
+- **Trusted access** (Setup > Settings, only while a password is set and protection is on): devices on the trusted networks you list skip the login. Only trust a network you control, such as a dedicated AV VLAN. From the Pi: `sudo /opt/livepi/trusted-network.sh add 192.168.10.0/24` and `... on` / `off` / `list`.
 - Uploaded plugins are native code that runs on the Pi, so only upload plugins you trust.
-- Traffic is plain HTTP, so the password is not encrypted on the network. Keep the Pi on a trusted
-  network or VLAN, not exposed to the internet.
+- Traffic is plain HTTP, so the password is not encrypted on the network. Keep the Pi on a trusted network or VLAN, not exposed to the internet. Ten wrong passwords lock that device out for 10 minutes.
 - Zip uploads are checked for path tricks, symbolic links and Windows-style paths before unpacking.
-- Plugin windows are drawn in software on a virtual screen, so use them for setup, not during a show.
-- **Plugin shows no picture:** open Setup > System > **Plugin windows**; it says what is missing. If it is a package, run the installer again.
-
-### Trusted networks (optional, no password from your own network)
-
-```
-sudo /opt/livepi/trusted-network.sh add 192.168.10.0/24   # a network, or a single IP
-sudo /opt/livepi/trusted-network.sh list | remove <entry> | clear
-```
-
-**Trusted access** (Setup > Settings > Access) decides what happens while no password is set. **Off** (the default): everyone on the network can use everything. **On**: uploads, plugin windows, updates and reboot only work from the trusted networks listed there; on other devices those sections are grayed out with a note that a password needs to be set. Turning it on from an untrusted device offers to add that device's network first, so you don't lock yourself out; from the Pi you can always run `sudo /opt/livepi/trusted-network.sh open` (or `lock`).
-
-Computers in a trusted network use LivePi without a password, including uploads, updates and reboot, even if no password is set at all. Everyone else still needs the password (and without one, the dangerous controls stay locked). Only trust a network you control, such as a dedicated AV VLAN: anyone on it can upload plugins, which are native code, and reboot the Pi. The list is stored in `~/.livepi/trusted.txt`; IPv4 only, and networks wider than /8 are ignored.
+- Plugin windows are drawn in software on a virtual screen, so use them for setup, not during a show. If one shows no picture, Setup > Plugins > **Plugin windows** says what is missing.
 
 ## Notes
 

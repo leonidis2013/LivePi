@@ -124,15 +124,139 @@ void WebServer::stop()
 
 void WebServer::loadAuth()
 {
+    const ScopedLock sl (trustedLock);
+    authSalt.clear(); authHash.clear(); protectionOn = true;
     auto f = HostEngine::dataDir().getChildFile ("auth.json");
-    if (! f.existsAsFile())
+    if (f.existsAsFile())
     {
-        Logger::writeToLog ("No password set (~/.livepi/auth.json missing). Uploads and system controls are disabled.");
-        return;
+        auto v = JSON::parse (f);
+        authSalt = v.getProperty ("salt", {}).toString();
+        authHash = v.getProperty ("hash", {}).toString().toLowerCase();
+        protectionOn = (bool) v.getProperty ("enabled", true);
     }
-    auto v = JSON::parse (f);
-    authSalt = v.getProperty ("salt", {}).toString();
-    authHash = v.getProperty ("hash", {}).toString().toLowerCase();
+    if (authHash.isEmpty())
+        Logger::writeToLog ("No password set: everyone on the network can use LivePi.");
+
+    sessions.clear();
+    auto sj = JSON::parse (HostEngine::dataDir().getChildFile ("sessions.json"));
+    const auto now = Time::currentTimeMillis();
+    if (auto* arr = sj.getArray())
+        for (auto& e : *arr)
+            if ((int64) e["expires"] > now)
+                sessions.push_back ({ e["hash"].toString(), (int64) e["expires"] });
+}
+
+void WebServer::saveAuth()   // caller holds trustedLock
+{
+    auto* o = new DynamicObject();
+    o->setProperty ("salt", authSalt);
+    o->setProperty ("hash", authHash);
+    o->setProperty ("enabled", protectionOn);
+    auto f = HostEngine::dataDir().getChildFile ("auth.json");
+    f.replaceWithText (JSON::toString (var (o)));
+    chmod (f.getFullPathName().toRawUTF8(), 0600);
+}
+
+void WebServer::saveSessions()   // caller holds trustedLock
+{
+    Array<var> arr;
+    for (auto& x : sessions)
+    {
+        auto* o = new DynamicObject();
+        o->setProperty ("hash", x.hash);
+        o->setProperty ("expires", x.expires);
+        arr.add (var (o));
+    }
+    auto f = HostEngine::dataDir().getChildFile ("sessions.json");
+    f.replaceWithText (JSON::toString (var (arr)));
+    chmod (f.getFullPathName().toRawUTF8(), 0600);
+}
+
+namespace
+{
+    String sha (const String& s) { return SHA256 (s.toUTF8(), (size_t) s.getNumBytesAsUTF8()).toHexString(); }
+
+    bool sameText (const String& a, const String& b)
+    {
+        if (a.length() != b.length()) return false;
+        int diff = 0;
+        for (int i = 0; i < a.length(); ++i) diff |= (int) a[i] ^ (int) b[i];
+        return diff == 0;
+    }
+
+    String randomHex (int bytes)
+    {
+        // /dev/urandom for tokens and salts
+        MemoryBlock mb ((size_t) bytes);
+        FileInputStream in (File ("/dev/urandom"));
+        if (! in.openedOk() || in.read (mb.getData(), bytes) != bytes)
+        {
+            Random r (Time::getHighResolutionTicks());
+            for (int i = 0; i < bytes; ++i) ((uint8*) mb.getData())[i] = (uint8) r.nextInt (256);
+        }
+        return String::toHexString (mb.getData(), bytes, 0);
+    }
+
+    String cookieValue (const httplib::Request& req, const char* name)
+    {
+        const String all (req.get_header_value ("Cookie"));
+        for (auto part : StringArray::fromTokens (all, ";", ""))
+        {
+            part = part.trim();
+            if (part.startsWith (String (name) + "="))
+                return part.fromFirstOccurrenceOf ("=", false, false);
+        }
+        return {};
+    }
+}
+
+bool WebServer::verifyPassword (const String& pw) const
+{
+    const ScopedLock sl (trustedLock);
+    return authHash.isNotEmpty() && sameText (sha (authSalt + pw), authHash);
+}
+
+bool WebServer::protectionActive() const
+{
+    const ScopedLock sl (trustedLock);
+    return authHash.isNotEmpty() && protectionOn;
+}
+
+bool WebServer::hasSession (const httplib::Request& req) const
+{
+    const auto tok = cookieValue (req, "lp_session");
+    if (tok.length() < 32) return false;
+    const auto h = sha (tok);
+    const auto now = Time::currentTimeMillis();
+    const ScopedLock sl (trustedLock);
+    for (auto& x : sessions)
+        if (x.expires > now && sameText (x.hash, h))
+            return true;
+    return false;
+}
+
+std::string WebServer::newSession()
+{
+    const auto tok = randomHex (24);
+    const auto now = Time::currentTimeMillis();
+    {
+        const ScopedLock sl (trustedLock);
+        sessions.erase (std::remove_if (sessions.begin(), sessions.end(), [now] (const Session& x) { return x.expires <= now; }), sessions.end());
+        while (sessions.size() > 50) sessions.erase (sessions.begin());
+        sessions.push_back ({ sha (tok), now + (int64) 30 * 24 * 3600 * 1000 });
+        saveSessions();
+    }
+    return ("lp_session=" + tok + "; Path=/; Max-Age=2592000; HttpOnly; SameSite=Strict").toStdString();
+}
+
+bool WebServer::isAuthed (const httplib::Request& req) const
+{
+    if (! protectionActive()) return true;
+    {
+        const ScopedLock sl (trustedLock);
+        if (trustedAccess && ! trusted.empty() && isTrusted (req)) return true;
+    }
+    return hasSession (req) || checkBasic (req);
 }
 
 namespace
@@ -160,9 +284,9 @@ void WebServer::loadTrusted()
     trusted.clear();
     trustedText.clear();
 
-    // Without a password, "open" (the default) lets everyone on the network use everything;
-    // "locked" keeps uploads, updates, reboot and plugin windows for trusted networks only.
-    openAccess = HostEngine::dataDir().getChildFile ("access.txt").loadFileAsString().trim() != "locked";
+    // "on": with password protection on, devices in the trusted networks skip the login
+    const auto acc = HostEngine::dataDir().getChildFile ("access.txt").loadFileAsString().trim().toLowerCase();
+    trustedAccess = acc == "on" || acc == "locked" || acc == "trusted";
 
     auto f = HostEngine::dataDir().getChildFile ("trusted.txt");
     if (! f.existsAsFile())
@@ -188,26 +312,39 @@ void WebServer::loadTrusted()
     }
 }
 
+var WebServer::sessionInfo (const httplib::Request& req)
+{
+    auto* o = new DynamicObject();
+    const bool active = protectionActive();
+    {
+        const ScopedLock sl (trustedLock);
+        o->setProperty ("passwordSet", authHash.isNotEmpty());
+        o->setProperty ("protection", protectionOn && authHash.isNotEmpty());
+        o->setProperty ("trustedAccess", trustedAccess && active);
+        Array<var> nets; for (auto& t : trustedText) nets.add (t);
+        o->setProperty ("networks", nets);
+    }
+    const bool authed = isAuthed (req);
+    o->setProperty ("authed", authed);
+    o->setProperty ("loggedIn", hasSession (req));
+    o->setProperty ("trusted", isTrusted (req));
+    if (authed)
+    {
+        const auto ip = clientIp (req);
+        o->setProperty ("clientIp", ip);
+        uint32 a = 0;
+        if (parseIPv4 (ip, a))
+            o->setProperty ("clientNet", String ((a >> 24) & 255) + "." + String ((a >> 16) & 255) + "." + String ((a >> 8) & 255) + ".0/24");
+    }
+    return var (o);
+}
+
 String WebServer::clientIp (const httplib::Request& req)
 {
     String ip (req.remote_addr);
     if (ip.startsWithIgnoreCase ("::ffff:"))
         ip = ip.substring (7);                                  // IPv4 seen through a dual-stack socket
     return ip;
-}
-
-bool WebServer::isLockedPath (const String& path) const
-{
-    return path.startsWith ("/api/plugins/upload") || path.startsWith ("/api/plugins/delete") || path.startsWith ("/api/testfile")
-        || path.startsWith ("/api/editor") || path.startsWith ("/api/system/");
-}
-
-bool WebServer::mayUseLocked (const httplib::Request& req) const
-{
-    if (authHash.isNotEmpty()) return true;      // a password exists: whoever got past it may
-    if (isTrusted (req)) return true;
-    const ScopedLock sl (trustedLock);
-    return openAccess;
 }
 
 String WebServer::saveTrusted (const StringArray& entries)
@@ -249,26 +386,15 @@ bool WebServer::isTrusted (const httplib::Request& req) const
     return false;
 }
 
-bool WebServer::checkAuth (const httplib::Request& req) const
+bool WebServer::checkBasic (const httplib::Request& req) const
 {
     String h (req.get_header_value ("Authorization"));
     if (! h.startsWithIgnoreCase ("Basic "))
         return false;
-
     MemoryOutputStream out;
     if (! Base64::convertFromBase64 (out, h.substring (6).trim()))
         return false;
-
-    const String creds = out.toString();                       // "user:password"
-    const String pass = creds.fromFirstOccurrenceOf (":", false, false);
-    const String got = juce::SHA256 ((authSalt + pass).toUTF8(), (size_t) (authSalt + pass).getNumBytesAsUTF8()).toHexString();
-
-    if (got.length() != authHash.length())
-        return false;
-    int diff = 0;
-    for (int i = 0; i < got.length(); ++i)
-        diff |= (int) got[i] ^ (int) authHash[i];
-    return diff == 0;
+    return verifyPassword (out.toString().fromFirstOccurrenceOf (":", false, false));
 }
 
 void WebServer::setupRoutes()
@@ -281,22 +407,10 @@ void WebServer::setupRoutes()
     svr.set_read_timeout (30, 0);
     svr.set_write_timeout (30, 0);
 
-    // Password, CSRF guard, and "no password" lockout for dangerous routes
+    // CSRF guard, then the login (only while password protection is on). The page itself (static
+    // files) always loads, and shows its own password-only login screen when needed.
     svr.set_pre_routing_handler ([this] (const httplib::Request& req, httplib::Response& res)
     {
-        const bool passwordSet = authHash.isNotEmpty();
-        const bool trustedClient = isTrusted (req);   // listed in trusted.txt: no password needed
-
-        if (passwordSet && ! trustedClient && ! checkAuth (req))
-        {
-            if (req.has_header ("Authorization"))
-                Thread::sleep (400);                            // slow down guessing
-            res.status = 401;
-            res.set_header ("WWW-Authenticate", "Basic realm=\"LivePi\"");
-            res.set_content ("Password required", "text/plain");
-            return httplib::Server::HandlerResponse::Handled;
-        }
-
         // Browsers cannot add a custom header cross-site, so this blocks CSRF from other web pages
         if (req.method != "GET" && req.method != "HEAD" && req.get_header_value ("X-LivePi") != "1")
         {
@@ -306,75 +420,125 @@ void WebServer::setupRoutes()
         }
 
         const String path (req.path);
-        if (! passwordSet && ! trustedClient && isLockedPath (path) && ! mayUseLocked (req))
+        if (path.startsWith ("/api/") && path != "/api/session" && path != "/api/login" && path != "/api/logout" && ! isAuthed (req))
         {
-            res.status = 403;
-            res.set_content ("{\"error\":\"Access is locked: this device is not in a trusted network. Set a password, or on the Pi run: sudo /opt/livepi/trusted-network.sh open\"}", "application/json");
+            res.status = 401;
+            res.set_content ("{\"error\":\"Please log in\",\"login\":true}", "application/json");
             return httplib::Server::HandlerResponse::Handled;
         }
-
         return httplib::Server::HandlerResponse::Unhandled;
     });
 
-    // Access settings: open/locked (without a password) and the trusted networks.
-    // Anyone may lock; opening or editing the list needs a client that may already use locked features.
-    svr.Get ("/api/access", [this] (const httplib::Request& req, httplib::Response& res)
+    // Login state for the page
+    svr.Get ("/api/session", [this] (const httplib::Request& req, httplib::Response& res)
     {
-        auto* o = new DynamicObject();
-        {
-            const ScopedLock sl (trustedLock);
-            o->setProperty ("mode", openAccess ? "open" : "locked");
-            Array<var> nets; for (auto& t : trustedText) nets.add (t);
-            o->setProperty ("networks", nets);
-        }
-        o->setProperty ("passwordSet", authHash.isNotEmpty());
-        o->setProperty ("trusted", isTrusted (req));
-        o->setProperty ("allowed", mayUseLocked (req));
-        o->setProperty ("canChange", mayUseLocked (req));
-        const auto ip = clientIp (req);
-        o->setProperty ("clientIp", ip);
-        uint32 a = 0;
-        if (parseIPv4 (ip, a))
-            o->setProperty ("clientNet", String ((a >> 24) & 255) + "." + String ((a >> 16) & 255) + "." + String ((a >> 8) & 255) + ".0/24");
-        reply (res, var (o));
+        reply (res, sessionInfo (req));
     });
 
+    svr.Post ("/api/login", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        const auto ip = clientIp (req).toStdString();
+        const auto now = Time::currentTimeMillis();
+        {
+            const ScopedLock sl (trustedLock);
+            auto& f = loginFails[ip];
+            if (now - f.second > 10 * 60 * 1000) f.first = 0;
+            if (f.first >= 10) { reply (res, errVar ("Too many wrong passwords. Wait 10 minutes and try again.")); return; }
+        }
+        auto b = body (req);
+        if (! verifyPassword (b["password"].toString()))
+        {
+            { const ScopedLock sl (trustedLock); auto& f = loginFails[ip]; ++f.first; f.second = now; }
+            Thread::sleep (600);   // slows down guessing
+            reply (res, errVar ("Wrong password."));
+            return;
+        }
+        { const ScopedLock sl (trustedLock); loginFails.erase (ip); }
+        res.set_header ("Set-Cookie", newSession());
+        reply (res, sessionInfo (req));
+    });
+
+    svr.Post ("/api/logout", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        const auto tok = cookieValue (req, "lp_session");
+        if (tok.isNotEmpty())
+        {
+            const auto h = sha (tok);
+            const ScopedLock sl (trustedLock);
+            sessions.erase (std::remove_if (sessions.begin(), sessions.end(), [&h] (const Session& x) { return x.hash == h; }), sessions.end());
+            saveSessions();
+        }
+        res.set_header ("Set-Cookie", "lp_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict");
+        auto* o = new DynamicObject(); o->setProperty ("ok", true); reply (res, var (o));
+    });
+
+    // Set or change the password. Needs the current one while protection is on.
+    // Setting a password turns protection on; this device stays logged in, all others must log in again.
+    svr.Post ("/api/password", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto b = body (req);
+        const auto pw = b["password"].toString();
+        if (pw.length() < 4) { reply (res, errVar ("Use at least 4 characters.")); return; }
+        if (protectionActive() && ! verifyPassword (b["current"].toString()))
+        {
+            Thread::sleep (600);
+            reply (res, errVar ("The current password is wrong."));
+            return;
+        }
+        {
+            const ScopedLock sl (trustedLock);
+            authSalt = randomHex (16);
+            authHash = sha (authSalt + pw);
+            protectionOn = true;
+            saveAuth();
+            sessions.clear();
+            saveSessions();
+        }
+        res.set_header ("Set-Cookie", newSession());
+        reply (res, sessionInfo (req));
+    });
+
+    // Password protection on/off. Turning it off never asks for the password (whoever can reach this
+    // is already in); turning it on needs a password to exist.
+    svr.Post ("/api/password/protection", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto b = body (req);
+        const bool on = (bool) b["enabled"];
+        {
+            const ScopedLock sl (trustedLock);
+            if (on && authHash.isEmpty()) { reply (res, errVar ("Set a password first.")); return; }
+            protectionOn = on;
+            saveAuth();
+        }
+        if (on) res.set_header ("Set-Cookie", newSession());   // keep this device logged in
+        reply (res, sessionInfo (req));
+    });
+
+    // Trusted access (skip the login from trusted networks) and the list of networks.
+    // Only available while password protection is on.
     svr.Post ("/api/access", [this] (const httplib::Request& req, httplib::Response& res)
     {
         auto b = body (req);
-        const bool may = mayUseLocked (req);
-
+        if (! protectionActive()) { reply (res, errVar ("Trusted access needs a password with protection turned on.")); return; }
         if (b.hasProperty ("networks"))
         {
-            if (! may) { reply (res, errVar ("Only a device that already has full access can change the trusted networks.")); return; }
             StringArray list;
             if (auto* arr = b["networks"].getArray()) for (auto& v : *arr) list.add (v.toString());
             auto e = saveTrusted (list);
             if (e.isNotEmpty()) { reply (res, errVar (e)); return; }
         }
-
-        if (b.hasProperty ("mode"))
+        if (b.hasProperty ("trustedAccess"))
         {
-            const auto m = b["mode"].toString();
-            if (m != "open" && m != "locked") { reply (res, errVar ("mode must be open or locked")); return; }
-            if (m == "open" && ! may) { reply (res, errVar ("Only a trusted device can unlock. On the Pi run: sudo /opt/livepi/trusted-network.sh open")); return; }
             auto f = HostEngine::dataDir().getChildFile ("access.txt");
-            if (! f.replaceWithText (m + "\n")) { reply (res, errVar ("Could not save the setting.")); return; }
+            if (! f.replaceWithText ((bool) b["trustedAccess"] ? "on\n" : "off\n")) { reply (res, errVar ("Could not save the setting.")); return; }
             loadTrusted();
         }
-
-        auto* o = new DynamicObject();
-        o->setProperty ("ok", true);
-        reply (res, var (o));
+        reply (res, sessionInfo (req));
     });
 
-    svr.Get ("/api/info", [this] (const httplib::Request& req, httplib::Response& res)
+    svr.Get ("/api/info", [this] (const httplib::Request&, httplib::Response& res)
     {
         auto* o = new DynamicObject();
-        o->setProperty ("passwordSet", authHash.isNotEmpty());
-        o->setProperty ("trusted", isTrusted (req));
-        o->setProperty ("allowed", mayUseLocked (req));
-        { const ScopedLock sl (trustedLock); o->setProperty ("trustedNetworks", trustedText.joinIntoString (", ")); o->setProperty ("access", openAccess ? "open" : "locked"); }
         const String build (LIVEPI_BUILD_STR);
         o->setProperty ("version", build == "dev" ? build : "build " + build);
         o->setProperty ("rolledBack", HostEngine::dataDir().getChildFile ("rolled-back").existsAsFile());

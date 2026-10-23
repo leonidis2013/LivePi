@@ -150,23 +150,20 @@ yesno() {   # yesno "question" default(Y|N)  -> returns 0 for yes
 if [[ -n "${LIVEPI_PASSWORD:-}" ]]; then PW_MODE=yes; fi
 if [[ "$PW_MODE" == ask ]]; then
   if [[ -t 0 ]]; then
-    echo "A password protects the web page. Without one, anyone on your network can use the mixer,"
-    echo "and plugin upload, updates and reboot stay locked unless you trust your network."
+    echo "A password protects the web page. Without one, anyone on your network can use LivePi."
+    echo "(You can also set, change or turn off the password later in Setup > Settings.)"
     if yesno "Do you want to set a password? [Y/n]" Y; then PW_MODE=yes; else PW_MODE=no; fi
   else
     PW_MODE=no
-    echo "No terminal available, so no password was set. Run: sudo /opt/livepi/set-password.sh"
   fi
 fi
 
 if [[ "$PW_MODE" == yes ]]; then
-  /opt/livepi/set-password.sh "$USER_NAME" || echo "No password was set. LivePi will still start; set one later with: sudo /opt/livepi/set-password.sh"
-else
-  echo "Continuing without a password."
-  # Offer to trust the Pi's own network so uploads, updates and reboot work without one
-  NET=""
-  if command -v python3 >/dev/null 2>&1; then
-    NET="$(python3 - <<'PY' 2>/dev/null || true
+  if /opt/livepi/set-password.sh "$USER_NAME"; then
+    # Offer to skip the login on the Pi's own network ("trusted access")
+    NET=""
+    if command -v python3 >/dev/null 2>&1; then
+      NET="$(python3 - <<'PY' 2>/dev/null || true
 import ipaddress, subprocess
 out = subprocess.run(["ip", "-4", "-o", "addr", "show", "scope", "global"], capture_output=True, text=True).stdout.split()
 for i, w in enumerate(out):
@@ -175,15 +172,17 @@ for i, w in enumerate(out):
         break
 PY
 )"
-  fi
-  if [[ -t 0 && -n "$NET" ]]; then
-    if yesno "Trust this network ($NET) so plugin upload, updates and reboot work without a password? [Y/n]" Y; then
-      /opt/livepi/trusted-network.sh add "$NET" || true
     fi
-  elif [[ -n "$NET" ]]; then
-    echo "To unlock uploads and updates without a password, run: sudo /opt/livepi/trusted-network.sh add $NET"
+    if [[ -t 0 && -n "$NET" ]] && yesno "Skip the password for devices on this network ($NET)? [y/N]" N; then
+      /opt/livepi/trusted-network.sh add "$NET" >/dev/null || true
+      /opt/livepi/trusted-network.sh on || true
+    fi
+  else
+    echo "No password was set. LivePi will still start; set one later in Setup > Settings."
   fi
-  fi
+else
+  echo "Continuing without a password: everyone on your network can use LivePi. Set one any time in Setup > Settings."
+fi
 
 systemctl enable --now livepi.service
 systemctl restart livepi.service
