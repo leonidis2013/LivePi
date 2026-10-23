@@ -2,7 +2,7 @@
 # Runs inside a clean Debian container (see .github/workflows/compat.yml):
 # installs LiveHost's runtime packages exactly like install-pi.sh, starts it with no sound card
 # (so it uses the virtual one) and checks the web API, meters, monitor mix and streaming.
-set -uo pipefail
+set -u
 cd /work
 RES=/work/result.txt; : > "$RES"
 say()  { echo "$*" | tee -a "$RES"; }
@@ -11,20 +11,22 @@ check() { if eval "$2"; then say "PASS  $1"; else say "FAIL  $1"; FAIL=1; fi; }
 
 . /etc/os-release; say "== $PRETTY_NAME ($(uname -m)), glibc $(ldd --version | head -n1 | awk '{print $NF}')"
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq >/dev/null
+if apt-get update -qq >/tmp/apt-update.log 2>&1; then say "PASS  apt-get update"; else say "FAIL  apt-get update"; tail -n 5 /tmp/apt-update.log | tee -a "$RES"; fi
 # same package line as scripts/install-pi.sh
 PKGS=$(sed -n 's/^apt-get install -y \(libfreetype6.*\)$/\1/p' scripts/install-pi.sh | head -n1)
 check "installer package list found" "[ -n '$PKGS' ]"
-apt-get install -y -qq $PKGS jq procps xvfb >/dev/null 2>&1
-check "runtime packages install" "[ \$? -eq 0 ]"
-apt-get install -y -qq libasound2 >/dev/null 2>&1 || apt-get install -y -qq libasound2t64 >/dev/null 2>&1
-check "libasound installs (libasound2 or libasound2t64)" "dpkg -l | grep -q 'libasound2'"
+if apt-get install -y -qq $PKGS jq procps xvfb unzip >/tmp/apt-install.log 2>&1; then say "PASS  runtime packages install"; else say "FAIL  runtime packages install"; tail -n 5 /tmp/apt-install.log | tee -a "$RES"; FAIL=1; fi
+if apt-get install -y -qq libasound2 >/dev/null 2>&1; then say "PASS  libasound2 installs"
+elif apt-get install -y -qq libasound2t64 >/dev/null 2>&1; then say "PASS  libasound2t64 installs (renamed package)"
+else say "FAIL  libasound install"; FAIL=1; fi
 for p in novnc websockify x11vnc xvfb cpufrequtils; do
   check "optional package available: $p" "apt-cache policy $p | grep -q 'Candidate: [0-9]'"
 done
 
 rm -rf /tmp/lh && mkdir /tmp/lh && cd /tmp/lh
-unzip -q /work/livehost-build-*.zip && cd livehost
+ls /work/*.zip | tee -a "$RES"
+unzip -q /work/livehost-build-*.zip || say "FAIL  unzip"
+cd livehost || { say "FAIL  no livehost directory in the zip"; exit 1; }
 check "binary has no missing libraries" "! ldd ./LiveHost | grep -q 'not found'"
 [ -s manifest.json ] && say "manifest: $(cat manifest.json)"
 
