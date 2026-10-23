@@ -11,6 +11,9 @@
 #ifndef LIVEPI_REPO_STR
  #define LIVEPI_REPO_STR "leonidis2013/LivePi"
 #endif
+#ifndef LIVEPI_VERSION_STR
+ #define LIVEPI_VERSION_STR "0.0.0"
+#endif
 #ifndef LIVEPI_BUILD_STR
  #define LIVEPI_BUILD_STR "dev"
 #endif
@@ -88,6 +91,7 @@ WebServer::WebServer (HostEngine& e, int portToUse) : engine (e), port (portToUs
     OnlineUpdate::Config cfg;
     cfg.repo = LIVEPI_REPO_STR;
     cfg.currentBuild = LIVEPI_BUILD_STR;
+    cfg.currentVersion = LIVEPI_VERSION_STR;
     cfg.dataDir = HostEngine::dataDir();
     auto exe = File::getSpecialLocation (File::currentExecutableFile);
     cfg.installDir = exe.getParentDirectory();
@@ -576,7 +580,7 @@ void WebServer::setupRoutes()
     {
         auto* o = new DynamicObject();
         const String build (LIVEPI_BUILD_STR);
-        o->setProperty ("version", build == "dev" ? String ("development version") : "version " + build);
+        o->setProperty ("version", build == "dev" ? String ("v" LIVEPI_VERSION_STR " (development)") : String ("v" LIVEPI_VERSION_STR));
         o->setProperty ("rolledBack", HostEngine::dataDir().getChildFile ("rolled-back").existsAsFile());
         reply (res, var (o));
     });

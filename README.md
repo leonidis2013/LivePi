@@ -35,7 +35,7 @@ If the Pi has no internet, download `livepi-linux-arm64.tar.gz` from the Release
 
 ## How releases are built
 
-Pushing to `main` starts GitHub Actions, which builds LivePi on an ARM64 runner and publishes a **Release** (repo page > Releases) with:
+Versions follow **major.minor.patch** and are set in `CMakeLists.txt` (`project(LivePi VERSION x.y.z)`). Every push to `main` builds and tests LivePi on an ARM64 runner; a **Release** (repo page > Releases, titled "LivePi vX.Y.Z") is published only when that version is new, so Pis are only offered real version bumps. A release contains:
 - `livepi-build-N.zip` - the update package (for the Setup tab's offline update, or unzip it for a fresh install)
 - `livepi-linux-arm64.tar.gz` - the same files as a tarball (the file the quick start downloads)
 

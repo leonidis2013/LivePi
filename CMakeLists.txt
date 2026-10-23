@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(LivePi VERSION 0.3.0 LANGUAGES C CXX)
+project(LivePi VERSION 0.5.0 LANGUAGES C CXX)
 
 # Build label shown on the web page (CI passes the run number)
 set(LIVEPI_BUILD "dev" CACHE STRING "Build label")
@@ -51,6 +51,7 @@ target_compile_definitions(LivePi PRIVATE
   JUCE_JACK=1
   JUCE_STRICT_REFCOUNTEDPOINTER=1
   LIVEPI_BUILD_STR="${LIVEPI_BUILD}"
+  LIVEPI_VERSION_STR="${PROJECT_VERSION}"
   LIVEPI_REPO_STR="${LIVEPI_REPO}")
 
 target_link_libraries(LivePi PRIVATE

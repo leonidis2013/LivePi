@@ -12,7 +12,8 @@ public:
     struct Config
     {
         juce::String repo;                 // "owner/name"
-        juce::String currentBuild;         // "7", or "dev"
+        juce::String currentBuild;         // "7", or "dev" (internal, always increases)
+        juce::String currentVersion;       // "0.5.0" (what people see)
         juce::String curl = "curl";
         juce::String apiBase = "https://api.github.com";
         juce::File dataDir, installDir;
@@ -54,6 +55,8 @@ public:
         o->setProperty ("message", message);
         o->setProperty ("current", cfg.currentBuild);
         o->setProperty ("latest", latestBuild > 0 ? juce::String (latestBuild) : juce::String());
+        o->setProperty ("currentVersion", "v" + cfg.currentVersion);
+        o->setProperty ("latestVersion", latestVersion);
         o->setProperty ("available", available);
         o->setProperty ("lastChecked", (juce::int64) (lastChecked / 1000));
         o->setProperty ("repo", cfg.repo);
@@ -187,8 +190,18 @@ private:
         }
 
         const bool numeric = cfg.currentBuild.isNotEmpty() && cfg.currentBuild.containsOnly ("0123456789");
+        // the release title carries the version people see: "LivePi v0.5.1"
+        juce::String shown;
+        {
+            const auto name = v.getProperty ("name", {}).toString();
+            const int i = name.indexOfChar ('v');
+            for (int k = name.length(); --k >= 0;)
+                if (name[k] == 'v' && k + 1 < name.length() && juce::CharacterFunctions::isDigit (name[k + 1])) { shown = name.substring (k).upToFirstOccurrenceOf (" ", false, false); break; }
+            juce::ignoreUnused (i);
+        }
         std::lock_guard<std::mutex> l (m);
         latestBuild = latest;
+        latestVersion = shown.isNotEmpty() ? shown : "build " + juce::String (latest);
         assetUrl = url;
         assetSize = size;
         available = numeric && latest > cfg.currentBuild.getIntValue();
@@ -248,7 +261,7 @@ private:
         {
             std::lock_guard<std::mutex> l (m);
             state = "ok";
-            message = "Installed " + (version.isNotEmpty() ? version : "version " + juce::String (latest)) + ". Restarting…";
+            message = "Installed " + (version.isNotEmpty() ? version : latestVersion) + ". Restarting…";
         }
         if (cfg.onInstalled)
             cfg.onInstalled();
@@ -260,6 +273,7 @@ private:
     Job pending = Job::none;
     juce::String state = "idle", message, assetUrl;
     int latestBuild = 0;
+    juce::String latestVersion;
     juce::int64 assetSize = 0, lastChecked = 0;
     bool available = false;
 };

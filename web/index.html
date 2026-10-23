@@ -1676,8 +1676,8 @@ async function updRefresh() {
   else if (u.state === 'installing') msg = 'Installing…';
   else if (u.state === 'ok') msg = 'Installed ' + (u.latest || 'update') + '. Restarting…';
   else if (u.state === 'error') msg = u.message || 'Update failed';
-  else msg = u.message || (u.available ? 'Update available: version ' + u.latest + ' (you have ' + u.current + ')' : 'Up to date (version ' + u.current + ')');
-  if (u.state !== 'error' && u.state !== 'ok' && u.available && u.online) msg = 'Update available: version ' + u.latest + ' (you have ' + u.current + ')';
+  else msg = u.message || (u.available ? 'Update available: ' + (u.latestVersion || u.latest) + ' (you have ' + (u.currentVersion || u.current) + ')' : 'Up to date (' + (u.currentVersion || u.current) + ')');
+  if (u.state !== 'error' && u.state !== 'ok' && u.available && u.online) msg = 'Update available: ' + (u.latestVersion || u.latest) + ' (you have ' + (u.currentVersion || u.current) + ')';
   $('ghMsg').textContent = msg;
   $('ghMsg').classList.toggle('bad', !u.online && u.known || u.state === 'error');
   check.disabled = !u.online || busy;
