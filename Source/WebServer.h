@@ -37,6 +37,9 @@ private:
     static juce::String clientIp (const httplib::Request&);
     juce::String saveTrusted (const juce::StringArray& entries);   // empty = ok, else error
     juce::var sessionInfo (const httplib::Request&);
+    int lockoutSeconds (const std::string& ip) const;      // > 0: this client must wait before trying again
+    static constexpr int kMaxFails = 10;
+    static constexpr juce::int64 kLockMs = 10 * 60 * 1000;
 
     struct Net { juce::uint32 addr, mask; };
     mutable juce::CriticalSection trustedLock;   // everything below can change at run time

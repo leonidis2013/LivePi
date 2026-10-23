@@ -328,6 +328,7 @@
   .loginbox { width:min(360px,100%); display:flex; flex-direction:column; gap:12px; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:24px; }
   .loginlogo { font-weight:800; letter-spacing:.14em; font-size:20px; }
   .loginbox input, .loginbox button { width:100%; min-height:44px; font-size:16px; }
+  #loginMsg { font-variant-numeric:tabular-nums; min-height:1.4em; }
   .pwform { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
   .pwform .row { flex-wrap:nowrap; }
 </style>
@@ -642,13 +643,33 @@ document.querySelectorAll('#sub button').forEach(b => b.onclick = () => showSub(
 let ACC = null;
 function showLogin(on) {
   $('login').classList.toggle('hide', !on);
-  if (on) setTimeout(() => $('loginPw').focus(), 50);
+  if (on && !lockTimer) setTimeout(() => $('loginPw').focus(), 50);
+}
+let lockTimer = null;
+function lockCountdown(sec) {
+  clearInterval(lockTimer);
+  const end = Date.now() + sec * 1000;
+  const tick = () => {
+    const left = Math.ceil((end - Date.now()) / 1000);
+    if (left <= 0) {
+      clearInterval(lockTimer); lockTimer = null;
+      $('loginGo').disabled = false; $('loginPw').disabled = false;
+      $('loginMsg').textContent = 'You can try again now.';
+      $('loginPw').focus();
+      return;
+    }
+    $('loginGo').disabled = true; $('loginPw').disabled = true;
+    $('loginMsg').textContent = `Too many wrong passwords. Try again in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+  };
+  tick(); lockTimer = setInterval(tick, 250);
 }
 $('loginForm').onsubmit = async e => {
   e.preventDefault();
+  if (lockTimer) return;
   $('loginGo').disabled = true; $('loginMsg').textContent = '';
   const r = await api('/api/login', { password: $('loginPw').value }, true);
   $('loginGo').disabled = false;
+  if (r.retryAfter) { $('loginPw').value = ''; lockCountdown(r.retryAfter); return; }
   if (r.error) { $('loginMsg').textContent = r.error; $('loginPw').select(); return; }
   $('loginPw').value = '';
   showLogin(false);
@@ -1705,7 +1726,7 @@ async function refresh() {
 
 (async () => {
   const sess = await api('/api/session', undefined, true);
-  if (sess.passwordSet !== undefined && !sess.authed) { ACC = sess; showLogin(true); return; }
+  if (sess.passwordSet !== undefined && !sess.authed) { ACC = sess; showLogin(true); if (sess.retryAfter) lockCountdown(sess.retryAfter); return; }
   await loadDevices();
   plugins = (await api('/api/plugins')).plugins || [];
   const info = await api('/api/info');

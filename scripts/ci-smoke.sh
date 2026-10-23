@@ -74,7 +74,7 @@ run_case() {
   check "$label: after setting a password, the API needs a login (401)" "[ \"\$(curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/state)\" = 401 ]"
   check "$label: the device that set it stays logged in (cookie)" "curl -s -m 5 -b $J http://127.0.0.1:8080/api/state | jq -e '.chains' >/dev/null"
   check "$label: page itself still loads (login screen)" "[ \"\$(curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/)\" = 200 ]"
-  check "$label: wrong password refused" "post /api/login '{\"password\":\"nope\"}' | jq -e '.error' >/dev/null"
+  check "$label: wrong password refused, tries left shown" "post /api/login '{\"password\":\"nope\"}' | jq -e '.error | test(\"9 tries left\")' >/dev/null"
   J2=/tmp/lh.jar2; rm -f $J2
   curl -s -m 5 -c $J2 -X POST -H 'X-LivePi: 1' -H 'Content-Type: application/json' -d '{"password":"test1234"}' http://127.0.0.1:8080/api/login >/dev/null
   check "$label: password-only login works" "curl -s -m 5 -b $J2 http://127.0.0.1:8080/api/session | jq -e '.authed and .loggedIn' >/dev/null"
@@ -88,6 +88,11 @@ run_case() {
   check "$label: protection off -> trusted access unavailable" "post /api/access '{\"trustedAccess\":true}' | jq -e '.error' >/dev/null"
   check "$label: turning protection back on needs the password typed" "post /api/password/protection '{\"enabled\":true}' | jq -e '.error' >/dev/null"
   check "$label: mixer works" "api /api/state | jq -e '.chains' >/dev/null"
+  for n in $(seq 1 10); do post /api/login '{"password":"nope"}' > /tmp/lh.lock; done
+  say "after 10 wrong: $(cat /tmp/lh.lock)"
+  check "$label: 10 wrong passwords -> lockout with a countdown" "jq -e '.retryAfter > 500 and .retryAfter <= 600' /tmp/lh.lock >/dev/null"
+  check "$label: lockout refuses even the right password" "post /api/login '{\"password\":\"test1234\"}' | jq -e '.retryAfter > 0' >/dev/null"
+  check "$label: page learns the countdown on reload" "api /api/session | jq -e '.retryAfter > 0' >/dev/null"
   local pid; pid=$(cat /tmp/lh.pid)
   say "signals: $(grep -E 'SigCgt|SigBlk|SigIgn' /proc/$pid/status | tr '\n' ' ') (SIGTERM caught = bit 15 of SigCgt, i.e. 0x4000)"
   say "threads: $(ls /proc/$pid/task | wc -l)"

@@ -312,9 +312,20 @@ void WebServer::loadTrusted()
     }
 }
 
+int WebServer::lockoutSeconds (const std::string& ip) const
+{
+    const ScopedLock sl (trustedLock);
+    auto it = loginFails.find (ip);
+    if (it == loginFails.end() || it->second.first < kMaxFails) return 0;
+    const auto left = kLockMs - (Time::currentTimeMillis() - it->second.second);
+    return left > 0 ? (int) ((left + 999) / 1000) : 0;
+}
+
 var WebServer::sessionInfo (const httplib::Request& req)
 {
     auto* o = new DynamicObject();
+    if (const int w = lockoutSeconds (clientIp (req).toStdString()); w > 0)
+        o->setProperty ("retryAfter", w);
     const bool active = protectionActive();
     {
         const ScopedLock sl (trustedLock);
@@ -439,18 +450,30 @@ void WebServer::setupRoutes()
     {
         const auto ip = clientIp (req).toStdString();
         const auto now = Time::currentTimeMillis();
+        const int wait = lockoutSeconds (ip);
+        if (wait > 0)
         {
-            const ScopedLock sl (trustedLock);
-            auto& f = loginFails[ip];
-            if (now - f.second > 10 * 60 * 1000) f.first = 0;
-            if (f.first >= 10) { reply (res, errVar ("Too many wrong passwords. Wait 10 minutes and try again.")); return; }
+            auto v = errVar ("Too many wrong passwords.");
+            v.getDynamicObject()->setProperty ("retryAfter", wait);
+            reply (res, v);
+            return;
         }
         auto b = body (req);
         if (! verifyPassword (b["password"].toString()))
         {
-            { const ScopedLock sl (trustedLock); auto& f = loginFails[ip]; ++f.first; f.second = now; }
+            int left = 0;
+            {
+                const ScopedLock sl (trustedLock);
+                auto& f = loginFails[ip];
+                if (now - f.second > kLockMs) f.first = 0;
+                ++f.first; f.second = now;
+                left = jmax (0, kMaxFails - f.first);
+            }
             Thread::sleep (600);   // slows down guessing
-            reply (res, errVar ("Wrong password."));
+            auto v = errVar (left > 0 ? "Wrong password. " + String (left) + (left == 1 ? " try" : " tries") + " left."
+                                      : String ("Too many wrong passwords."));
+            if (left == 0) v.getDynamicObject()->setProperty ("retryAfter", lockoutSeconds (ip));
+            reply (res, v);
             return;
         }
         { const ScopedLock sl (trustedLock); loginFails.erase (ip); }
