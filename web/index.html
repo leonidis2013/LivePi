@@ -847,12 +847,12 @@ function ib(icon, title, cls = '') {
 const openFolds = new Set();
 // One channel feeds the monitor mix (for now), tapped before or after its plugins; then the monitor fader
 async function setMonitorSource(v) {
-  const [chs, tap] = v === 'off' ? [-1, 'out'] : v.split(':');
+  const [chs, tap] = v === 'off' ? [-1, '0'] : v.split(':');
   const ch = +chs;
   document.querySelectorAll('.monbtn').forEach(x => x.classList.toggle('on', +x.dataset.ch === ch));
   const calls = [];
   (S ? S.chains : []).forEach((cc, i) => {
-    if (i === ch) calls.push(api('/api/mixer', { channel: i, sendDb: 0, sendPre: tap === 'in' }));
+    if (i === ch) calls.push(api('/api/mixer', { channel: i, sendDb: 0, sendTap: +tap }));
     else if (cc.sendDb > -60) calls.push(api('/api/mixer', { channel: i, sendDb: -100 }));
   });
   await Promise.all(calls); structKey = ''; refresh();
@@ -897,16 +897,16 @@ function buildStrip(c, ch) {
     const mb = el('button', 'monbtn' + (c.sendDb > -60 ? ' on' : ''), 'PAFL');
     mb.title = 'PAFL: listen to this channel on the Monitor mix (tap point is set on the Monitor strip). One channel at a time.';
     mb.dataset.ch = ch;
-    mb.onclick = () => setMonitorSource(mb.classList.contains('on') ? 'off' : ch + ':' + (c.sendPre ? 'in' : 'out'));
+    mb.onclick = () => setMonitorSource(mb.classList.contains('on') ? 'off' : ch + ':' + (c.sendTap || 0));
     keys.append(mb);
   } else {
     // Source = which channel feeds the monitor mix and where it is tapped; it always goes through this fader
     const src = el('select', 'monsrc'); src.title = 'What feeds the monitor mix (it always goes through this fader)';
     const add = (v, t) => { const o = el('option', '', t); o.value = v; src.append(o); };
     add('off', 'Source: off');
-    (S ? S.chains : []).forEach((cc, i) => { add(i + ':in', `${cc.name} · before plugins`); add(i + ':out', `${cc.name} · after plugins`); });
+    (S ? S.chains : []).forEach((cc, i) => { add(i + ':0', `${cc.name} · PFL (pre-fader)`); add(i + ':2', `${cc.name} · AFL (post-fader)`); add(i + ':1', `${cc.name} · input (pre-plugins)`); });
     const cur = (S ? S.chains : []).findIndex(cc => cc.sendDb > -60);
-    src.value = cur < 0 ? 'off' : cur + ':' + (S.chains[cur].sendPre ? 'in' : 'out');
+    src.value = cur < 0 ? 'off' : cur + ':' + (S.chains[cur].sendTap || 0);
     src.onchange = () => setMonitorSource(src.value);
     s.append(src);
     const lb = el('button', 'listen' + (mon.on ? ' on' : ''));
@@ -981,7 +981,7 @@ function buildMaster() {
 }
 
 function renderStrips(st) {
-  const key = JSON.stringify(st.chains.map(c => [c.name, c.slots, c.sendDb > -60, !!c.sendPre])) + JSON.stringify([st.monitorBus, st.outputNames]) + '|' + plugins.length + '|' + !!st.editorAvailable + '|' + showMaster();
+  const key = JSON.stringify(st.chains.map(c => [c.name, c.slots, c.sendDb > -60, c.sendTap || 0])) + JSON.stringify([st.monitorBus, st.outputNames]) + '|' + plugins.length + '|' + !!st.editorAvailable + '|' + showMaster();
   if (key === structKey) return;
   const a = document.activeElement;
   if (a && a.tagName === 'INPUT' && a.closest('#strips')) return;   // don't rebuild while renaming

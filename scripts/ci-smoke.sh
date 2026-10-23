@@ -54,9 +54,11 @@ run_case() {
   check "$label: channel input meter moves" "echo '$M' | jq -e '.in[0] > -60' >/dev/null"
   check "$label: channel output meter moves" "echo '$M' | jq -e '.out[0] > -60' >/dev/null"
   check "$label: monitor mix receives the send" "echo '$M' | jq -e '.mon.in > -60' >/dev/null"
-  post /api/mixer '{"channel":0,"sendPre":true}' >/dev/null; sleep 1
-  check "$label: monitor tap point can be the input (before plugins)" "api /api/state | jq -e '.chains[0].sendPre==true' >/dev/null && api /api/meters | jq -e '.mon.in > -60' >/dev/null"
-  post /api/mixer '{"channel":0,"sendPre":false}' >/dev/null
+  post /api/mixer '{"channel":0,"sendTap":2}' >/dev/null; sleep 1
+  check "$label: monitor tap AFL (post-fader) works" "api /api/state | jq -e '.chains[0].sendTap==2' >/dev/null && api /api/meters | jq -e '.mon.in > -60' >/dev/null"
+  post /api/mixer '{"channel":0,"sendTap":1}' >/dev/null; sleep 1
+  check "$label: monitor tap input (pre-plugins) works" "api /api/meters | jq -e '.mon.in > -60' >/dev/null"
+  post /api/mixer '{"channel":0,"sendTap":0}' >/dev/null
   X=$(api /api/state | jq '.xruns // 0'); say "xruns after 3 s: $X"
   check "$label: no more than 2 xruns" "[ '$X' -le 2 ]"
   post /api/monitor '{"channel":100,"post":true}' >/dev/null

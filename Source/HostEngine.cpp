@@ -293,8 +293,10 @@ void HostEngine::rebuildConnections()
         graph.addConnection (Conn { NC { inputNode->nodeID, ch }, NC { chain.tap->nodeID, 0 } }, UK::none);
         NC src = connectSlots (chain, NC { chain.tap->nodeID, 0 });
 
-        // Pre-fader send to the monitor mix, tapped before or after the plugins
-        graph.addConnection (Conn { chain.sendPre ? NC { chain.tap->nodeID, 0 } : src, NC { chain.send->nodeID, 0 } }, UK::none);
+        // Send to the monitor mix: PFL (after the plugins, before the fader), the raw input, or AFL (after the fader)
+        const NC sendFrom = chain.sendTap == 1 ? NC { chain.tap->nodeID, 0 }
+                          : chain.sendTap == 2 ? NC { chain.strip->nodeID, 0 } : src;
+        graph.addConnection (Conn { sendFrom, NC { chain.send->nodeID, 0 } }, UK::none);
         graph.addConnection (Conn { NC { chain.send->nodeID, 0 }, NC { monBus.tap->nodeID, 0 } }, UK::none);
 
         graph.addConnection (Conn { src, NC { chain.strip->nodeID, 0 } }, UK::none);
@@ -494,10 +496,10 @@ var HostEngine::setMixer (const var& body)
     if (body.hasProperty ("sendDb") && c.send != nullptr)
         c.sendDb = jlimit (-100.0f, 6.0f, (float) (double) body["sendDb"]);
     applyMix (c);
-    if (body.hasProperty ("sendPre") && c.send != nullptr && (bool) body["sendPre"] != c.sendPre)
+    if (c.send != nullptr && (body.hasProperty ("sendTap") || body.hasProperty ("sendPre")))
     {
-        c.sendPre = (bool) body["sendPre"];
-        rebuildConnections();
+        const int t = body.hasProperty ("sendTap") ? jlimit (0, 2, (int) body["sendTap"]) : ((bool) body["sendPre"] ? 1 : 0);
+        if (t != c.sendTap) { c.sendTap = t; rebuildConnections(); }
     }
     markDirty();
     return ok();
@@ -1157,7 +1159,7 @@ var HostEngine::getState()
         co->setProperty ("gainDb", c.gainDb);
         co->setProperty ("mute", c.mute);
         co->setProperty ("sendDb", c.sendDb);
-        co->setProperty ("sendPre", c.sendPre);
+        co->setProperty ("sendTap", c.sendTap);
         co->setProperty ("slots", slotsState (c));
         chainArr.add (var (co));
     }
@@ -1216,7 +1218,7 @@ var HostEngine::serialise()
         co->setProperty ("gainDb", c.gainDb);
         co->setProperty ("mute", c.mute);
         co->setProperty ("sendDb", c.sendDb);
-        co->setProperty ("sendPre", c.sendPre);
+        co->setProperty ("sendTap", c.sendTap);
         co->setProperty ("slots", slotsSerialised (c));
         chainArr.add (var (co));
     }
@@ -1261,7 +1263,7 @@ var HostEngine::deserialise (const var& v)
             applyMix (chain);
 
             chain.sendDb = (float) (double) cv.getProperty ("sendDb", -100.0);
-            chain.sendPre = (bool) cv.getProperty ("sendPre", false);
+            chain.sendTap = cv.hasProperty ("sendTap") ? jlimit (0, 2, (int) cv["sendTap"]) : ((bool) cv.getProperty ("sendPre", false) ? 1 : 0);
             applyMix (chain);
             loadSlots (chain, cv.getProperty ("slots", {}), errors);
         }
