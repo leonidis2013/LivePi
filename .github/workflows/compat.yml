@@ -30,8 +30,8 @@ jobs:
           docker run --rm -v "$PWD:/work" ${{ matrix.image }} bash /work/scripts/ci-smoke.sh > smoke.log 2>&1
           rc=$?
           echo "exit code $rc"
-          # Show every line as a notice so the results are visible on the run page
-          while IFS= read -r line; do echo "::notice::${{ matrix.image }} | $(echo "$line" | cut -c1-400)"; done < result.txt
-          echo "::notice::${{ matrix.image }} | --- end of results; script output tail follows ---"
-          tail -n 15 smoke.log | while IFS= read -r line; do echo "::notice::${{ matrix.image }} | LOG | $(echo "$line" | cut -c1-300)"; done
+          # One annotation per block (GitHub shows at most 10 per step); %0A is a line break
+          enc() { sed -e 's/%/%25/g' -e 's/\r//g' | cut -c1-300 | awk 'BEGIN{ORS="%0A"}{print}'; }
+          echo "::notice title=${{ matrix.image }} results::$(enc < result.txt)"
+          echo "::notice title=${{ matrix.image }} log::$(tail -n 25 smoke.log | enc)"
           grep -q "ALL PASSED" result.txt || { echo "::error::${{ matrix.image }} smoke test failed"; exit 1; }
