@@ -212,6 +212,7 @@
   .addbtn { width:100%; background:transparent; border:1px dashed var(--line); color:var(--dim); border-radius:10px; }
   .add { flex-direction:column; }
   .map { gap:6px; }
+  #monOuts { padding:4px 0 2px; gap:8px; }
   .och input { position:absolute; opacity:0; width:0; height:0; }
   .och span { display:inline-flex; min-width:30px; height:30px; padding:0 8px; align-items:center; justify-content:center; border-radius:8px; background:var(--card2); color:var(--dim); font-weight:700; font-size:12px; cursor:pointer; }
   .och input:checked + span { background:var(--acc); color:var(--onacc); }
@@ -434,6 +435,11 @@
     <div class="set"><div class="sl"><b>Sample rate</b></div><div class="sc"><select id="devRate"></select></div></div>
     <div class="set"><div class="sl"><b>Buffer</b><span>Smaller = lower latency, more CPU</span></div><div class="sc"><select id="devBuf"></select></div></div>
     <div class="set"><div class="sl"><b>Apply changes</b><span id="devNow"></span></div><div class="sc"><button id="devApply" class="on">Apply</button></div></div>
+  </div>
+  <div class="card">
+    <h2>Monitor outputs</h2>
+    <div class="set"><div class="sl"><b>Monitor mix goes to</b><span>The interface outputs that play the Monitor mix (wedge, in-ears, headphone amp). <b>*</b> = also carries a main channel.</span></div></div>
+    <div id="monOuts" class="map"></div>
   </div>
   <div class="card hide" id="virtCard">
     <h2>Test audio file</h2>
@@ -894,19 +900,6 @@ function buildStrip(c, ch) {
     mb.onclick = () => setMonitorSource(mb.classList.contains('on') ? 'off' : ch + ':' + (c.sendPre ? 'in' : 'out'));
     keys.append(mb);
   } else {
-    const map = el('div', 'map'); map.title = 'Which output channels of the audio device carry the monitor mix';
-    map.append(el('span', 'mlab', 'OUTPUTS'));
-    const names = (S && S.outputNames) || [];
-    const count = Math.max(names.length, 2);
-    const mains = S && S.numChannels === 1 ? [0, 1] : Array.from({ length: S ? S.numChannels : 0 }, (_, i) => i);
-    const outs = c.outputs || [];
-    for (let i = 0; i < count; i++) {
-      const lb = el('label', 'och'); const cb = el('input'); cb.type = 'checkbox'; cb.checked = outs.includes(i); cb.dataset.o = i;
-      lb.title = (names[i] || ('Output ' + (i + 1))) + (mains.includes(i) ? ' (also carries a channel)' : '');
-      lb.append(cb, el('span', '', (i + 1) + (mains.includes(i) ? '*' : '')));
-      cb.onchange = () => api('/api/monitorbus', { outputs: [...map.querySelectorAll('input:checked')].map(x => +x.dataset.o) });
-      map.append(lb);
-    }
     // Source = which channel feeds the monitor mix and where it is tapped; it always goes through this fader
     const src = el('select', 'monsrc'); src.title = 'What feeds the monitor mix (it always goes through this fader)';
     const add = (v, t) => { const o = el('option', '', t); o.value = v; src.append(o); };
@@ -921,13 +914,6 @@ function buildStrip(c, ch) {
     lb.title = 'Play the monitor mix on this phone / computer (a copy of the audio; it never delays the Pi)';
     lb.onclick = () => mon.on ? monStop() : monStart();
     s.append(lb, el('div', 'cpu monstat', mon.on ? monText() : ''));
-    const on = outs.map(o => o + 1);
-    const box = el('div', 'fold' + (openFolds.has('out') ? '' : ' closed'));
-    const sumBtn = el('button', 'foldsum');
-    sumBtn.innerHTML = `<span>Outputs ${on.length ? on.join(', ') : 'none'}</span><svg viewBox="0 0 24 24">${ICON.chev}</svg>`;
-    sumBtn.onclick = () => { box.classList.toggle('closed'); box.classList.contains('closed') ? openFolds.delete('out') : openFolds.add('out'); };
-    const body = el('div', 'foldbody'); body.append(map, el('div', 'cpu', '* also carries a channel'));
-    box.append(sumBtn, body); s.append(box);
   }
 
   const chain = el('div', 'chain');
@@ -1758,6 +1744,25 @@ $('sysRestart').onclick = () => sys('restart', 'Restart LivePi? Audio stops for 
 $('sysReboot').onclick = () => sys('reboot', 'Reboot the Pi? Audio stops until it is back (about 30 seconds).');
 
 /* ---------- status / refresh ---------- */
+let monOutsKey = '';
+function monOutsRender(st) {
+  if (!st.monitorBus) return;
+  const names = st.outputNames || [], outs = st.monitorBus.outputs || [];
+  const key = JSON.stringify([names, outs, st.numChannels]);
+  if (key === monOutsKey) return;
+  monOutsKey = key;
+  const root = $('monOuts'); root.innerHTML = '';
+  const count = Math.max(names.length, 2);
+  const mains = st.numChannels === 1 ? [0, 1] : Array.from({ length: st.numChannels }, (_, i) => i);
+  for (let i = 0; i < count; i++) {
+    const lb = el('label', 'och'); const cb = el('input'); cb.type = 'checkbox'; cb.checked = outs.includes(i); cb.dataset.o = i;
+    lb.title = (names[i] || ('Output ' + (i + 1))) + (mains.includes(i) ? ' (also carries a main channel)' : '');
+    lb.append(cb, el('span', '', (i + 1) + (mains.includes(i) ? '*' : '')));
+    cb.onchange = async () => { await api('/api/monitorbus', { outputs: [...root.querySelectorAll('input:checked')].map(x => +x.dataset.o) }); refresh(); };
+    root.append(lb);
+  }
+  if (!names.length) root.append(el('div', 'note', 'No outputs: the audio device has none open.'));
+}
 async function refresh() {
   const st = await api('/api/state', undefined, true);
   if (!st.chains) return;
@@ -1773,6 +1778,7 @@ async function refresh() {
   const pl = $('presetList'), prev = pl.value; fill(pl, st.presets || [], prev); $('tbPresetName').textContent = pl.value || '';
   monFill(st);
   renderStrips(st);
+  monOutsRender(st);
   masterSync();
   syncMix(st);
 }
