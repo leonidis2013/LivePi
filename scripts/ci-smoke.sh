@@ -19,7 +19,7 @@ if apt-get install -y -qq $PKGS jq procps xvfb unzip >/tmp/apt-install.log 2>&1;
 if apt-get install -y -qq libasound2 >/dev/null 2>&1; then say "PASS  libasound2 installs"
 elif apt-get install -y -qq libasound2t64 >/dev/null 2>&1; then say "PASS  libasound2t64 installs (renamed package)"
 else say "FAIL  libasound install"; FAIL=1; fi
-for p in novnc websockify x11vnc xvfb cpufrequtils; do
+for p in novnc websockify x11vnc xvfb; do
   check "optional package available: $p" "apt-cache policy $p | grep -q 'Candidate: [0-9]'"
 done
 
@@ -61,7 +61,10 @@ run_case() {
   check "$label: update status endpoint" "api /api/update/status | jq -e .state >/dev/null"
   check "$label: OS status endpoint" "api /api/os/status | jq -e .state >/dev/null"
   check "$label: still running" "kill -0 \$(cat /tmp/lh.pid)"
-  kill "$(cat /tmp/lh.pid)" 2>/dev/null; sleep 1
+  local pid; pid=$(cat /tmp/lh.pid); kill -TERM "$pid" 2>/dev/null
+  for i in $(seq 1 50); do kill -0 "$pid" 2>/dev/null || break; sleep 0.1; done
+  check "$label: stops cleanly on SIGTERM within 5 s (what systemd sends)" "! kill -0 $pid 2>/dev/null"
+  pkill -9 LiveHost 2>/dev/null; sleep 1
   say "log tail:"; tail -n 6 /tmp/lh.log | tee -a "$RES"
 }
 

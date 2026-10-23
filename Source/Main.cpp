@@ -1,7 +1,26 @@
 #include <juce_events/juce_events.h>
+#include <atomic>
+#include <csignal>
 #include <memory>
 #include "HostEngine.h"
 #include "WebServer.h"
+
+namespace
+{
+    std::atomic<bool> stopRequested { false };
+    extern "C" void onStopSignal (int) { stopRequested = true; }   // only sets a flag: safe in a signal handler
+
+    // Turns systemd's "stop" (SIGTERM) or Ctrl-C into a normal, clean shutdown
+    struct StopWatcher : juce::Timer
+    {
+        StopWatcher() { startTimer (200); }
+        void timerCallback() override
+        {
+            if (stopRequested.load())
+                juce::JUCEApplicationBase::quit();
+        }
+    };
+}
 
 class LiveHostApp : public juce::JUCEApplicationBase
 {
@@ -18,6 +37,10 @@ public:
             if (args[i] == "--port")
                 port = args[i + 1].getIntValue();
 
+        std::signal (SIGTERM, onStopSignal);
+        std::signal (SIGINT, onStopSignal);
+        stopWatcher = std::make_unique<StopWatcher>();
+
         engine = std::make_unique<HostEngine>();
         engine->start();
 
@@ -32,6 +55,7 @@ public:
 
     void shutdown() override
     {
+        stopWatcher.reset();
         web.reset();
         if (engine != nullptr)
             engine->shutdown();
@@ -45,6 +69,7 @@ public:
     void unhandledException (const std::exception*, const juce::String&, int) override {}
 
 private:
+    std::unique_ptr<StopWatcher> stopWatcher;
     std::unique_ptr<HostEngine> engine;
     std::unique_ptr<WebServer> web;
 };

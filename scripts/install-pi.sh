@@ -42,11 +42,21 @@ cat > /etc/security/limits.d/99-audio.conf <<EOF
 EOF
 
 echo "== CPU governor: performance"
-apt-get install -y cpufrequtils >/dev/null 2>&1 || true
-echo 'GOVERNOR="performance"' > /etc/default/cpufrequtils
-for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
-  echo performance > "$g" 2>/dev/null || true
-done
+# A tiny boot service works on every Raspberry Pi OS release (cpufrequtils is gone in Debian 13)
+cat > /etc/systemd/system/livehost-governor.service <<'EOF'
+[Unit]
+Description=LiveHost: CPU governor performance
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do echo performance > "$g" 2>/dev/null || true; done'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable --now livehost-governor.service >/dev/null 2>&1 || true
 
 echo "== Stopping services that fight for the audio device"
 systemctl disable --now pulseaudio.service pulseaudio.socket 2>/dev/null || true
