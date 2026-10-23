@@ -36,8 +36,10 @@ run_case() {
   say "-- case: $label"
   rm -rf /root/.livehost
   mkdir -p /root/.livehost && echo "127.0.0.0/8" > /root/.livehost/trusted.txt   # the test client is local
-  rm -f /tmp/lh.rc
-  ( cd /tmp/lh/livehost && HOME=/root ./LiveHost > /tmp/lh.log 2>&1 & echo $! > /tmp/lh.pid; wait $!; echo $? > /tmp/lh.rc ) &
+  rm -f /tmp/lh.rc /tmp/lh.pid
+  # Plain background start so the pid really is LiveHost (not a wrapper shell) and its exit code is recorded
+  bash -c 'cd /tmp/lh/livehost && HOME=/root ./LiveHost > /tmp/lh.log 2>&1; echo $? > /tmp/lh.rc' &
+  for i in $(seq 1 30); do pgrep -x LiveHost > /tmp/lh.pid 2>/dev/null && break; sleep 0.2; done
   for i in $(seq 1 30); do api /api/info | jq -e .version >/dev/null 2>&1 && break; sleep 1; done
   check "$label: web API answers" "api /api/info | jq -e .version >/dev/null"
   if ! api /api/info | jq -e .version >/dev/null 2>&1; then say "---- log"; tail -n 25 /tmp/lh.log | tee -a "$RES"; return; fi
@@ -75,13 +77,16 @@ run_case() {
   check "$label: exit code 0" "[ \"$(cat /tmp/lh.rc 2>/dev/null)\" = 0 ]"
   check "$label: viewer helpers stopped with it (ports 5900/6080 closed)" "! (exec 3<>/dev/tcp/127.0.0.1/6080) 2>/dev/null && ! (exec 3<>/dev/tcp/127.0.0.1/5900) 2>/dev/null"
   say "viewer log: $(grep -v 'keysym\|xkbcomp\|XKEYBOARD' /root/.livehost/viewer.log 2>/dev/null | tail -n 4 | tr '\n' '|')"
+  check "$label: log shows the clean shutdown path" "grep -q 'Shutdown complete' /tmp/lh.log"
   pkill -9 LiveHost 2>/dev/null; sleep 1
   say "log tail:"; tail -n 6 /tmp/lh.log | tee -a "$RES"
 }
 
 unset DISPLAY
 run_case "no DISPLAY given (LiveHost starts its own virtual screen)"
-check "self-started Xvfb :99 is up" "[ -S /tmp/.X11-unix/X99 ]"
+check "self-started virtual screen ended with LiveHost" "! ps -eo stat=,comm= | grep -v '^Z' | grep -q Xvfb"
+Xvfb :99 -screen 0 1024x768x24 >/dev/null 2>&1 &
+sleep 2
 export DISPLAY=:99
 run_case "DISPLAY given (:99)"
 
