@@ -385,6 +385,10 @@
   body.offline #msg { display:none !important; }
   .spin { width:14px; height:14px; border:2px solid #fff6; border-top-color:#fff; border-radius:50%; animation:spin 0.9s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
+
+  .ch { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+  .ch h2 { flex:1; margin:0; }
+  .ch + #bundles > .set:first-child, .ch + #bundles > .note { border-top:0; }
 </style>
 </head>
 <body>
@@ -445,20 +449,15 @@
   <div data-pane="plugins" class="hide">
   <div class="card">
     <h2>Add a plugin</h2>
-    <div id="upDrop" class="drop">Drop a <b>.zip</b>, a <b>.vst3 folder</b> or a <b>.vst3 / .so file</b> here</div>
-    <div class="set"><div class="sl"><b>Zip file</b><span>A .zip of the plugin folder</span></div><div class="sc"><button id="upPickZip">Choose…</button></div></div>
-    <div class="set"><div class="sl"><b>.vst3 folder</b><span>The whole plugin folder</span></div><div class="sc"><button id="upPickDir">Choose…</button></div></div>
-    <div class="set"><div class="sl"><b>Single file</b><span>A .vst3 or .so file; LivePi wraps it for you</span></div><div class="sc"><button id="upPickFile">Choose…</button></div></div>
-    <div class="set"><div class="sl"><b>Install</b><span id="upSel">Nothing chosen yet</span><span id="upStat"></span></div><div class="sc"><button id="upGo" class="on">Upload &amp; install</button></div></div>
-    <input id="upZip" type="file" accept=".zip" class="hide">
+    <div id="upDrop" class="drop">Drop a plugin here: a <b>.zip</b>, a <b>.vst3</b> (file or folder) or a <b>.so</b></div>
+    <div class="set"><div class="sl"><b>Plugin file</b><span id="upSel">Nothing chosen yet</span><span id="upStat"></span></div><div class="sc"><button id="upPick">Choose…</button><button id="upGo" class="on" disabled>Install</button></div></div>
+    <input id="upAny" type="file" class="hide">
     <input id="upDir" type="file" webkitdirectory directory multiple class="hide">
-    <input id="upBin" type="file" accept=".vst3,.so" class="hide">
     <div class="note">Plugins must be Linux ARM64 builds (they contain <code>Contents/aarch64-linux/*.so</code>).</div>
   </div>
   <div class="card">
-    <h2>Installed plugins</h2>
+    <div class="ch"><h2>Installed plugins</h2><button id="scan" class="sm" title="Look for plugins again (only needed if one is missing from the Add list)">Rescan</button></div>
     <div id="bundles"></div>
-    <div class="set"><div class="sl"><b>Rescan</b><span>Only needed if a plugin is missing from the Add list</span></div><div class="sc"><button id="scan">Rescan</button></div></div>
   </div>
   <div class="card">
     <h2>Plugin windows</h2>
@@ -1602,13 +1601,12 @@ let upParts = [];   // [{file, name}]
 function setUp(list) {
   upParts = list;
   const n = list.length;
+  $('upGo').disabled = !n;
   $('upSel').textContent = !n ? 'Nothing chosen yet' : n === 1 ? list[0].name : n + ' files from ' + list[0].name.split('/')[0];
   $('upStat').textContent = '';
 }
-$('upPickZip').onclick = () => $('upZip').click();
-$('upPickDir').onclick = () => $('upDir').click();
-$('upPickFile').onclick = () => $('upBin').click();
-$('upZip').onchange = $('upBin').onchange = e => setUp([...e.target.files].map(f => ({ file: f, name: f.name })));
+$('upPick').onclick = () => $('upAny').click();
+$('upAny').onchange = e => setUp([...e.target.files].map(f => ({ file: f, name: f.name })));
 $('upDir').onchange = e => setUp([...e.target.files].map(f => ({ file: f, name: f.webkitRelativePath || f.name })));
 async function walkEntry(en, path, out) {
   if (en.isFile) { const f = await new Promise(r => en.file(r)); out.push({ file: f, name: path + en.name }); }
@@ -1620,7 +1618,7 @@ async function walkEntry(en, path, out) {
 }
 (function () {
   const d = $('upDrop');
-  d.onclick = () => $('upZip').click();
+  d.onclick = () => $('upAny').click();
   ['dragenter', 'dragover'].forEach(ev => d.addEventListener(ev, e => { e.preventDefault(); d.classList.add('over'); }));
   ['dragleave', 'drop'].forEach(ev => d.addEventListener(ev, e => { e.preventDefault(); d.classList.remove('over'); }));
   d.addEventListener('drop', async e => {
@@ -1642,14 +1640,14 @@ $('upGo').onclick = () => {
     let j = {}; try { j = JSON.parse(x.responseText); } catch (e) {}
     if (j.ok) {
       $('upStat').textContent = 'Installed: ' + (j.installed || []).join(', ') + ((j.skipped || []).length ? ' — skipped: ' + j.skipped.join(' | ') : '');
-      setUp([]); $('upZip').value = $('upDir').value = $('upBin').value = '';
+      setUp([]); $('upAny').value = $('upDir').value = '';
       plugins = (await api('/api/plugins')).plugins || []; structKey = ''; loadInstalled(); refresh();
     } else {
       $('upStat').textContent = j.error || ('Upload failed (' + x.status + ')');
     }
   };
   x.onerror = () => { $('upStat').textContent = 'Upload failed (connection lost)'; };
-  x.onloadend = () => { $('upGo').disabled = false; };
+  x.onloadend = () => { $('upGo').disabled = !upParts.length; };
   $('upGo').disabled = true; $('upStat').textContent = 'Uploading…';
   x.send(fd);
 };

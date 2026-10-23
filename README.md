@@ -99,7 +99,7 @@ shows a notice. If an update says it needs the newer installer, unzip it on the 
 
 **Setup tab**
 - Audio device, sample rate and buffer size (start at 48000 Hz / 64) and channel count.
-- **Plugins on this Pi**: upload a `.zip`, drop or choose the whole `.vst3` folder, or upload a bare `.vst3`/`.so` file (it is wrapped into a bundle). LivePi unpacks it, checks it is a
+- **Plugins**: one Choose… button takes a `.zip`, a `.vst3` file or a `.so` file (a bare file is wrapped into a bundle); on a computer you can also drop a whole `.vst3` folder on the drop area. LivePi unpacks it, checks it is a
   Linux ARM64 build (`Contents/aarch64-linux/*.so`), and scans it. Delete uploaded plugins here too.
 - **System**: restart LivePi, reboot or shut down the Pi, install LivePi updates, and update the Pi's operating system (apt-get update / upgrade).
   The OS update buttons are grayed out with "No internet access" when the Pi cannot reach its package servers.
