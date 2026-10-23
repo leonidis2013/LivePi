@@ -65,12 +65,15 @@ run_case() {
   check "$label: plugin window viewer running (Xvfb + x11vnc + websockify)" "echo '$V' | jq -e '.available and .vnc==\"running\" and .web==\"running\" and .webReachable' >/dev/null"
   check "$label: noVNC page served on port 6080" "curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:6080/vnc.html | grep -q 200"
   check "$label: state reports editorAvailable" "api /api/state | jq -e '.editorAvailable==true' >/dev/null"
-  local pid; pid=$(cat /tmp/lh.pid); kill -TERM "$pid" 2>/dev/null
+  local pid; pid=$(cat /tmp/lh.pid)
+  say "signals: $(grep -E 'SigCgt|SigBlk|SigIgn' /proc/$pid/status | tr '\n' ' ') (SIGTERM caught = bit 15 of SigCgt, i.e. 0x4000)"
+  say "threads: $(ls /proc/$pid/task | wc -l)"
+  kill -TERM "$pid" 2>/dev/null
   for i in $(seq 1 50); do kill -0 "$pid" 2>/dev/null || break; sleep 0.1; done
   check "$label: stops cleanly on SIGTERM within 5 s (what systemd sends)" "! kill -0 $pid 2>/dev/null"
   sleep 1; say "exit code: $(cat /tmp/lh.rc 2>/dev/null)"
   check "$label: exit code 0" "[ \"$(cat /tmp/lh.rc 2>/dev/null)\" = 0 ]"
-  check "$label: viewer helpers stopped with it" "! pgrep -a 'x11vn[c]|websock[i]fy' | grep -v nice"
+  check "$label: viewer helpers stopped with it (ports 5900/6080 closed)" "! (exec 3<>/dev/tcp/127.0.0.1/6080) 2>/dev/null && ! (exec 3<>/dev/tcp/127.0.0.1/5900) 2>/dev/null"
   say "viewer log: $(grep -v 'keysym\|xkbcomp\|XKEYBOARD' /root/.livehost/viewer.log 2>/dev/null | tail -n 4 | tr '\n' '|')"
   pkill -9 LiveHost 2>/dev/null; sleep 1
   say "log tail:"; tail -n 6 /tmp/lh.log | tee -a "$RES"

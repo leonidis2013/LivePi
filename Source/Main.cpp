@@ -18,7 +18,11 @@ namespace
         void timerCallback() override
         {
             if (stopRequested.load())
+            {
+                juce::Logger::writeToLog ("Stop requested (SIGTERM/SIGINT): shutting down");
+                stopTimer();
                 juce::JUCEApplicationBase::quit();
+            }
         }
     };
 }
@@ -67,6 +71,7 @@ public:
             engine->shutdown();
         engine.reset();
         viewer.reset();
+        juce::Logger::writeToLog ("Shutdown complete");
     }
 
     void anotherInstanceStarted (const juce::String&) override {}
