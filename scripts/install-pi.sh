@@ -79,72 +79,21 @@ EOF
 chmod 440 /etc/sudoers.d/livehost
 visudo -c -f /etc/sudoers.d/livehost >/dev/null || { echo "sudoers check failed, removing rule"; rm -f /etc/sudoers.d/livehost; }
 
-if [[ $WITH_EDITOR -eq 1 ]]; then
-  echo "== Plugin window support (virtual display + browser viewer)"
-  apt-get install -y xvfb x11vnc novnc websockify
-
-  HOME_DIR="$(getent passwd "$USER_NAME" | cut -d: -f6)"
-  GROUP_NAME="$(id -gn "$USER_NAME")"
-  install -d -o "$USER_NAME" -g "$GROUP_NAME" -m 700 "${HOME_DIR}/.livehost"
-  # The viewer uses its own random password; the web page fetches it (only for logged-in or trusted
-  # clients) and signs in automatically, so nobody has to type it.
-  if [[ ! -s "${HOME_DIR}/.livehost/vnc.txt" || ! -s "${HOME_DIR}/.livehost/vnc.pass" ]]; then
-    VNCPW="$(head -c 64 /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 8)"
-    ( umask 077; printf '%s' "$VNCPW" > "${HOME_DIR}/.livehost/vnc.txt" )
-    x11vnc -storepasswd "$VNCPW" "${HOME_DIR}/.livehost/vnc.pass" >/dev/null 2>&1
-    chown "$USER_NAME:$GROUP_NAME" "${HOME_DIR}/.livehost/vnc.txt" "${HOME_DIR}/.livehost/vnc.pass"
-    chmod 600 "${HOME_DIR}/.livehost/vnc.txt" "${HOME_DIR}/.livehost/vnc.pass"
+# Old installs ran the virtual screen and viewer as separate services; LiveHost now starts them itself.
+for u in livehost-novnc livehost-vnc livehost-display; do
+  if [[ -f /etc/systemd/system/$u.service ]]; then
+    systemctl disable --now $u.service 2>/dev/null || true
+    rm -f /etc/systemd/system/$u.service
   fi
+done
+rm -f "$(getent passwd "$USER_NAME" | cut -d: -f6)/.livehost/vnc.txt"
 
-  cat > /etc/systemd/system/livehost-display.service <<EOF
-[Unit]
-Description=LiveHost virtual display
-
-[Service]
-User=${USER_NAME}
-ExecStart=/usr/bin/Xvfb :99 -screen 0 1280x800x24 -nolisten tcp
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-  cat > /etc/systemd/system/livehost-vnc.service <<EOF
-[Unit]
-Description=LiveHost VNC (local only, password protected)
-After=livehost-display.service
-Requires=livehost-display.service
-
-[Service]
-User=${USER_NAME}
-ExecStartPre=/bin/sleep 2
-ExecStart=/usr/bin/x11vnc -display :99 -localhost -rfbauth ${HOME_DIR}/.livehost/vnc.pass -forever -shared -noxdamage -quiet
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-  cat > /etc/systemd/system/livehost-novnc.service <<EOF
-[Unit]
-Description=LiveHost browser viewer
-After=livehost-vnc.service
-Requires=livehost-vnc.service
-
-[Service]
-User=${USER_NAME}
-ExecStart=/usr/bin/websockify --web=/usr/share/novnc 6080 localhost:5900
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
-  DISPLAY_LINES="Environment=DISPLAY=:99
-Wants=livehost-display.service
-After=livehost-display.service
-ExecStartPre=/bin/sleep 3"
+if [[ $WITH_EDITOR -eq 1 ]]; then
+  echo "== Plugin window support (virtual screen + browser viewer, started by LiveHost itself)"
+  apt-get install -y xvfb x11vnc novnc websockify fonts-dejavu-core libgl1
+  EDITOR_ARG=""
 else
-  DISPLAY_LINES=""
+  EDITOR_ARG=" --no-editor"
 fi
 
 echo "== LiveHost service"
@@ -157,11 +106,12 @@ Wants=network-online.target
 [Service]
 User=${USER_NAME}
 Environment=HOME=/home/${USER_NAME}
-${DISPLAY_LINES}
 WorkingDirectory=/opt/livehost
-ExecStart=/opt/livehost/run.sh --port 8080
+ExecStart=/opt/livehost/run.sh --port 8080${EDITOR_ARG}
 Restart=always
 RestartSec=2
+# SIGTERM goes to LiveHost only; its helpers (virtual screen, viewer) are cleaned up after it has exited
+KillMode=mixed
 LimitRTPRIO=95
 LimitMEMLOCK=infinity
 Nice=-10
@@ -218,10 +168,6 @@ PY
   fi
   fi
 
-if [[ $WITH_EDITOR -eq 1 ]]; then
-  systemctl daemon-reload
-  systemctl enable --now livehost-display.service livehost-vnc.service livehost-novnc.service
-fi
 systemctl enable --now livehost.service
 systemctl restart livehost.service
 

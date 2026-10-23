@@ -51,8 +51,19 @@ public:
         const bool resizable = ed->isResizable();
         setContentOwned (ed, true);
         setResizable (resizable, false);
-        setTopLeftPosition (20, 20);
+        // Keep the window inside the (virtual) screen so the viewer shows all of it
+        if (auto* d = Desktop::getInstance().getDisplays().getPrimaryDisplay())
+        {
+            const auto area = d->userArea;
+            if (resizable && (getWidth() > area.getWidth() || getHeight() > area.getHeight()))
+            {
+                const float s = jmin ((float) area.getWidth() / (float) jmax (1, getWidth()), (float) area.getHeight() / (float) jmax (1, getHeight()));
+                setSize (jmax (200, (int) (getWidth() * s)), jmax (120, (int) (getHeight() * s)));
+            }
+        }
+        setTopLeftPosition (0, 0);
         setVisible (true);
+        toFront (true);
     }
 
     void closeButtonPressed() override

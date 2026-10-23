@@ -41,7 +41,7 @@ GitHub's free ARM64 runners are only available for **public** repositories.
 
 ## What the installer does
 
-It copies the app to `/opt/livehost`, installs the runtime libraries, sets real-time limits for the audio group, switches the CPU governor to performance (at every boot), stops PulseAudio and Bluetooth, allows the page to reboot/shut down the Pi and run OS updates, and enables boot services. Unless you pass `--no-editor` it also sets up a virtual screen and browser viewer (port 6080) so plugin windows can be opened from the page. To add or change the password later: `sudo /opt/livehost/set-password.sh`. The plugin window viewer (Edit button) signs in automatically with its own generated password, so it works with or without a web password; see "Trusted networks" for unlocking uploads and updates.
+It copies the app to `/opt/livehost`, installs the runtime libraries, sets real-time limits for the audio group, switches the CPU governor to performance (at every boot), stops PulseAudio and Bluetooth, allows the page to reboot/shut down the Pi and run OS updates, and enables boot services. Unless you pass `--no-editor` it also installs the pieces for plugin windows (a virtual screen and a browser viewer on port 6080); LiveHost starts and watches those itself, and signs the page in to the viewer automatically, so plugin windows work with or without a web password. To add or change the password later: `sudo /opt/livehost/set-password.sh`; see "Trusted networks" for unlocking uploads and updates without one.
 
 ## Troubleshooting
 
@@ -112,6 +112,7 @@ Data lives in `~/.livehost` (audio setup, plugin list, `plugins/`, `last.json`, 
   network or VLAN, not exposed to the internet.
 - Zip uploads are checked for path tricks, symbolic links and Windows-style paths before unpacking.
 - Plugin windows are drawn in software on a virtual screen, so use them for setup, not during a show.
+- **Edit shows no plugin window:** open Setup > System > **Plugin windows**. It says which piece is missing or stopped (and shows the viewer log); **Restart viewer** restarts the helpers. If the pieces are missing, run the installer again. Your browser must be able to reach the Pi on port 6080 as well as 8080.
 
 ### Trusted networks (optional, no password from your own network)
 

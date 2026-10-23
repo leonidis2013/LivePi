@@ -248,6 +248,13 @@
     <pre id="osLog" class="hide" style="max-height:200px;overflow:auto;background:var(--inset);padding:8px;border-radius:8px;font-size:12px;white-space:pre-wrap;margin:6px 0"></pre>
     <div class="note">Runs apt-get update / upgrade on the Pi and needs internet. Don't run it before a service: it can cause audio dropouts while it runs, and may need a reboot afterwards.</div>
   </div>
+  <div class="card">
+    <h2>Plugin windows</h2>
+    <div id="vwStat" class="note">…</div>
+    <pre id="vwLog" class="hide" style="max-height:160px;overflow:auto;padding:8px;border-radius:8px;font-size:12px;white-space:pre-wrap;margin:6px 0"></pre>
+    <div class="row"><button id="vwRestart">Restart viewer</button><button id="vwRefresh">Refresh</button></div>
+    <div class="note">Plugin windows are drawn on a virtual screen on the Pi and streamed to this page (press <b>Edit</b> on a plugin in the Mixer). Needs the installer's plugin window option (the default).</div>
+  </div>
   </div>
   <div data-pane="settings" class="hide">
   <div class="card">
@@ -298,6 +305,7 @@
     <button id="edClosePlugin">Close plugin window</button>
     <button id="edHide">Hide</button>
   </div>
+  <div id="edMsg" class="hide" style="padding:16px;color:var(--fg)"></div>
   <iframe id="edFrame" title="Plugin window"></iframe>
 </div>
 
@@ -554,16 +562,54 @@ async function openParams(ch, slot, title) {
 $('pmClose').onclick = () => $('pm').classList.add('hide');
 
 /* ---------- plugin editor (streamed from the Pi's virtual display) ---------- */
+async function viewerStatus() { return await api('/api/editor/viewer'); }
+function viewerText(v) {
+  if (!v || v.error || v.available === undefined) return v && v.error ? v.error : 'No answer from LiveHost.';
+  const parts = [];
+  parts.push(v.available ? `Virtual screen ${v.display} (${v.displaySource === 'livehost' ? 'started by LiveHost' : v.displaySource === 'service' ? 'from the service' : 'already running'})` : 'No virtual screen');
+  parts.push('VNC server: ' + v.vnc, 'Browser viewer: ' + v.web + (v.webReachable ? ' (port ' + v.port + ' answering)' : ' (port ' + v.port + ' not answering)'));
+  if (v.problem) parts.push('Problem: ' + v.problem);
+  return parts.join(' · ');
+}
+async function viewerRefresh() {
+  const v = await viewerStatus();
+  $('vwStat').textContent = viewerText(v);
+  $('vwStat').classList.toggle('bad', !!(v && (v.problem || !v.available)));
+  $('vwLog').classList.toggle('hide', !(v && v.log)); $('vwLog').textContent = (v && v.log) || '';
+  return v;
+}
+$('vwRefresh').onclick = viewerRefresh;
+$('vwRestart').onclick = async () => { $('vwStat').textContent = 'Restarting…'; await api('/api/editor/viewer/restart', {}); setTimeout(viewerRefresh, 1500); };
+
+// Can the browser reach the viewer port at all? (opaque fetch: resolves if something answers, rejects if nothing listens)
+function probe(url, ms = 4000) {
+  return new Promise(res => { const t = setTimeout(() => res(false), ms); fetch(url, { mode: 'no-cors', cache: 'no-store' }).then(() => { clearTimeout(t); res(true); }, () => { clearTimeout(t); res(false); }); });
+}
+
 async function openEditor(ch, slot, title) {
   const r = await api('/api/editor/open', { channel: ch, slot });
   if (!r.ok) return;
   curEditor = { ch, slot };
-  const v = await api('/api/editor/viewer');
-  const url = `http://${location.hostname}:${v.port || 6080}/vnc.html?autoconnect=1&resize=scale&reconnect=1` + (v.password ? '&password=' + encodeURIComponent(v.password) : '');
   $('edTitle').textContent = title;
-  $('edNew').href = url;
-  $('edFrame').src = url;
   $('ed').classList.remove('hide');
+  $('edFrame').classList.add('hide'); $('edMsg').classList.remove('hide'); $('edMsg').textContent = 'Connecting to the plugin window…';
+  const v = await viewerStatus();
+  const port = (v && v.port) || 6080;
+  const base = `http://${location.hostname}:${port}/`;
+  const reachable = v && v.available && !v.problem && await probe(base + 'vnc.html');
+  if (!reachable) {
+    $('edMsg').innerHTML = '';
+    $('edMsg').append(el('p', '', 'The plugin window viewer is not reachable from this device.'), el('p', 'note', viewerText(v)));
+    if (!v || !v.available || v.vnc === 'missing' || v.web === 'missing') $('edMsg').append(el('p', 'note', 'Fix: on the Pi, run the installer again (sudo ./install-pi.sh <user>) and reboot.'));
+    else if (v.webReachable) $('edMsg').append(el('p', 'note', `The Pi answers on port ${port} but this browser cannot reach it. Check that nothing blocks port ${port} between you and the Pi (same Wi-Fi? firewall?), then try again.`));
+    else $('edMsg').append(el('p', 'note', 'Try Setup > System > Restart viewer, then press Edit again.'));
+    return;
+  }
+  // password in the fragment: it stays in the browser and is not sent to the viewer's web server
+  const url = base + 'vnc.html?autoconnect=1&resize=scale&reconnect=1&reconnect_delay=1000' + (v.password ? '#password=' + encodeURIComponent(v.password) : '');
+  $('edNew').href = url;
+  $('edMsg').classList.add('hide'); $('edFrame').classList.remove('hide');
+  $('edFrame').src = url;
 }
 $('edHide').onclick = () => { $('ed').classList.add('hide'); $('edFrame').src = 'about:blank'; };
 $('edClosePlugin').onclick = async () => { if (curEditor) await api('/api/editor/close', curEditor); $('edHide').onclick(); };
@@ -878,6 +924,7 @@ async function refresh() {
   loadInstalled();
   osRefresh();
   updRefresh();
+  viewerRefresh();
   await refresh();
   setInterval(refresh, 1500);
   setInterval(pollMeters, 80);

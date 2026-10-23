@@ -39,6 +39,7 @@ target_sources(LiveHost PRIVATE
   Source/HostEngine.cpp
   Source/WebServer.cpp)
 
+
 target_compile_definitions(LiveHost PRIVATE
   JUCE_WEB_BROWSER=0
   JUCE_USE_CURL=0
@@ -65,6 +66,19 @@ target_link_libraries(LiveHost PRIVATE
 # Avoid depending on the build machine's libstdc++ version
 if(UNIX AND NOT APPLE)
   target_link_options(LiveHost PRIVATE -static-libstdc++ -static-libgcc)
+endif()
+
+# Release tuning for the Pi: whole-program optimisation, and code scheduled for the Pi 4/5 cores
+# (armv8-a so it still runs on a Pi 3 / Zero 2 with a 64-bit OS).
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64" AND CMAKE_BUILD_TYPE STREQUAL "Release")
+  include(CheckIPOSupported)
+  check_ipo_supported(RESULT LIVEHOST_IPO OUTPUT _ipo_msg)
+  if(LIVEHOST_IPO)
+    set_property(TARGET LiveHost PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+  endif()
+  target_compile_options(LiveHost PRIVATE -O3 -march=armv8-a+crc -mtune=cortex-a76 -fno-plt -fomit-frame-pointer)
+  target_link_options(LiveHost PRIVATE -Wl,-O1 -Wl,--as-needed -Wl,--gc-sections)
+  target_compile_options(LiveHost PRIVATE -ffunction-sections -fdata-sections)
 endif()
 
 # Ship the web UI next to the binary

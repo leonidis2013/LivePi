@@ -4,6 +4,7 @@
 #include <memory>
 #include "HostEngine.h"
 #include "WebServer.h"
+#include "EditorViewer.h"
 
 namespace
 {
@@ -44,7 +45,12 @@ public:
         engine = std::make_unique<HostEngine>();
         engine->start();
 
+        // Virtual screen + browser viewer for plugin windows (skipped with --no-editor)
+        if (! args.contains ("--no-editor"))
+            viewer = std::make_unique<EditorViewer> (HostEngine::dataDir());
+
         web = std::make_unique<WebServer> (*engine, port);
+        web->setViewer (viewer.get());
         web->start();
 
         // Healthy for a minute: an update (if one was just installed) is accepted, no rollback needed
@@ -60,6 +66,7 @@ public:
         if (engine != nullptr)
             engine->shutdown();
         engine.reset();
+        viewer.reset();
     }
 
     void anotherInstanceStarted (const juce::String&) override {}
@@ -72,6 +79,7 @@ private:
     std::unique_ptr<StopWatcher> stopWatcher;
     std::unique_ptr<HostEngine> engine;
     std::unique_ptr<WebServer> web;
+    std::unique_ptr<EditorViewer> viewer;
 };
 
 START_JUCE_APPLICATION (LiveHostApp)

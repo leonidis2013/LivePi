@@ -19,15 +19,29 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake ninja-build pkg-config zip \
+          sudo apt-get install -y build-essential cmake ninja-build pkg-config zip ccache \
             libasound2-dev libjack-jackd2-dev libfreetype-dev libfontconfig1-dev \
             libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxext-dev \
             libgl1-mesa-dev
 
+      # Compiler cache: JUCE itself rarely changes, so most builds only recompile LiveHost's own files
+      - name: Compiler cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-${{ runner.os }}-arm64-${{ hashFiles('CMakeLists.txt') }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-arm64-${{ hashFiles('CMakeLists.txt') }}-
+            ccache-${{ runner.os }}-arm64-
+
       - name: Configure
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DLIVEHOST_BUILD=${{ github.run_number }}
+        env:
+          CCACHE_MAXSIZE: 600M
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DLIVEHOST_BUILD=${{ github.run_number }} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
+        env:
+          CCACHE_MAXSIZE: 600M
         run: |
           set +e
           cmake --build build -- -k 0 > build.log 2>&1
@@ -39,6 +53,7 @@ jobs:
             done
             tail -60 build.log
           fi
+          ccache -s | head -5 || true
           exit $rc
 
       - name: Package

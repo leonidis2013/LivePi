@@ -8,10 +8,13 @@
 #include <vector>
 #include "HostEngine.h"
 
+class EditorViewer;
+
 class WebServer
 {
 public:
     WebServer (HostEngine& e, int portToUse);
+    void setViewer (EditorViewer* v) { viewer = v; }
     ~WebServer();
 
     void start();
@@ -29,6 +32,7 @@ private:
     juce::StringArray trustedText;
 
     HostEngine& engine;
+    EditorViewer* viewer = nullptr;
     httplib::Server svr;
     std::thread thread;
     int port;

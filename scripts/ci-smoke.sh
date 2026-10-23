@@ -19,9 +19,7 @@ if apt-get install -y -qq $PKGS jq procps xvfb unzip >/tmp/apt-install.log 2>&1;
 if apt-get install -y -qq libasound2 >/dev/null 2>&1; then say "PASS  libasound2 installs"
 elif apt-get install -y -qq libasound2t64 >/dev/null 2>&1; then say "PASS  libasound2t64 installs (renamed package)"
 else say "FAIL  libasound install"; FAIL=1; fi
-for p in novnc websockify x11vnc xvfb; do
-  check "optional package available: $p" "apt-cache policy $p | grep -q 'Candidate: [0-9]'"
-done
+if apt-get install -y -qq xvfb x11vnc novnc websockify fonts-dejavu-core libgl1 >/tmp/apt-viewer.log 2>&1; then say "PASS  plugin window packages install"; else say "FAIL  plugin window packages install"; tail -n 5 /tmp/apt-viewer.log | tee -a "$RES"; FAIL=1; fi
 
 rm -rf /tmp/lh && mkdir /tmp/lh && cd /tmp/lh
 ls /work/*.zip | tee -a "$RES"
@@ -37,6 +35,7 @@ run_case() {
   local label="$1"
   say "-- case: $label"
   rm -rf /root/.livehost
+  mkdir -p /root/.livehost && echo "127.0.0.0/8" > /root/.livehost/trusted.txt   # the test client is local
   ( cd /tmp/lh/livehost && HOME=/root ./LiveHost > /tmp/lh.log 2>&1 & echo $! > /tmp/lh.pid )
   for i in $(seq 1 30); do api /api/info | jq -e .version >/dev/null 2>&1 && break; sleep 1; done
   check "$label: web API answers" "api /api/info | jq -e .version >/dev/null"
@@ -61,6 +60,10 @@ run_case() {
   check "$label: update status endpoint" "api /api/update/status | jq -e .state >/dev/null"
   check "$label: OS status endpoint" "api /api/os/status | jq -e .state >/dev/null"
   check "$label: still running" "kill -0 \$(cat /tmp/lh.pid)"
+  V=$(api /api/editor/viewer); say "viewer: $(echo "$V" | jq -c '{available,displaySource,vnc,web,webReachable,problem}')"
+  check "$label: plugin window viewer running (Xvfb + x11vnc + websockify)" "echo '$V' | jq -e '.available and .vnc==\"running\" and .web==\"running\" and .webReachable' >/dev/null"
+  check "$label: noVNC page served on port 6080" "curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:6080/vnc.html | grep -q 200"
+  check "$label: state reports editorAvailable" "api /api/state | jq -e '.editorAvailable==true' >/dev/null"
   local pid; pid=$(cat /tmp/lh.pid); kill -TERM "$pid" 2>/dev/null
   for i in $(seq 1 50); do kill -0 "$pid" 2>/dev/null || break; sleep 0.1; done
   check "$label: stops cleanly on SIGTERM within 5 s (what systemd sends)" "! kill -0 $pid 2>/dev/null"
@@ -69,10 +72,9 @@ run_case() {
 }
 
 unset DISPLAY
-run_case "no display"
-Xvfb :99 -screen 0 1024x768x24 >/dev/null 2>&1 &
-sleep 2
+run_case "no DISPLAY given (LiveHost starts its own virtual screen)"
+check "self-started Xvfb :99 is up" "[ -S /tmp/.X11-unix/X99 ]"
 export DISPLAY=:99
-run_case "with virtual display (:99)"
+run_case "DISPLAY given (:99)"
 
 say "RESULT: $([ $FAIL -eq 0 ] && echo ALL PASSED || echo SOME FAILED)"

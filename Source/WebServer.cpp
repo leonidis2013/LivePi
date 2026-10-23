@@ -1,4 +1,5 @@
 #include "WebServer.h"
+#include "EditorViewer.h"
 #include "Updater.h"
 #include <atomic>
 #if JUCE_LINUX
@@ -738,12 +739,14 @@ void WebServer::setupRoutes()
     });
 
     // Plugin editor windows (shown on the virtual display)
-    svr.Get ("/api/editor/viewer", [] (const httplib::Request&, httplib::Response& res)
+    svr.Get ("/api/editor/viewer", [this] (const httplib::Request&, httplib::Response& res)
     {
-        auto* o = new DynamicObject();
-        o->setProperty ("port", 6080);
-        o->setProperty ("password", HostEngine::dataDir().getChildFile ("vnc.txt").loadFileAsString().trim());
-        reply (res, var (o));
+        reply (res, onMT ([this] { return viewer != nullptr ? viewer->getStatus() : errVar ("No viewer"); }));
+    });
+
+    svr.Post ("/api/editor/viewer/restart", [this] (const httplib::Request&, httplib::Response& res)
+    {
+        reply (res, onMT ([this] { if (viewer != nullptr) viewer->restartHelpers(); return viewer != nullptr ? viewer->getStatus() : errVar ("No viewer"); }));
     });
 
     svr.Post ("/api/editor/open", [this] (const httplib::Request& req, httplib::Response& res)
