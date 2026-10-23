@@ -292,7 +292,7 @@ void WebServer::setupRoutes()
             if (req.has_header ("Authorization"))
                 Thread::sleep (400);                            // slow down guessing
             res.status = 401;
-            res.set_header ("WWW-Authenticate", "Basic realm=\"LiveHost\"");
+            res.set_header ("WWW-Authenticate", "Basic realm=\"LivePi\"");
             res.set_content ("Password required", "text/plain");
             return httplib::Server::HandlerResponse::Handled;
         }

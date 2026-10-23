@@ -1,4 +1,6 @@
-# LiveHost
+# LivePi
+
+*LivePi* is the product; inside the Pi the program, folder and service keep their technical name `livehost` (`/opt/livehost`, `livehost.service`, `~/.livehost`), so existing installs and update files keep working.
 
 Headless VST3 host for live voice on a Raspberry Pi, managed entirely from a web page.
 Built with JUCE. Runs your own Linux ARM64 VST3 plugins, one chain per channel.
@@ -7,7 +9,7 @@ Built with JUCE. Runs your own Linux ARM64 VST3 plugins, one chain per channel.
 
 1. **Flash the SD card.** In [Raspberry Pi Imager](https://www.raspberrypi.com/software/) choose your Pi model and **Raspberry Pi OS Lite (64-bit)**. Before writing, open the OS settings and set a hostname (for example `livehost`), a username and password, turn on **SSH**, and enter Wi-Fi if you need it. A network cable is better for live use.
 2. **Fit your audio interface** (HAT, USB card) and follow its own setup steps if it has any. Boot the Pi and wait about a minute.
-3. **Connect from your computer** with `ssh your-user@livehost.local` and download and install LiveHost:
+3. **Connect from your computer** with `ssh your-user@livehost.local` and download and install LivePi:
 
    ```bash
    curl -L -o livehost.tar.gz https://github.com/leonidis2013/LivePi/releases/latest/download/livehost-linux-arm64.tar.gz
@@ -33,7 +35,7 @@ If the Pi has no internet, download `livehost-linux-arm64.tar.gz` from the Relea
 
 ## How releases are built
 
-Pushing to `main` starts GitHub Actions, which builds LiveHost on an ARM64 runner and publishes a **Release** (repo page > Releases) with:
+Pushing to `main` starts GitHub Actions, which builds LivePi on an ARM64 runner and publishes a **Release** (repo page > Releases) with:
 - `livehost-build-N.zip` - the update package (for the Setup tab's offline update, or unzip it for a fresh install)
 - `livehost-linux-arm64.tar.gz` - the same files as a tarball (the file the quick start downloads)
 
@@ -41,20 +43,20 @@ GitHub's free ARM64 runners are only available for **public** repositories.
 
 ## What the installer does
 
-It copies the app to `/opt/livehost`, installs the runtime libraries, sets real-time limits for the audio group, switches the CPU governor to performance (at every boot), stops PulseAudio and Bluetooth, allows the page to reboot/shut down the Pi and run OS updates, and enables boot services. Unless you pass `--no-editor` it also installs a virtual screen (Xvfb) for plugin windows; LiveHost starts it itself and shows each plugin's own screen inside the web page, so nothing else (no VNC, no second port) is needed. To add or change the password later: `sudo /opt/livehost/set-password.sh`; see "Trusted networks" for unlocking uploads and updates without one.
+It copies the app to `/opt/livehost`, installs the runtime libraries, sets real-time limits for the audio group, switches the CPU governor to performance (at every boot), stops PulseAudio and Bluetooth, allows the page to reboot/shut down the Pi and run OS updates, and enables boot services. Unless you pass `--no-editor` it also installs a virtual screen (Xvfb) for plugin windows; LivePi starts it itself and shows each plugin's own screen inside the web page, so nothing else (no VNC, no second port) is needed. To add or change the password later: `sudo /opt/livehost/set-password.sh`; see "Trusted networks" for unlocking uploads and updates without one.
 
 ## Troubleshooting
 
 - **Page does not open:** use the Pi's IP address instead of `livehost.local` (find it with `hostname -I` on the Pi, or in your router), and check `sudo systemctl status livehost`.
-- **See what LiveHost is doing:** `sudo journalctl -u livehost -n 50`.
+- **See what LivePi is doing:** `sudo journalctl -u livehost -n 50`.
 - **No audio device in the list:** the Setup tab lists what Linux sees; `aplay -l` on the Pi shows the same. Choose the **Virtual** type to keep working without hardware.
 - **Crackles or xruns:** raise the buffer size (64, then 128), use a wired network, and avoid the per-plugin CPU test and plugin windows during a show.
 - **Forgot the password:** run `sudo /opt/livehost/set-password.sh` on the Pi.
-- **An update did not start:** LiveHost restores the previous version by itself after 3 failed starts and shows a notice on the page.
+- **An update did not start:** LivePi restores the previous version by itself after 3 failed starts and shows a notice on the page.
 
 ## Testing without an audio interface
 
-On the Setup tab choose the device type **Virtual (no audio hardware)**. It behaves like a sound card (same timing, CPU and xrun counters), but its input is a test tone, pink noise, a sweep, silence, or **a looping audio file you upload** (a spoken voice recording works well), and its output is discarded. If no sound card is found at all, LiveHost starts on the virtual one automatically (this is not remembered, so a real card is used as soon as it is plugged in).
+On the Setup tab choose the device type **Virtual (no audio hardware)**. It behaves like a sound card (same timing, CPU and xrun counters), but its input is a test tone, pink noise, a sweep, silence, or **a looping audio file you upload** (a spoken voice recording works well), and its output is discarded. If no sound card is found at all, LivePi starts on the virtual one automatically (this is not remembered, so a real card is used as soon as it is plugged in).
 
 To hear the result, use **Listen** on the Mixer tab: pick any channel (before or after its plugins) or the Monitor mix and press *Listen in this browser*. The audio is streamed to your browser; the delay is shown on the page and depends on the setting (Lowest / Low / Safe) and your network, typically 100 ms or more, so it is for checking and adjusting, not for performing. This also works with a real interface.
 
@@ -66,7 +68,7 @@ Every channel has a **Mon** send (pre-fader, after the channel's plugins; off by
 
 ## Updating online (from GitHub)
 
-On the **Setup** tab, **Check for updates** looks at this repo's latest GitHub Release. If a newer build exists, **Install latest** downloads it, verifies it, installs it and restarts LiveHost (the old version is restored automatically if the new one fails to start). Both buttons are grayed out with "No internet access" when the Pi cannot reach GitHub. The Pi needs `curl` (the installer adds it). Development builds ("dev") never update themselves.
+On the **Setup** tab under **System**, **Check for updates** looks at this repo's latest GitHub Release. If a newer build exists, **Install latest** downloads it, verifies it, installs it and restarts LivePi (the old version is restored automatically if the new one fails to start). Both buttons are grayed out with "No internet access" when the Pi cannot reach GitHub. The Pi needs `curl` (the installer adds it). Development builds ("dev") never update themselves.
 
 ## CPU and temperature
 
@@ -76,9 +78,9 @@ On the **Setup** tab, **Check for updates** looks at this repo's latest GitHub R
 ## Updating (offline, from the web page)
 
 1. Download `livehost-build-N.zip` from the repo's Releases page on any computer.
-2. Open the Setup tab > Updates > **Install update** and upload the zip.
+2. Open the Setup tab > System > **Install update** and upload the zip.
 
-LiveHost checks the zip (ARM64 program, checksum, compatible installer), keeps the old version as
+LivePi checks the zip (ARM64 program, checksum, compatible installer), keeps the old version as
 `LiveHost.prev`, installs the new one and restarts. Presets, uploaded plugins and the password are kept.
 If the new version fails to start 3 times in a row, the old one is restored automatically and the page
 shows a notice. If an update says it needs the newer installer, unzip it on the Pi and run
@@ -97,9 +99,9 @@ shows a notice. If an update says it needs the newer installer, unzip it on the 
 
 **Setup tab**
 - Audio device, sample rate and buffer size (start at 48000 Hz / 64) and channel count.
-- **Plugins on this Pi**: upload a `.zip`, drop or choose the whole `.vst3` folder, or upload a bare `.vst3`/`.so` file (it is wrapped into a bundle). LiveHost unpacks it, checks it is a
+- **Plugins on this Pi**: upload a `.zip`, drop or choose the whole `.vst3` folder, or upload a bare `.vst3`/`.so` file (it is wrapped into a bundle). LivePi unpacks it, checks it is a
   Linux ARM64 build (`Contents/aarch64-linux/*.so`), and scans it. Delete uploaded plugins here too.
-- **System**: restart LiveHost, reboot or shut down the Pi, install LiveHost updates, and update the Pi's operating system (apt-get update / upgrade).
+- **System**: restart LivePi, reboot or shut down the Pi, install LivePi updates, and update the Pi's operating system (apt-get update / upgrade).
   The OS update buttons are grayed out with "No internet access" when the Pi cannot reach its package servers.
 
 With one channel the output feeds both L and R. With more, channel N goes to output N.
@@ -124,7 +126,7 @@ sudo /opt/livehost/trusted-network.sh list | remove <entry> | clear
 
 **Trusted access** (Setup > Settings > Access) decides what happens while no password is set. **Off** (the default): everyone on the network can use everything. **On**: uploads, plugin windows, updates and reboot only work from the trusted networks listed there; on other devices those sections are grayed out with a note that a password needs to be set. Turning it on from an untrusted device offers to add that device's network first, so you don't lock yourself out; from the Pi you can always run `sudo /opt/livehost/trusted-network.sh open` (or `lock`).
 
-Computers in a trusted network use LiveHost without a password, including uploads, updates and reboot, even if no password is set at all. Everyone else still needs the password (and without one, the dangerous controls stay locked). Only trust a network you control, such as a dedicated AV VLAN: anyone on it can upload plugins, which are native code, and reboot the Pi. The list is stored in `~/.livehost/trusted.txt`; IPv4 only, and networks wider than /8 are ignored.
+Computers in a trusted network use LivePi without a password, including uploads, updates and reboot, even if no password is set at all. Everyone else still needs the password (and without one, the dangerous controls stay locked). Only trust a network you control, such as a dedicated AV VLAN: anyone on it can upload plugins, which are native code, and reboot the Pi. The list is stored in `~/.livehost/trusted.txt`; IPv4 only, and networks wider than /8 are ignored.
 
 ## Notes
 

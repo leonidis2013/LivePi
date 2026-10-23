@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>LiveHost</title>
+<title>LivePi</title>
 <style>
   :root { --bg:#0d1015; --card:#151a21; --card2:#1b2129; --line:#252c36; --fg:#d8dee6; --dim:#7c8794; --faint:#4c5561; --acc:#4c8dff; --teal:#2ec4b6; --bad:#ef4c4c; --ok:#3ecf6e; --warn:#f2c94c; --inset:#0b0e12; --ctl:#1b2129; --knob:#d8dee6; --onacc:#0d1015; --shadow:var(--shadow); }
   :root[data-theme=light] { --bg:#e9edf2; --card:#fbfcfd; --card2:#f0f3f6; --line:#d3dae3; --fg:#18202b; --dim:#586474; --faint:#97a1ae; --acc:#2563d6; --teal:#0f9488; --bad:#d63232; --ok:#23a056; --warn:#cf9a10; --inset:#e3e8ee; --ctl:#f0f3f6; --knob:#ffffff; --onacc:#ffffff; --shadow:#0003; }
@@ -167,7 +167,7 @@
 <body>
 
 <header>
-  <h1>LiveHost<small>live voice host</small></h1>
+  <h1>LivePi<small>live voice host</small></h1>
   <div id="status">…</div>
   <nav class="seg">
     <button data-tab="mix" class="on">Mixer</button>
@@ -206,7 +206,6 @@
     <button data-sub="audio" class="on"><svg viewBox="0 0 24 24"><path d="M3 10v4M7 7v10M11 4v16M15 8v8M19 11v2"/></svg><span>Audio</span></button>
     <button data-sub="channels"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="7" cy="18" r="2"/></svg><span>Channels</span></button>
     <button data-sub="plugins"><svg viewBox="0 0 24 24"><path d="M12 3v6M8 3v6M16 3v6M6 9h12v4a6 6 0 0 1-12 0z M12 19v2"/></svg><span>Plugins</span></button>
-    <button data-sub="updates"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span>Updates</span></button>
     <button data-sub="system"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="11" rx="2"/><path d="M8 20h8M12 16v4"/></svg><span>System</span></button>
     <button data-sub="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg><span>Settings</span></button>
   </div>
@@ -270,7 +269,7 @@
   <div class="card" data-lock>
     <h2>System</h2>
     <div class="row">
-      <button id="sysRestart">Restart LiveHost</button>
+      <button id="sysRestart">Restart LivePi</button>
       <button id="sysReboot" class="danger">Reboot Pi</button>
       <button id="sysOff" class="danger">Shut down Pi</button>
     </div>
@@ -284,6 +283,25 @@
     </div>
     <pre id="osLog" class="hide" style="max-height:200px;overflow:auto;background:var(--inset);padding:8px;border-radius:8px;font-size:12px;white-space:pre-wrap;margin:6px 0"></pre>
     <div class="note">Runs apt-get update / upgrade on the Pi and needs internet. Don't run it before a service: it can cause audio dropouts while it runs, and may need a reboot afterwards.</div>
+  </div>
+  <div class="card" data-lock>
+    <h2>LivePi update</h2>
+    <div id="ver" class="note"></div>
+    <div id="rolled" class="note bad hide">The last update did not start and was rolled back automatically.</div>
+    <div id="gh" style="margin:6px 0">
+      <div id="ghMsg" class="note">Checking internet connection…</div>
+      <div class="row">
+        <button id="ghCheck" disabled>Check for updates</button>
+        <button id="ghInstall" class="danger hide" disabled>Install latest</button>
+      </div>
+      <div class="note">No internet? Upload an update file instead:</div>
+    </div>
+    <div class="row">
+      <input id="updFile" type="file" accept=".zip" class="grow">
+      <button id="updGo">Install update</button>
+    </div>
+    <div id="updStat" class="note"></div>
+    <div class="note">Download <b>livehost-build-N.zip</b> from your GitHub repo (Releases, or Actions &gt; Artifacts) and upload it here. Presets, plugins and password are kept. If the new version fails to start, the old one is restored automatically.</div>
   </div>
   <div class="card" data-lock>
     <h2>Plugin windows</h2>
@@ -319,27 +337,6 @@
     <div id="acNets"></div>
     <div class="row"><input id="acNew" class="grow" placeholder="192.168.2.0/24 or one address" autocomplete="off"><button id="acAdd">Add</button></div>
     <div class="note">Devices in these networks get full access without a password. Use only a network you control (for example a dedicated AV VLAN).</div>
-  </div>
-  </div>
-  <div data-pane="updates" class="hide">
-  <div class="card" data-lock>
-    <h2>LiveHost update</h2>
-    <div id="ver" class="note"></div>
-    <div id="rolled" class="note bad hide">The last update did not start and was rolled back automatically.</div>
-    <div id="gh" style="margin:6px 0">
-      <div id="ghMsg" class="note">Checking internet connection…</div>
-      <div class="row">
-        <button id="ghCheck" disabled>Check for updates</button>
-        <button id="ghInstall" class="danger hide" disabled>Install latest</button>
-      </div>
-      <div class="note">No internet? Upload an update file instead:</div>
-    </div>
-    <div class="row">
-      <input id="updFile" type="file" accept=".zip" class="grow">
-      <button id="updGo">Install update</button>
-    </div>
-    <div id="updStat" class="note"></div>
-    <div class="note">Download <b>livehost-build-N.zip</b> from your GitHub repo (Releases, or Actions &gt; Artifacts) and upload it here. Presets, plugins and password are kept. If the new version fails to start, the old one is restored automatically.</div>
   </div>
   </div>
   </div>
@@ -457,7 +454,7 @@ async function accessRefresh() {
   document.querySelectorAll('#acSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === a.mode));
   $('acPw').textContent = a.passwordSet ? 'A password is set: everyone outside the trusted networks must enter it, whatever this switch says.' : 'No password is set.';
   $('acNote').textContent = a.mode === 'open'
-    ? (a.passwordSet ? 'Off: only the password protects LiveHost.' : 'Off: everyone on the network can use everything, including uploads, updates and reboot.')
+    ? (a.passwordSet ? 'Off: only the password protects LivePi.' : 'Off: everyone on the network can use everything, including uploads, updates and reboot.')
     : (a.passwordSet ? 'On: trusted networks skip the password.' : 'On: without a password, uploads, plugin windows, updates and reboot only work from trusted networks. Elsewhere they are grayed out.') + (a.trusted ? ' This device is trusted.' : ' This device is NOT trusted.');
   document.querySelectorAll('#acSeg button').forEach(b => b.disabled = !a.canChange && b.dataset.v === 'open');
   const root = $('acNets'); root.innerHTML = '';
@@ -943,9 +940,9 @@ async function liveFlush() {
 /* --- status card (Setup > System) --- */
 async function viewerStatus() { return await api('/api/editor/viewer'); }
 function viewerText(v) {
-  if (!v || v.error || v.available === undefined) return v && v.error ? v.error : 'No answer from LiveHost.';
+  if (!v || v.error || v.available === undefined) return v && v.error ? v.error : 'No answer from LivePi.';
   if (!v.available) return 'Not available: ' + (v.problem || 'no virtual screen');
-  return `Ready (virtual screen ${v.display}${v.displaySource === 'livehost' ? ', started by LiveHost' : ''})` + (v.input ? '' : ' · touch input unavailable') + (v.problem ? ' · ' + v.problem : '');
+  return `Ready (virtual screen ${v.display}${v.displaySource === 'livehost' ? ', started by LivePi' : ''})` + (v.input ? '' : ' · touch input unavailable') + (v.problem ? ' · ' + v.problem : '');
 }
 async function viewerRefresh() {
   const v = await viewerStatus();
@@ -1158,7 +1155,7 @@ function waitForRestart() {
 $('updGo').onclick = () => {
   const f = $('updFile').files[0];
   if (!f) return toast('Choose the update .zip first');
-  if (!confirm('Install this update? LiveHost restarts and audio stops for a few seconds.')) return;
+  if (!confirm('Install this update? LivePi restarts and audio stops for a few seconds.')) return;
   const fd = new FormData(); fd.append('file', f, f.name);
   const x = new XMLHttpRequest();
   x.open('POST', '/api/system/update'); x.setRequestHeader('X-LiveHost', '1');
@@ -1198,7 +1195,7 @@ async function updRefresh() {
 }
 $('ghCheck').onclick = async () => { const r = await api('/api/system/update/check', {}); updRefresh(); };
 $('ghInstall').onclick = async () => {
-  if (!confirm('Download and install the latest version? LiveHost restarts and audio stops for a few seconds.')) return;
+  if (!confirm('Download and install the latest version? LivePi restarts and audio stops for a few seconds.')) return;
   const r = await api('/api/system/update/install', {}); updRefresh();
 };
 setInterval(() => { if (!$('tab-setup').classList.contains('hide')) updRefresh(); }, 2000);
@@ -1237,7 +1234,7 @@ $('osUpgrade').onclick = async () => {
 $('osReboot').onclick = () => sys('reboot', 'Reboot the Pi now? Audio stops until it is back (about 30 seconds).');
 setInterval(() => { if (!$('tab-setup').classList.contains('hide')) osRefresh(); }, 2000);
 
-$('sysRestart').onclick = () => sys('restart', 'Restart LiveHost? Audio stops for a few seconds.');
+$('sysRestart').onclick = () => sys('restart', 'Restart LivePi? Audio stops for a few seconds.');
 $('sysReboot').onclick = () => sys('reboot', 'Reboot the Pi? Audio stops until it is back (about 30 seconds).');
 $('sysOff').onclick = () => sys('shutdown', 'Shut down the Pi? You will need to power it back on by hand.');
 
