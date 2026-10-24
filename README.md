@@ -119,6 +119,11 @@ sudo /opt/livepi/pisound-setup.sh disable  # undo
 
 Reboot, then gear > Audio shows **Pisound found > Use Pisound** (48 kHz, 64 samples). Set the input level with the Pisound's gain knob; its button software is not needed.
 
+## One device at a time, full screen
+
+- Only one device controls LivePi at a time. Another device that opens the page sees "A session is already in progress" with a **Take over** button; the first device then sees "Another device took over" with **Take back**. A device that closes the page or goes quiet for about 12 seconds frees it.
+- **Full screen:** the ⛶ button at the top right (computers, iPad). On an iPhone or iPad you can also use Share > **Add to Home Screen**: LivePi then opens full screen like an app.
+
 ## Security
 
 - **Password** (Setup > Settings > Password): set or change it there, no user name. With **password protection on**, every device logs in once on the page (it stays logged in for 30 days); with it **off**, or with no password, everyone on your network can use LivePi. Turning protection off never asks for the password; turning it back on always asks you to type the password to use (the old one or a new one), so you can't switch it on and then not know it. Changing the password logs out all other devices. Ten wrong passwords lock that device out for 10 minutes.

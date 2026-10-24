@@ -3,6 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="LivePi">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
 <title>LivePi</title>
 <style>
   :root { --bg:#0d1015; --card:#151a21; --card2:#1b2129; --line:#252c36; --fg:#d8dee6; --dim:#7c8794; --faint:#4c5561; --acc:#4c8dff; --teal:#2ec4b6; --bad:#ef4c4c; --ok:#3ecf6e; --warn:#f2c94c; --inset:#0b0e12; --ctl:#1b2129; --knob:#d8dee6; --onacc:#0d1015; --shadow:var(--shadow); }
@@ -396,6 +403,8 @@
 
   /* settings button, top right (replaces the Mixer / Setup tabs) */
   nav.seg.hide { display:none !important; }
+  .fsb { margin-left:auto; }
+  .fsb + .gear { margin-left:0 !important; }
   .gear { margin-left:auto; display:flex; align-items:center; justify-content:center; gap:6px; width:32px; height:32px; min-height:0 !important; padding:0; border-radius:8px; background:transparent; color:var(--dim); }
   .gear:hover { color:var(--fg); background:var(--card2); }
   .gear svg { width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
@@ -406,7 +415,7 @@
     #app { padding-bottom:calc(20px + env(safe-area-inset-bottom)) !important; }
     header { flex-wrap:wrap; }
     header h1 { flex:1; }
-    .gear { order:1; }
+    .gear, .fsb { order:1; }
     #status { order:2; }
     #msg { bottom:calc(12px + env(safe-area-inset-bottom)) !important; }
   }
@@ -417,6 +426,7 @@
 <header>
   <h1>LivePi<small>live voice host</small></h1>
   <div id="status">…</div>
+  <button id="fsBtn" class="gear fsb" title="Full screen" aria-label="Full screen"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
   <button id="gear" class="gear" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Done</span></button>
   <nav class="seg hide">
     <button data-tab="mix" class="on"><svg viewBox="0 0 24 24"><path d="M6 4v16M12 4v16M18 4v16"/><rect x="4" y="13" width="4" height="3" rx="1"/><rect x="10" y="7" width="4" height="3" rx="1"/><rect x="16" y="11" width="4" height="3" rx="1"/></svg><span>Mixer</span></button>
@@ -602,10 +612,30 @@
     <div class="note">Forgot it? On the Pi run <code>sudo /opt/livepi/set-password.sh --off</code></div>
   </form>
 </div>
+<div id="busy" class="login hide">
+  <div class="loginbox">
+    <div class="loginlogo">LIVEPI</div>
+    <div id="busyMsg"></div>
+    <div class="note">Only one device can control LivePi at a time.</div>
+    <button id="busyTake" class="on">Take over</button>
+    <div class="note" id="busyNote">The other device then shows this message instead.</div>
+  </div>
+</div>
 <div id="offline" class="offbar"><span class="spin"></span>Connection to LivePi lost. Reconnecting…</div>
 <div id="msg"></div>
 
 <script>
+/* ---------- one device at a time: every request says which browser it comes from ---------- */
+const CID = (() => {
+  try { let c = localStorage.getItem('lh.cid'); if (!c) { c = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('lh.cid', c); } return c; }
+  catch (e) { return Math.random().toString(36).slice(2); }
+})();
+(() => {
+  const f = window.fetch.bind(window);
+  window.fetch = (u, o = {}) => { const h = new Headers(o.headers || {}); h.set('X-LivePi-Client', CID); return f(u, { ...o, headers: h }); };
+  const open = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function (...a) { open.apply(this, a); this.setRequestHeader('X-LivePi-Client', CID); };
+})();
 const $ = id => document.getElementById(id);
 const MINDB = -60, MAXDB = 6, CURVE = 0.55;
 let S = null, plugins = [], devices = null, structKey = '', disp = {}, polling = false;
@@ -633,7 +663,10 @@ async function api(path, body, quiet) {
     clearTimeout(t);
     netOk();
     const j = await r.json();
+    if (r.ok && path !== '/api/session') BUSY.had = true;
     if (r.status === 401 && j.login) { showLogin(true); return j; }
+    if (r.status === 409 && j.busy) { showBusy(j); return j; }
+    if (BUSY.on && r.ok) hideBusy();
     if (j.error && !quiet) toast(j.error);
     return j;
   } catch (e) { clearTimeout(t); netFail(); if (!NET.offline && !quiet) toast('Connection lost'); return {}; }
@@ -685,6 +718,39 @@ document.querySelectorAll('#sub button').forEach(b => b.onclick = () => showSub(
   apply();
 })();
 
+
+/* ---------- another device has control ---------- */
+const BUSY = { on: false, had: false };
+function showBusy(j) {
+  const wasMine = BUSY.had;
+  BUSY.on = true;
+  if (mon.on) monStop();
+  $('busyMsg').innerHTML = '';
+  $('busyMsg').append(el('b', '', wasMine ? 'Another device took over.' : 'A session is already in progress.'),
+    el('div', 'note', `In use from ${j.by || 'another device'}` + (j.forSeconds ? ` for ${Math.max(1, Math.round(j.forSeconds / 60))} min.` : '.')));
+  $('busyTake').textContent = wasMine ? 'Take back' : 'Take over';
+  $('busy').classList.remove('hide');
+}
+function hideBusy() { BUSY.on = false; BUSY.had = true; structKey = ''; $('busy').classList.add('hide'); }
+$('busyTake').onclick = async () => {
+  await fetch('/api/control/claim', { method: 'POST', headers: { 'X-LivePi': '1' } });
+  hideBusy(); structKey = ''; location.reload();
+};
+
+/* ---------- full screen (iPad, computers; phones: add to home screen) ---------- */
+(function () {
+  const d = document, root = d.documentElement;
+  const can = !!(root.requestFullscreen || root.webkitRequestFullscreen);
+  const isFs = () => !!(d.fullscreenElement || d.webkitFullscreenElement);
+  const standalone = matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || navigator.standalone;
+  $('fsBtn').classList.toggle('hide', !can || !!standalone);
+  $('fsBtn').onclick = () => {
+    if (isFs()) (d.exitFullscreen || d.webkitExitFullscreen).call(d);
+    else { const r = (root.requestFullscreen || root.webkitRequestFullscreen).call(root); if (r && r.catch) r.catch(() => {}); }
+  };
+  const sync = () => { $('fsBtn').classList.toggle('on2', isFs()); $('fsBtn').title = isFs() ? 'Leave full screen' : 'Full screen'; };
+  d.addEventListener('fullscreenchange', sync); d.addEventListener('webkitfullscreenchange', sync);
+})();
 
 /* ---------- login, password and trusted access ---------- */
 let ACC = null;
@@ -1062,7 +1128,8 @@ async function pollMeters() {
   if (polling || document.hidden || $('tab-mix').classList.contains('hide')) return;
   polling = true;
   try {
-    const m = await (await fetch('/api/meters')).json();
+    const mr = await fetch('/api/meters'); const m = await mr.json();
+    if (mr.status === 409 && m.busy) { showBusy(m); polling = false; return; }
     if (m.in) { m.in.forEach((db, i) => setMeter(i, 'in', db)); m.out.forEach((db, i) => setMeter(i, 'out', db)); }
     if (m.mon) { setMeter(100, 'in', m.mon.in); setMeter(100, 'out', m.mon.out); }
   } catch (e) {}

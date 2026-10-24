@@ -316,6 +316,33 @@ void WebServer::loadTrusted()
     }
 }
 
+bool WebServer::claimControl (const httplib::Request& req, bool force, var* busyInfo)
+{
+    const auto id = req.get_header_value ("X-LivePi-Client");
+    if (id.empty() || id.size() > 64) return true;              // scripts and tools: not limited
+    const auto now = Time::currentTimeMillis();
+    const ScopedLock sl (trustedLock);
+    const bool free = ctl.id.empty() || now - ctl.seen > kCtlIdleMs;
+    if (force || free || ctl.id == id)
+    {
+        if (ctl.id != id) ctl.since = now;
+        ctl.id = id;
+        ctl.ip = clientIp (req).toStdString();
+        ctl.seen = now;
+        return true;
+    }
+    if (busyInfo != nullptr)
+    {
+        auto* o = new DynamicObject();
+        o->setProperty ("error", "Another device is using LivePi");
+        o->setProperty ("busy", true);
+        o->setProperty ("by", String (ctl.ip));
+        o->setProperty ("forSeconds", (int) ((now - ctl.since) / 1000));
+        *busyInfo = var (o);
+    }
+    return false;
+}
+
 int WebServer::lockoutSeconds (const std::string& ip) const
 {
     const ScopedLock sl (trustedLock);
@@ -435,13 +462,33 @@ void WebServer::setupRoutes()
         }
 
         const String path (req.path);
-        if (path.startsWith ("/api/") && path != "/api/session" && path != "/api/login" && path != "/api/logout" && ! isAuthed (req))
+        const bool open = path == "/api/session" || path == "/api/login" || path == "/api/logout";
+        if (path.startsWith ("/api/") && ! open && ! isAuthed (req))
         {
             res.status = 401;
             res.set_content ("{\"error\":\"Please log in\",\"login\":true}", "application/json");
             return httplib::Server::HandlerResponse::Handled;
         }
+
+        // one device at a time (scripts without the header are not limited)
+        if (path.startsWith ("/api/") && ! open && path != "/api/control/claim")
+        {
+            var busy;
+            if (! claimControl (req, false, &busy))
+            {
+                res.status = 409;
+                res.set_content (JSON::toString (busy, true).toStdString(), "application/json");
+                return httplib::Server::HandlerResponse::Handled;
+            }
+        }
         return httplib::Server::HandlerResponse::Unhandled;
+    });
+
+    // Take over control from another device
+    svr.Post ("/api/control/claim", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        claimControl (req, true, nullptr);
+        auto* o = new DynamicObject(); o->setProperty ("ok", true); reply (res, var (o));
     });
 
     // Login state for the page

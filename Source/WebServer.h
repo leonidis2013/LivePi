@@ -53,6 +53,13 @@ private:
     std::vector<Session> sessions;    // ~/.livepi/sessions.json (hashed tokens)
     std::map<std::string, std::pair<int, juce::int64>> loginFails;   // per client: count, last time
 
+    // One device controls LivePi at a time. Pages send X-LivePi-Client; the last one heard from
+    // owns the session until it goes quiet for kCtlIdleMs or another device takes over.
+    struct Controller { std::string id, ip; juce::int64 seen = 0, since = 0; };
+    Controller ctl;
+    static constexpr juce::int64 kCtlIdleMs = 12000;
+    bool claimControl (const httplib::Request&, bool force, juce::var* busyInfo);
+
     HostEngine& engine;
     EditorViewer* viewer = nullptr;
     httplib::Server svr;

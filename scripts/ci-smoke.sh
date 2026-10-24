@@ -75,6 +75,13 @@ run_case() {
   check "$label: plugin view self-test (window drawn on the virtual screen and read back)" "echo '$T' | jq -e '.ok' >/dev/null"
   check "$label: no plugin open -> frame says closed (410)" "[ \"\$(curl -s -m 5 -o /dev/null -w '%{http_code}' 'http://127.0.0.1:8080/api/editor/frame?channel=0&slot=0')\" = 410 ]"
   check "$label: state reports editorAvailable" "api /api/state | jq -e '.editorAvailable==true' >/dev/null"
+  # one device at a time
+  cget() { curl -s -m 5 -o /dev/null -w '%{http_code}' -H "X-LivePi-Client: $1" "http://127.0.0.1:8080$2"; }
+  check "$label: first device gets control" "[ \"\$(cget devA /api/state)\" = 200 ]"
+  check "$label: second device is told a session is in progress (409)" "[ \"\$(cget devB /api/state)\" = 409 ] && curl -s -m 5 -H 'X-LivePi-Client: devB' http://127.0.0.1:8080/api/state | jq -e '.busy' >/dev/null"
+  curl -s -m 5 -X POST -H 'X-LivePi: 1' -H 'X-LivePi-Client: devB' http://127.0.0.1:8080/api/control/claim >/dev/null
+  check "$label: take over works, the first device is now locked out" "[ \"\$(cget devB /api/state)\" = 200 ] && [ \"\$(cget devA /api/state)\" = 409 ]"
+  check "$label: page, icons and manifest load" "[ \"\$(curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/manifest.json)\" = 200 ] && [ \"\$(curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/icon-192.png)\" = 200 ]"
   # password: none -> open; set one -> login needed (no user name); cookie works; trusted access; turn off
   check "$label: no password -> open" "api /api/session | jq -e '.passwordSet==false and .authed' >/dev/null"
   J=/tmp/lh.jar; rm -f $J
