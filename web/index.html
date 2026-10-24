@@ -450,6 +450,7 @@
   <div data-pane="audio">
   <div class="card">
     <h2>Audio interface</h2>
+    <div class="set hide" id="psRow"><div class="sl"><b>Pisound found</b><span>Use it for input and output at 48 kHz, 64 samples</span></div><div class="sc"><button id="psUse" class="on">Use Pisound</button></div></div>
     <div class="set"><div class="sl"><b>Driver</b><span>ALSA for a sound card, or the virtual card for testing</span></div><div class="sc"><select id="devType"></select></div></div>
     <div class="set"><div class="sl"><b>Input</b></div><div class="sc"><select id="devIn"></select></div></div>
     <div class="set"><div class="sl"><b>Output</b></div><div class="sc"><select id="devOut"></select></div></div>
@@ -1570,6 +1571,16 @@ async function loadDevices() {
   fill($('devBuf'), cur.bufferSizes, cur.bufferSize);
   $('devIn').value = cur.input; $('devOut').value = cur.output;
   tfSync(); virtSync();
+  // Offer the Pisound when it is fitted but not in use
+  const ps = devices.types.find(t => (t.inputs || []).some(n => /pisound/i.test(n)) && (t.outputs || []).some(n => /pisound/i.test(n)));
+  const usingPs = ps && cur.type === ps.type && /pisound/i.test(cur.input || '') && /pisound/i.test(cur.output || '');
+  $('psRow').classList.toggle('hide', !ps || usingPs);
+  $('psUse').onclick = async () => {
+    const i = ps.inputs.find(n => /pisound/i.test(n)), o = ps.outputs.find(n => /pisound/i.test(n));
+    const r = await api('/api/device', { type: ps.type, input: i, output: o, sampleRate: 48000, bufferSize: 64 });
+    if (r.ok) toast('Pisound in use. Watch the xrun counter; raise the buffer to 128 if it climbs.');
+    await loadDevices();
+  };
   const kh = v => (v / 1000).toFixed(v % 1000 ? 1 : 0) + ' kHz';
   $('devNow').textContent = 'Running: ' + cur.type + ' · ' + kh(cur.sampleRate) + ' · ' + cur.bufferSize + ' samples';
 }

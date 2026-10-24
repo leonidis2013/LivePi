@@ -25,6 +25,7 @@ rm -rf /tmp/lh && mkdir /tmp/lh && cd /tmp/lh
 ls /work/*.zip | tee -a "$RES"
 unzip -q /work/livepi-build-*.zip || say "FAIL  unzip"
 cd livepi || { say "FAIL  no livepi directory in the zip"; exit 1; }
+check "package has pisound-setup.sh" "[ -x pisound-setup.sh ] && bash -n pisound-setup.sh"
 check "binary has no missing libraries" "! ldd ./LivePi | grep -q 'not found'"
 [ -s manifest.json ] && say "manifest: $(cat manifest.json)"
 

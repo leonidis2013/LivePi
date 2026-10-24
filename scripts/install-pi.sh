@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Install LivePi on a Raspberry Pi and tune it for low-latency audio.
 # Run from the unpacked livepi folder:
-#   sudo ./install-pi.sh [username] [--no-editor] [--password | --no-password]
+#   sudo ./install-pi.sh [username] [--no-editor] [--password | --no-password] [--pisound | --no-pisound]
 #
 # By default this also installs a virtual screen (Xvfb) so plugin windows
 # can be opened from the web page. Use --no-editor to skip that.
@@ -12,15 +12,19 @@ set -euo pipefail
 USER_NAME="pi"
 WITH_EDITOR=1
 PW_MODE=ask      # ask | yes | no
+PISOUND=ask      # ask | yes | no
 for a in "$@"; do
   case "$a" in
     --no-editor) WITH_EDITOR=0 ;;
     --password) PW_MODE=yes ;;
     --no-password) PW_MODE=no ;;
+    --pisound) PISOUND=yes ;;
+    --no-pisound) PISOUND=no ;;
     *) USER_NAME="$a" ;;
   esac
 done
 HERE="$(cd "$(dirname "$0")" && pwd)"
+yesno_early() { local a; read -r -p "$1 " a || a=""; a="${a:-$2}"; [[ "$a" =~ ^[Yy] ]]; }
 
 if [[ $EUID -ne 0 ]]; then echo "Run with sudo"; exit 1; fi
 id "$USER_NAME" >/dev/null 2>&1 || { echo "User '$USER_NAME' does not exist. Usage: sudo ./install-pi.sh <your-username>"; exit 1; }
@@ -58,8 +62,8 @@ apt-get install -y libasound2 2>/dev/null || apt-get install -y libasound2t64
 
 echo "== Installing to /opt/livepi"
 mkdir -p /opt/livepi
-cp -r "$HERE/LivePi" "$HERE/web" "$HERE/set-password.sh" "$HERE/trusted-network.sh" "$HERE/run.sh" "$HERE/INSTALLER_LEVEL" /opt/livepi/
-chmod +x /opt/livepi/LivePi /opt/livepi/set-password.sh /opt/livepi/trusted-network.sh /opt/livepi/run.sh
+cp -r "$HERE/LivePi" "$HERE/web" "$HERE/set-password.sh" "$HERE/trusted-network.sh" "$HERE/pisound-setup.sh" "$HERE/run.sh" "$HERE/INSTALLER_LEVEL" /opt/livepi/
+chmod +x /opt/livepi/LivePi /opt/livepi/set-password.sh /opt/livepi/trusted-network.sh /opt/livepi/pisound-setup.sh /opt/livepi/run.sh
 # The app owns its folder so it can install offline updates from the web page
 chown -R "$USER_NAME:$(id -gn "$USER_NAME")" /opt/livepi
 
@@ -111,6 +115,17 @@ if [[ $WITH_EDITOR -eq 1 ]]; then
   EDITOR_ARG=""
 else
   EDITOR_ARG=" --no-editor"
+fi
+
+echo "== Audio interface"
+if grep -qi pisound /proc/asound/cards 2>/dev/null; then
+  echo "A Pisound is fitted and working."
+  [[ $PISOUND == ask ]] && PISOUND=yes
+elif [[ $PISOUND == ask ]]; then
+  if [[ -t 0 ]] && yesno_early "Will you use a Blokas Pisound (sets up its driver)? [y/N]" N; then PISOUND=yes; else PISOUND=no; fi
+fi
+if [[ $PISOUND == yes ]]; then
+  /opt/livepi/pisound-setup.sh enable || echo "Pisound setup did not finish; run later: sudo /opt/livepi/pisound-setup.sh"
 fi
 
 echo "== LivePi service"

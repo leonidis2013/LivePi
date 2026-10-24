@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(LivePi VERSION 0.6.0 LANGUAGES C CXX)
+project(LivePi VERSION 0.7.0 LANGUAGES C CXX)
 
 # Build label shown on the web page (CI passes the run number)
 set(LIVEPI_BUILD "dev" CACHE STRING "Build label")

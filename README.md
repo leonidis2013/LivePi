@@ -107,6 +107,18 @@ shows a notice. If an update says it needs the newer installer, unzip it on the 
 With one channel the output feeds both L and R. With more, channel N goes to output N.
 Data lives in `~/.livepi` (audio setup, plugin list, `plugins/`, `last.json`, `presets/`, `auth.json`).
 
+## Blokas Pisound
+
+The Pisound's driver is part of the Raspberry Pi kernel, so nothing is downloaded. The installer asks "Will you use a Blokas Pisound?" (or pass `--pisound`), or run it any time:
+
+```
+sudo /opt/livepi/pisound-setup.sh          # enable (adds the pisound overlays to config.txt)
+sudo /opt/livepi/pisound-setup.sh status   # is it found?
+sudo /opt/livepi/pisound-setup.sh disable  # undo
+```
+
+Reboot, then gear > Audio shows **Pisound found > Use Pisound** (48 kHz, 64 samples). Set the input level with the Pisound's gain knob; its button software is not needed.
+
 ## Security
 
 - **Password** (Setup > Settings > Password): set or change it there, no user name. With **password protection on**, every device logs in once on the page (it stays logged in for 30 days); with it **off**, or with no password, everyone on your network can use LivePi. Turning protection off never asks for the password; turning it back on always asks you to type the password to use (the old one or a new one), so you can't switch it on and then not know it. Changing the password logs out all other devices. Ten wrong passwords lock that device out for 10 minutes.
