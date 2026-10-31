@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Install LivePi on a Raspberry Pi and tune it for low-latency audio.
 # Run from the unpacked livepi folder:
-#   sudo ./install-pi.sh [username] [--no-editor] [--password | --no-password] [--pisound | --no-pisound] [--no-tuning]
+#   sudo ./install-pi.sh [username]    (default: the account running sudo) [--no-editor] [--password | --no-password] [--pisound | --no-pisound] [--no-tuning]
 #
 # It also tunes the OS for live audio (rt-tune.sh: a CPU core reserved for the audio, full kernel
 # preemption, no USB power saving, no automatic background updates). Use --no-tuning to skip that.
@@ -12,7 +12,7 @@
 # the question, or set LIVEPI_PASSWORD to choose the password without a prompt.
 set -euo pipefail
 
-USER_NAME="pi"
+USER_NAME="${SUDO_USER:-pi}"   # the account that ran sudo, unless one is given
 WITH_EDITOR=1
 PW_MODE=ask      # ask | yes | no
 PISOUND=ask      # ask | yes | no
@@ -277,7 +277,7 @@ PY
           read -r -p "Trusted network or address${NET:+ [$NET]} (Enter = ${NET:-done}): " ADD || ADD=""
           ADD="${ADD:-$NET}"; NET=""
           [[ -z "$ADD" ]] && break
-          /opt/livepi/trusted-network.sh add "$ADD" >/dev/null && echo "   added $ADD" || echo "   '$ADD' is not a valid IPv4 address or network (like 192.168.2.0/24)"
+          /opt/livepi/trusted-network.sh add "$ADD" >/dev/null && echo "   added $ADD" || echo "   '$ADD' is not a valid IPv4 address or network (like 192.168.1.0/24)"
           yesno "Add another? [y/N]" N || break
         done
         /opt/livepi/trusted-network.sh on | sed 's/^/   /' || true

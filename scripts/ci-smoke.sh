@@ -151,7 +151,7 @@ reliability_case() {
   start_lp
   R=$(api /api/reliability); say "reliability: $(echo "$R" | jq -c .)"
   check "reliability: status answers" "echo '$R' | jq -e 'has(\"realtime\") and has(\"memoryLocked\") and has(\"watchdog\")' >/dev/null"
-  check "reliability: says whether the page can fix things" "echo '$R' | jq -e 'has(\"fixAvailable\") and has(\"rebootNeeded\") and (.user|length>0)' >/dev/null"
+  check "reliability: says whether the page can fix things" "echo '$R' | jq -e 'has(\"fixAvailable\") and has(\"rebootNeeded\")' >/dev/null"
   check "reliability: fix without the installer's helper asks for the one-time setup" "post /api/reliability/fix '{}' | jq -e '.error==\"setup\"' >/dev/null"
   check "reliability: fixing one item without the helper also asks for the setup" "post /api/reliability/fix '{\"item\":\"core\"}' | jq -e '.error==\"setup\"' >/dev/null"
   check "reliability: unknown fix items are refused" "post /api/reliability/fix '{\"item\":\"rm -rf\"}' | jq -e '.error==\"Unknown item\"' >/dev/null"

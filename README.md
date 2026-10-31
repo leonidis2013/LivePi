@@ -14,7 +14,7 @@ Headless VST3 host for live voice on a Raspberry Pi, run entirely from a web pag
    ```bash
    curl -L -o livepi.tar.gz https://github.com/leonidis2013/LivePi/releases/latest/download/livepi-linux-arm64.tar.gz
    tar xzf livepi.tar.gz && cd livepi
-   sudo ./install-pi.sh your-user
+   sudo ./install-pi.sh
    sudo reboot
    ```
 

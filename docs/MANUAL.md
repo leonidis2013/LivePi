@@ -1,6 +1,6 @@
 # LivePi User Manual
 
-**LivePi v0.14.0** · Copyright © Jerod Ulicki
+**LivePi v0.14.1** · Copyright © Jerod Ulicki
 
 LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Audio goes in through the Pi's sound card, through your plugins (for example LiveVoice), and back out with very little delay. You control everything from a web page on a phone, tablet or computer. The Pi needs no screen, keyboard or mouse.
 
@@ -60,7 +60,7 @@ ssh your-user@livepi.local
 curl -L -o livepi.tar.gz https://github.com/leonidis2013/LivePi/releases/latest/download/livepi-linux-arm64.tar.gz
 tar xzf livepi.tar.gz
 cd livepi
-sudo ./install-pi.sh your-user
+sudo ./install-pi.sh
 sudo reboot
 ```
 
@@ -90,7 +90,7 @@ You can answer some of these up front:
 
 ## 3. Opening LivePi
 
-Open **`http://livepi.local:8080`** in any browser on the same network. If that name doesn't work, use the Pi's IP address instead, for example `http://192.168.2.120:8080`.
+Open **`http://livepi.local:8080`** in any browser on the same network. If that name doesn't work, use the Pi's IP address instead, for example `http://192.168.1.50:8080`.
 
 ### Logging in
 
@@ -304,7 +304,7 @@ If no sound card is found at start-up, LivePi falls back to the virtual card for
 - **Turn protection Off:** one tap. It never asks for the password.
 - **Turn protection On:** always asks you to type the password to use from then on, either your old one or a new one, so you can't switch it on without knowing it.
 - **Log out:** Settings → Password → Log out. This affects only this device.
-- **Trusted access:** add networks such as `192.168.2.0/24`, or single addresses. Only use networks you control, such as a dedicated AV VLAN, because anyone on them gets full control, including plugin uploads and reboot.
+- **Trusted access:** add networks such as `192.168.1.0/24`, or single addresses. Only use networks you control, such as a dedicated AV VLAN, because anyone on them gets full control, including plugin uploads and reboot.
 - **Forgot the password?** On the Pi, run `sudo /opt/livepi/set-password.sh --off` to turn protection off, or `sudo /opt/livepi/set-password.sh` to choose a new password. Either one also clears any lockout.
 
 LivePi uses plain HTTP, so keep the Pi on your own network and never expose it to the internet.
@@ -349,7 +349,7 @@ Presets, plugins, password and settings are kept. If a new version fails to star
 
 - **Fix**: changes that one setting with one tap; nothing else is changed. If the fix needs a restart, the item then says *Fixed. Reboot to finish* and the popup offers **Reboot now**.
 - **How to fix**: for things only you can fix, like the power supply or cooling, the popup lists what to do.
-- **One-time setup first**: on Pis installed before v0.11, changing system settings needs administrator permission, which only the installer can give, once. The popup shows the exact command with a **Copy command** button: connect to the Pi from a computer (`ssh your-user@livepi.local`), paste it, and press Enter at each question to keep your settings. Then tap **Check again**.
+- **One-time setup first**: on Pis installed before v0.11, changing system settings needs administrator permission, which only the installer can give, once. The popup shows the command with a **Copy command** button: open a terminal on the Pi the same way you did to install LivePi, paste it, and press Enter at each question to keep your settings. Then tap **Check again**.
 
 The **⚡ Power** and **Throttled** warnings in the top bar open the same popup.
 
@@ -408,7 +408,7 @@ The boot settings take effect after a reboot. To see them, run `sudo /opt/livepi
 | `sudo /opt/livepi/set-password.sh` | Set or change the password (turns protection on). |
 | `sudo /opt/livepi/set-password.sh --off` | Turn password protection off. Use this if you forgot the password. |
 | `sudo /opt/livepi/set-password.sh --on` | Turn protection back on (asks for the password to use). |
-| `sudo /opt/livepi/trusted-network.sh add 192.168.2.0/24` | Add a trusted network (also `remove`, `list`, `clear`). |
+| `sudo /opt/livepi/trusted-network.sh add 192.168.1.0/24` | Add a trusted network (also `remove`, `list`, `clear`). |
 | `sudo /opt/livepi/trusted-network.sh on` / `off` | Turn trusted access on or off. |
 | `sudo /opt/livepi/rt-tune.sh` | Apply the live-audio tuning (also `status`, `undo`). Reboot afterwards. |
 | `sudo /opt/livepi/pisound-setup.sh` | Set up the Pisound driver (also `status`, `disable`). Reboot afterwards. |

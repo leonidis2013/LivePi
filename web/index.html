@@ -650,7 +650,7 @@
     <div id="acOn">
     <div class="set"><div class="sl"><b>Skip the password on trusted networks</b><span id="acNote"></span></div><div class="sc"><div class="seg" id="acSeg"><button data-v="on">On</button><button data-v="off">Off</button></div></div></div>
       <div id="acNets"></div>
-    <div class="set"><div class="sl"><b>Add network</b><span>Only ones you control</span></div><div class="sc"><input id="acNew" placeholder="192.168.2.0/24" autocomplete="off" class="ip"><button id="acAdd">Add</button></div></div>
+    <div class="set"><div class="sl"><b>Add network</b><span>Only ones you control</span></div><div class="sc"><input id="acNew" placeholder="192.168.1.0/24" autocomplete="off" class="ip"><button id="acAdd">Add</button></div></div>
     </div>
   </div>
   </div>
@@ -1961,12 +1961,11 @@ async function issueOpen(id) {
     acts.append(b, later);
   } else if (it.fix === 'tune') {
     // Pis installed before v0.11: the page has no permission to change system settings yet
-    const user = r.user || 'your-user';
-    const cmd = `curl -fsSL https://github.com/leonidis2013/LivePi/releases/latest/download/livepi-linux-arm64.tar.gz | tar xz && cd livepi && sudo ./install-pi.sh ${user}`;
+    const cmd = 'curl -fsSL https://github.com/leonidis2013/LivePi/releases/latest/download/livepi-linux-arm64.tar.gz | tar xz && cd livepi && sudo ./install-pi.sh';
     box.append(el('h4', '', 'Fix it (one-time setup first)'));
     const p = el('p'); p.textContent = 'Changing system settings needs administrator permission, which only the installer can give, once. After that, this button fixes it with one tap.'; box.append(p);
     const ol = el('ol');
-    ol.innerHTML = `<li>On a computer on the same network, open a terminal and connect to the Pi: <code>ssh ${esc(user)}@${esc(location.hostname)}</code></li>`
+    ol.innerHTML = '<li>Open a terminal on the Pi, the same way you did to install LivePi.</li>'
       + '<li>Paste this command and press Enter. Press Enter at each question to keep your current settings:</li>';
     box.append(ol);
     const pre = el('pre', 'cmd', cmd); box.append(pre);

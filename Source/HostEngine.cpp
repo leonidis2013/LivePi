@@ -555,7 +555,6 @@ var HostEngine::getReliability()
     o->setProperty ("tuning", tuning);
     // The page can fix things itself when the installer has set up the root helper and its sudo rule
     o->setProperty ("fixAvailable", File ("/usr/local/sbin/livepi-tune").existsAsFile());
-    o->setProperty ("user", SystemStats::getLogonName());
     // Applied, but the Pi has not been restarted since (boot options, or the service settings)
     bool reboot = false;
     if (tuning.contains ("boot options:"))
