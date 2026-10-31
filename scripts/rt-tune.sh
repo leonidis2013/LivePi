@@ -12,6 +12,7 @@
 #  - USB power saving off (usbcore.autosuspend=-1): USB audio interfaces never get suspended.
 #  - Automatic background OS updates off (apt-daily, man-db timers): they can load the Pi during a
 #    service. Update from the LivePi page instead (Settings > System > Operating system).
+#  - CPU fixed at full speed.
 #  - Wi-Fi power saving off, so the web page stays responsive.
 #  - ModemManager off (it probes serial/USB devices at random times).
 #  - The LivePi service: never stop restarting it, restart within 1 s, let LivePi use the systemd
@@ -97,6 +98,9 @@ if [[ $CMD == apply ]]; then
   else
     echo "No cmdline.txt found: boot options not changed."
   fi
+  # CPU at full speed now and at every boot
+  for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do echo performance > "$g" 2>/dev/null || true; done
+  systemctl enable livepi-governor.service >/dev/null 2>&1 || true
   for t in $TIMERS; do systemctl disable --now "$t" >/dev/null 2>&1 || true; done
   systemctl disable --now unattended-upgrades.service >/dev/null 2>&1 || true
   systemctl disable --now ModemManager.service >/dev/null 2>&1 || true

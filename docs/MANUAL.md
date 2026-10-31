@@ -1,6 +1,6 @@
 # LivePi User Manual
 
-**LivePi v0.11.0** · Copyright © Jerod Ulicki
+**LivePi v0.12.0** · Copyright © Jerod Ulicki
 
 LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Audio goes in through the Pi's sound card, through your plugins (for example LiveVoice), and back out with very little delay. You control everything from a web page on a phone, tablet or computer. The Pi needs no screen, keyboard or mouse.
 
@@ -349,10 +349,13 @@ Presets, plugins, password and settings are kept. If a new version fails to star
 | **Session backup** | A copy of your session is kept after every good start. If the session file is ever damaged (for example by a power cut), LivePi loads the copy. |
 | **Power and heat warnings** | The top bar shows **⚡ Low power**, **Throttled**, **⚡ Power dipped** or **Was throttled** when the Pi's power supply or temperature is causing it to slow down, the most common hidden cause of dropouts on a Raspberry Pi. |
 
-**⚙ → System → Reliability** shows all of this as a checklist. Everything should show a green tick before a service. If something shows **!**, the line says why, and the card below it fixes it:
+**⚙ → System → Reliability** shows all of this as a checklist. Everything should show a green tick before a service. Problems are highlighted with a **!**: tap one and a popup explains what is wrong, why it matters, and fixes it:
 
-- **Fix now** applies the system tuning from the page. The card then shows **Reboot now**; one reboot finishes it.
-- **One-time setup needed** appears on Pis installed before v0.11. Changing system settings needs administrator permission, which only the installer can grant, once. The card shows the exact command with a **Copy command** button: connect to the Pi from a computer (`ssh your-user@livepi.local`), paste it and press Enter at each question to keep your settings. After that, **Fix now** works from the page.
+- **Fix**: applies the live-audio system settings with one tap. If the fix needs a restart, the item then says *Fixed. Reboot to finish* and the popup offers **Reboot now**.
+- **How to fix**: for things only you can fix, like the power supply or cooling, the popup lists what to do.
+- **One-time setup first**: on Pis installed before v0.11, changing system settings needs administrator permission, which only the installer can give, once. The popup shows the exact command with a **Copy command** button: connect to the Pi from a computer (`ssh your-user@livepi.local`), paste it, and press Enter at each question to keep your settings. Then tap **Check again**.
+
+The **⚡ Power** and **Throttled** warnings in the top bar open the same popup.
 
 ### What the installer's tuning changes
 

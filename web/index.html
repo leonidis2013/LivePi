@@ -171,6 +171,8 @@
   input:focus, select:focus { outline:2px solid color-mix(in srgb, var(--acc) 55%, transparent); outline-offset:0; }
   button { font-weight:600; }
   button:hover { border-color:transparent; background:color-mix(in srgb, var(--card2) 80%, var(--fg) 8%); }
+  /* action buttons (Apply, Fix it, Reboot now...) stay blue under the mouse; toggles keep their own colours */
+  button.on:not(.mute):not(.monbtn):not(.tog):not(.ib):not(.gsw):not(#pvHand):not(.side button):not(.seg button):not(nav button):hover { background:color-mix(in srgb, var(--acc) 86%, #000); border-color:transparent; color:var(--onacc); }
   .seg { background:var(--card2); border-radius:9px; padding:3px; gap:2px; }
   .seg button { border-radius:7px !important; background:transparent; }
   .seg button.on { background:var(--acc); color:var(--onacc); }
@@ -459,12 +461,35 @@
   .rel span { font-size:12px; color:var(--dim); line-height:1.4; }
   #relFix code { user-select:all; }
 
-  .relfix { display:flex; flex-direction:column; gap:10px; align-items:flex-start; margin-top:6px; padding:12px; border-radius:10px;
-            background:color-mix(in srgb, var(--acc) 9%, var(--card)); border:1px solid color-mix(in srgb, var(--acc) 35%, transparent); font-size:13px; line-height:1.45; }
-  .relfix.hide { display:none; }
-  .relfix ol { margin:0; padding-left:18px; } .relfix li { margin:4px 0; }
-  .relfix code { font-size:12px; background:var(--inset); padding:1px 5px; border-radius:4px; }
-  .relfix pre.cmd { margin:0; width:100%; box-sizing:border-box; white-space:pre-wrap; word-break:break-all; background:var(--inset); padding:10px; border-radius:8px; font-size:12px; user-select:all; -webkit-user-select:all; }
+
+  /* reliability: tappable problems + fix popup */
+  button.rel { width:100%; text-align:left; background:transparent; border:0; border-top:1px solid var(--line); border-radius:0; color:inherit; font:inherit; cursor:pointer; padding:9px 0; min-height:0; }
+  .rel.tap { position:relative; }
+  .rel.tap em { margin-left:auto; align-self:center; font-style:normal; font-size:12px; font-weight:700; white-space:nowrap; padding:4px 10px; border-radius:999px; color:var(--acc); background:color-mix(in srgb, var(--acc) 12%, transparent); }
+  .rel.tap.bad em { color:var(--bad); background:color-mix(in srgb, var(--bad) 12%, transparent); }
+  .rel.tap.bad { background:color-mix(in srgb, var(--bad) 6%, transparent); }
+  .rel.tap.warn { background:color-mix(in srgb, var(--warn) 7%, transparent); }
+  .rel.tap:hover b { color:var(--acc); }
+  .st.tapchip { cursor:pointer; }
+  .fxdlg { position:fixed; inset:0; z-index:70; background:#0009; display:flex; align-items:center; justify-content:center; padding:16px; }
+  .fxbox { background:var(--card); color:var(--fg); border:1px solid var(--line); border-radius:14px; width:min(520px,100%); max-height:calc(100vh - 32px); overflow:auto; padding:18px; box-shadow:0 20px 60px #0006; font-size:14px; line-height:1.5; }
+  .fxhead { display:flex; align-items:center; gap:10px; }
+  .fxhead h3 { margin:0; flex:1; font-size:17px; }
+  .fxi { flex:0 0 26px; height:26px; border-radius:50%; display:grid; place-items:center; font-style:normal; font-weight:800; color:#fff; background:var(--warn); }
+  .fxi.bad { background:var(--bad); } .fxi.ok { background:var(--ok); } .fxi.warn { color:#1a1300; } .fxi.dim { background:var(--faint); }
+  .fxx { background:transparent; border:0; font-size:18px; color:var(--dim); min-height:0; padding:4px 8px; }
+  .fxstate { margin:10px 0 4px; font-weight:600; } .fxstate.bad { color:var(--bad); } .fxstate.warn { color:var(--warn); } .fxstate.ok { color:var(--ok); }
+  .fxbox h4 { margin:14px 0 4px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); }
+  .fxbox p { margin:4px 0; } .fxbox ul, .fxbox ol { margin:4px 0; padding-left:20px; } .fxbox li { margin:4px 0; }
+  .fxbox code { font-size:12px; background:var(--inset); padding:1px 5px; border-radius:4px; }
+  .fxbox pre.cmd { margin:8px 0; white-space:pre-wrap; word-break:break-all; background:var(--inset); padding:10px; border-radius:8px; font-size:12px; user-select:all; -webkit-user-select:all; }
+  .fxsmall { font-size:12px; color:var(--dim); }
+  .fxacts { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; margin-top:16px; }
+  @media (max-width:720px) {
+    .fxdlg { align-items:flex-end; padding:0; }
+    .fxbox { width:100%; border-radius:16px 16px 0 0; max-height:88vh; padding:18px 16px calc(18px + env(safe-area-inset-bottom)); }
+    .fxacts button { flex:1; min-height:44px; }
+  }
 </style>
 </head>
 <body>
@@ -683,6 +708,7 @@
     <div class="note" id="busyNote">The other device then shows this message instead.</div>
   </div>
 </div>
+<div id="fixDlg" class="fxdlg hide" role="dialog" aria-modal="true"><div id="fixBox" class="fxbox"></div></div>
 <div id="offline" class="offbar"><span class="spin"></span>Connection to LivePi lost. Reconnecting…</div>
 <div id="msg"></div>
 
@@ -1815,10 +1841,10 @@ $('status').addEventListener('click', async e => {
 function powerChip(t) {
   if (t === undefined || t < 0) return '';
   const now = t & 0xF, past = (t >> 16) & 0xF;
-  if (now & 1) return `<span class="st bad" title="The power supply voltage is too low right now. This causes dropouts and crashes. Use the official power supply.">⚡ Low power</span>`;
-  if (now & 0xE) return `<span class="st bad" title="The Pi is slowing itself down right now (too hot or low power). This causes dropouts. Check cooling and the power supply.">Throttled</span>`;
-  if (past & 1) return `<span class="st warn" title="The power supply voltage dropped at some point since the Pi started. Use the official power supply and a short cable.">⚡ Power dipped</span>`;
-  if (past & 0xE) return `<span class="st warn" title="The Pi slowed itself down at some point since it started (heat or power). Check cooling and the power supply.">Was throttled</span>`;
+  if (now & 1) return `<span class="st bad tapchip" data-issue="power" title="The power supply voltage is too low right now. This causes dropouts and crashes. Use the official power supply.">⚡ Low power</span>`;
+  if (now & 0xE) return `<span class="st bad tapchip" data-issue="temp" title="The Pi is slowing itself down right now (too hot or low power). This causes dropouts. Check cooling and the power supply.">Throttled</span>`;
+  if (past & 1) return `<span class="st warn tapchip" data-issue="power" title="The power supply voltage dropped at some point since the Pi started. Use the official power supply and a short cable.">⚡ Power dipped</span>`;
+  if (past & 0xE) return `<span class="st warn tapchip" data-issue="temp" title="The Pi slowed itself down at some point since it started (heat or power). Check cooling and the power supply.">Was throttled</span>`;
   return '';
 }
 let noticesKey = '';
@@ -1839,48 +1865,88 @@ function noticesRender(list) {
     root.append(d);
   }
 }
-async function relLoad() {
-  const r = await api('/api/reliability', undefined, true);
-  if (!r || r.realtime === undefined) return;
-  const rows = [], fix = [];
-  const add = (lvl, title, text) => rows.push([lvl, title, text]);
-  add(r.realtime ? 'ok' : 'bad', 'Real-time audio',
-      r.realtime ? `On. The audio runs at real-time priority ${r.priority}` + (r.audioCpu >= 0 ? `, on its own CPU core (core ${r.audioCpu}).` : '.')
-                 : 'Off. The audio runs at normal priority, so a busy moment can cause a dropout.');
-  if (!r.realtime) fix.push('real-time limits');
-  add(r.isolatedCpu >= 0 ? 'ok' : 'warn', 'Reserved CPU core',
-      r.isolatedCpu >= 0 ? `Core ${r.isolatedCpu} is kept free for the audio only.` : 'Not set up. One core can be reserved for the audio so nothing else ever runs there.');
-  if (r.isolatedCpu < 0) fix.push('reserved core');
-  add(r.memoryLocked ? 'ok' : 'warn', 'Memory locked', r.memoryLocked ? 'LivePi stays in RAM, so the audio never waits for the SD card.' : 'Not locked. The OS could move parts of LivePi out of RAM.');
-  if (!r.memoryLocked) fix.push('memory lock');
+/* Each checklist item: id, level (ok/warn/bad/dim), title, one-line status, and for problems a
+   popup with what is wrong, why it matters and the fix ("tune" = the system tuning helper,
+   "reboot" = finish a fix, null = something to do by hand, like the power supply). */
+let REL = null;
+function relItems(r) {
+  const items = [], rb = !!r.rebootNeeded;
+  const add = (o) => items.push(o);
+  const pending = (ok) => !ok && rb;          // fixed already, waiting for the reboot
+  add({ id: 'rt', title: 'Real-time audio', lvl: r.realtime ? 'ok' : pending(r.realtime) ? 'warn' : 'bad',
+        text: r.realtime ? `On. The audio runs at real-time priority ${r.priority}` + (r.audioCpu >= 0 ? `, on its own CPU core (core ${r.audioCpu}).` : '.')
+                         : pending(false) ? 'Fixed. Reboot to finish.' : 'Off. The audio runs at normal priority.',
+        why: 'Without real-time priority, anything busy on the Pi (the web page, a plugin screen, the OS) can delay the audio and cause a dropout.',
+        fix: r.realtime ? null : rb ? 'reboot' : 'tune' });
+  add({ id: 'core', title: 'Reserved CPU core', lvl: r.isolatedCpu >= 0 ? 'ok' : 'warn',
+        text: r.isolatedCpu >= 0 ? `Core ${r.isolatedCpu} is kept free for the audio only.` : rb ? 'Fixed. Reboot to finish.' : 'Not set up.',
+        why: 'With one CPU core reserved, nothing else ever runs where the audio runs: no web page, no OS task. It is the strongest protection against dropouts.',
+        fix: r.isolatedCpu >= 0 ? null : rb ? 'reboot' : 'tune' });
+  add({ id: 'mem', title: 'Memory locked', lvl: r.memoryLocked ? 'ok' : 'warn',
+        text: r.memoryLocked ? 'LivePi stays in RAM, so the audio never waits for the SD card.' : rb ? 'Fixed. Reboot to finish.' : 'Not locked.',
+        why: 'If the OS moves part of LivePi out of RAM, the audio has to wait for the SD card to get it back, which causes a dropout.',
+        fix: r.memoryLocked ? null : rb ? 'reboot' : 'tune' });
   const t = r.throttled;
-  if (t === undefined || t < 0) add('dim', 'Power and temperature', 'Unknown on this computer.');
+  if (t === undefined || t < 0) add({ id: 'power', title: 'Power and temperature', lvl: 'dim', text: 'Unknown on this computer.', fix: null });
   else {
     const now = t & 0xF, past = (t >> 16) & 0xF;
-    add(now & 1 ? 'bad' : past & 1 ? 'warn' : 'ok', 'Power supply',
-        now & 1 ? 'Voltage too low right now. This causes dropouts and crashes. Use the official power supply (27 W for a Pi 5, 15 W for a Pi 4).'
-        : past & 1 ? 'The voltage dropped at some point since the Pi started. Use the official power supply and a short, thick cable.' : 'OK, no voltage drops since the Pi started.');
-    add(now & 0xE ? 'bad' : past & 0xE ? 'warn' : 'ok', 'Temperature and speed',
-        now & 0xE ? 'The Pi is slowing itself down right now. Improve the cooling (a fan) and check the power supply.'
-        : past & 0xE ? 'The Pi slowed itself down at some point since it started. Add a fan or improve airflow.' : 'Full speed, never slowed down since the Pi started.');
+    add({ id: 'power', title: 'Power supply', lvl: now & 1 ? 'bad' : past & 1 ? 'warn' : 'ok',
+          text: now & 1 ? 'Voltage too low right now.' : past & 1 ? 'The voltage dropped since the Pi started.' : 'OK, no voltage drops since the Pi started.',
+          why: 'When the voltage drops, the Pi slows down or resets: dropouts, crackles or a crash in the middle of a service.',
+          manual: ['Use the official power supply: 27 W USB-C for a Pi 5, 15 W for a Pi 4. Phone chargers often sag under load.',
+                   'Use a short, thick cable, plugged straight into the wall or a good power strip.',
+                   'USB audio interfaces and drives powered from the Pi add to the load: use a powered hub if needed.',
+                   'The warning remembers drops since the Pi started. After changing the supply, reboot to clear it.'],
+          fix: null });
+    add({ id: 'temp', title: 'Temperature and speed', lvl: now & 0xE ? 'bad' : past & 0xE ? 'warn' : 'ok',
+          text: now & 0xE ? 'The Pi is slowing itself down right now.' : past & 0xE ? 'The Pi slowed itself down since it started.' : 'Full speed, never slowed down since the Pi started.',
+          why: 'When the Pi gets too hot (or the power sags) it slows its CPU down, and the plugins may no longer keep up: dropouts.',
+          manual: ['Use a case with a fan, or the official Active Cooler on a Pi 5.',
+                   'Give it airflow: not in a closed rack drawer, not next to amplifiers.',
+                   'Check the temperature in the top bar: it should stay well below 75 °C during a service.',
+                   'Throttling can also be caused by low power: check the power supply item.'],
+          fix: null });
   }
-  add(r.governor === 'performance' || !r.governor ? (r.governor ? 'ok' : 'dim') : 'warn', 'CPU speed',
-      r.governor === 'performance' ? 'Fixed at full speed.' : r.governor ? `"${r.governor}": the CPU changes speed, which can cause dropouts.` : 'Unknown on this computer.');
-  if (r.governor && r.governor !== 'performance') fix.push('CPU speed');
-  add(r.aptTimers ? 'warn' : 'ok', 'Automatic OS updates', r.aptTimers ? 'On. Background updates can slow the Pi during a service.' : 'Off. Update the OS yourself from this page, not before a service.');
-  if (r.aptTimers) fix.push('automatic updates');
-  add(r.watchdog ? 'ok' : 'warn', 'Watchdog', r.watchdog ? 'On. If LivePi ever freezes it restarts by itself.' : 'Off. LivePi still restarts after a crash, but not after a freeze.');
-  if (!r.watchdog) fix.push('watchdog');
-  add('ok', 'Crash protection', r.safeMode ? 'Safe mode is on: plugins were not loaded after failed starts (see the banner).'
-      : 'On. After two failed starts in a row LivePi starts without plugins, so the audio keeps passing through.');
-  if (r.usbAutosuspend && r.usbAutosuspend !== '-1') add('dim', 'USB power saving', 'On. Only matters for USB audio interfaces: the installer turns it off.');
+  const gov = r.governor;
+  add({ id: 'cpu', title: 'CPU speed', lvl: !gov ? 'dim' : gov === 'performance' ? 'ok' : 'warn',
+        text: gov === 'performance' ? 'Fixed at full speed.' : gov ? `"${gov}": the CPU changes speed.` : 'Unknown on this computer.',
+        why: 'When the CPU changes speed, it takes a moment to speed up again when the plugins need it, which can cause a dropout.',
+        fix: gov && gov !== 'performance' ? 'tune' : null });
+  add({ id: 'apt', title: 'Automatic OS updates', lvl: r.aptTimers ? 'warn' : 'ok',
+        text: r.aptTimers ? 'On.' : 'Off. Update the OS yourself from this page, not before a service.',
+        why: 'Background updates download and install at random times, which loads the Pi and the SD card, possibly in the middle of a service. After the fix, update from Settings > System > Operating system when it suits you.',
+        fix: r.aptTimers ? 'tune' : null });
+  add({ id: 'wd', title: 'Watchdog', lvl: r.watchdog ? 'ok' : 'warn',
+        text: r.watchdog ? 'On. If LivePi ever freezes it restarts by itself.' : rb ? 'Fixed. Reboot to finish.' : 'Off.',
+        why: 'LivePi already restarts after a crash. The watchdog also restarts it if it ever freezes completely, instead of staying silent.',
+        fix: r.watchdog ? null : rb ? 'reboot' : 'tune' });
+  if (r.usbAutosuspend && r.usbAutosuspend !== '-1')
+    add({ id: 'usb', title: 'USB power saving', lvl: rb ? 'warn' : 'dim', text: rb ? 'Fixed. Reboot to finish.' : 'On. Only matters for USB audio interfaces.',
+          why: 'The OS may put USB devices to sleep to save power. A USB audio interface that is put to sleep drops out. (Not used by a Pisound or other HATs.)',
+          fix: rb ? 'reboot' : 'tune' });
+  add({ id: 'crash', title: 'Crash protection', lvl: 'ok',
+        text: r.safeMode ? 'Safe mode is on: plugins were not loaded after failed starts (see the banner).' : 'On. After two failed starts in a row LivePi starts without plugins, so the audio keeps passing through.', fix: null });
+  return items;
+}
+async function relLoad() {
+  const r = await api('/api/reliability', undefined, true);
+  if (!r || r.realtime === undefined) return null;
+  REL = r;
+  const items = relItems(r);
   const root = $('relRows'); root.innerHTML = '';
-  for (const [lvl, title, text] of rows) {
-    const d = el('div', 'rel ' + lvl), i = el('i', '', lvl === 'ok' ? '✓' : lvl === 'dim' ? '?' : '!'), c = el('div');
-    c.append(el('b', '', title), el('span', '', text)); d.append(i, c); root.append(d);
+  for (const it of items) {
+    const problem = it.lvl === 'warn' || it.lvl === 'bad' || (it.lvl === 'dim' && it.fix);
+    const d = el(problem ? 'button' : 'div', 'rel ' + it.lvl + (problem ? ' tap' : ''));
+    const i = el('i', '', it.lvl === 'ok' ? '✓' : it.lvl === 'dim' ? '?' : '!'), c = el('div');
+    c.append(el('b', '', it.title), el('span', '', it.text));
+    d.append(i, c);
+    if (problem) { d.append(el('em', '', it.fix === 'reboot' ? 'Reboot' : it.fix ? 'Fix' : 'How to fix')); d.onclick = () => issueOpen(it.id); }
+    root.append(d);
   }
-  if (r.usbAutosuspend && r.usbAutosuspend !== '-1') fix.push('USB power saving');
-  relFixRender(r, fix);
+  const n = items.filter(x => x.lvl === 'warn' || x.lvl === 'bad').length;
+  const f = $('relFix'); f.className = 'note';
+  f.textContent = n ? `${n} ${n === 1 ? 'item needs' : 'items need'} attention. Tap ${n === 1 ? 'it' : 'one'} to see what is wrong and fix it.` : 'All good for a service.';
+  return r;
 }
 function copyText(t) {
   try { if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(t).then(() => true); } catch (e) {}
@@ -1888,41 +1954,70 @@ function copyText(t) {
   ta.focus(); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch (e) {} ta.remove();
   return Promise.resolve(ok);
 }
-function relFixRender(r, fix) {
-  const f = $('relFix'); f.innerHTML = ''; f.className = 'relfix';
-  const say = (html) => { const d = el('div'); d.innerHTML = html; f.append(d); };
-  if (r.rebootNeeded) {
-    say('<b>Almost done.</b> Reboot the Pi to finish. The audio stops for about 30 seconds, so not during a service.');
-    const b = el('button', 'on', 'Reboot now'); b.onclick = () => $('sysReboot').click(); f.append(b);
-    return;
-  }
-  if (!fix.length) { f.classList.add('hide'); return; }
-  if (r.fixAvailable && !relSetupNeeded) {
-    say(`<b>${fix.length === 1 ? 'This can' : 'These can'} be fixed from here:</b> ${esc(fix.join(', '))}. Afterwards the Pi needs one reboot.`);
-    const b = el('button', 'on', 'Fix now');
+let relSetupNeeded = false;
+function issueClose() { $('fixDlg').classList.add('hide'); }
+async function issueOpen(id) {
+  const r = REL || await relLoad(); if (!r) return;
+  const it = relItems(r).find(x => x.id === id); if (!it) return;
+  const box = $('fixBox'); box.innerHTML = '';
+  const head = el('div', 'fxhead'), ic = el('i', 'fxi ' + it.lvl, it.lvl === 'ok' ? '✓' : '!');
+  const x = el('button', 'fxx', '✕'); x.setAttribute('aria-label', 'Close'); x.onclick = issueClose;
+  head.append(ic, el('h3', '', it.title), x);
+  box.append(head, el('p', 'fxstate ' + it.lvl, it.text));
+  if (it.why) { box.append(el('h4', '', 'Why it matters'), el('p', '', it.why)); }
+  const acts = el('div', 'fxacts');
+  const later = el('button', '', 'Close'); later.onclick = issueClose;
+
+  if (it.lvl === 'ok') {
+    acts.append(later);
+  } else if (it.fix === 'reboot') {
+    box.append(el('h4', '', 'Finish the fix'), el('p', '', 'The fix is in place. The Pi has to restart once to use it. The audio stops for about 30 seconds, so do this before or after a service, not during one.'));
+    const b = el('button', 'on', 'Reboot now');
+    b.onclick = async () => { b.disabled = true; const res = await api('/api/system/reboot', {}); if (res.ok) { issueClose(); toast('Rebooting. The page reconnects by itself in about 30 seconds.'); } else b.disabled = false; };
+    acts.append(b, el('button', '', 'Later')); acts.lastChild.onclick = issueClose;
+  } else if (it.fix === 'tune' && r.fixAvailable && !relSetupNeeded) {
+    box.append(el('h4', '', 'Fix it'), el('p', '', 'LivePi applies the live-audio system settings for you. This fixes this item and any other system settings on this list.'));
+    const b = el('button', 'on', 'Fix it');
     b.onclick = async () => {
       b.disabled = true; b.textContent = 'Fixing…';
       const res = await api('/api/reliability/fix', {});
-      if (res.ok) { toast('Fixed. Reboot the Pi to finish.'); relLoad(); return; }
-      if (res.error === 'setup') { relSetupNeeded = true; relFixRender(r, fix); return; }
-      toast(res.error || 'The fix did not finish'); b.disabled = false; b.textContent = 'Fix now';
+      if (res.error === 'setup') { relSetupNeeded = true; issueOpen(id); return; }
+      if (!res.ok) { toast(res.error || 'The fix did not finish'); b.disabled = false; b.textContent = 'Fix it'; return; }
+      await relLoad();
+      issueOpen(id);                                  // shows "Reboot to finish", or a green tick
     };
-    f.append(b);
-    return;
+    acts.append(b, later);
+  } else if (it.fix === 'tune') {
+    // Pis installed before v0.11: the page has no permission to change system settings yet
+    const user = r.user || 'your-user';
+    const cmd = `curl -fsSL https://github.com/leonidis2013/LivePi/releases/latest/download/livepi-linux-arm64.tar.gz | tar xz && cd livepi && sudo ./install-pi.sh ${user}`;
+    box.append(el('h4', '', 'Fix it (one-time setup first)'));
+    const p = el('p'); p.textContent = 'Changing system settings needs administrator permission, which only the installer can give, once. After that, this button fixes it with one tap.'; box.append(p);
+    const ol = el('ol');
+    ol.innerHTML = `<li>On a computer on the same network, open a terminal and connect to the Pi: <code>ssh ${esc(user)}@${esc(location.hostname)}</code></li>`
+      + '<li>Paste this command and press Enter. Press Enter at each question to keep your current settings:</li>';
+    box.append(ol);
+    const pre = el('pre', 'cmd', cmd); box.append(pre);
+    const c = el('button', '', 'Copy command');
+    c.onclick = async () => { const ok = await copyText(cmd); toast(ok ? 'Copied' : 'Select the command and copy it'); if (!ok) { const rg = document.createRange(); rg.selectNodeContents(pre); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(rg); } };
+    box.append(el('p', 'fxsmall', 'When it finishes, tap this item again: it offers the reboot that completes the fix.'));
+    const again = el('button', 'on', 'Check again');
+    again.onclick = async () => { relSetupNeeded = false; await relLoad(); issueOpen(id); };
+    acts.append(c, again, later);
+  } else if (it.manual) {
+    box.append(el('h4', '', 'How to fix it'));
+    const ul = el('ul'); it.manual.forEach(m => ul.append(el('li', '', m))); box.append(ul);
+    acts.append(later);
+  } else {
+    acts.append(later);
   }
-  // First time only: the page needs permission to change system settings, which takes the installer once
-  const user = r.user || 'your-user';
-  const cmd = `curl -fsSL https://github.com/leonidis2013/LivePi/releases/latest/download/livepi-linux-arm64.tar.gz | tar xz && cd livepi && sudo ./install-pi.sh ${user}`;
-  say(`<b>One-time setup needed.</b> To fix ${esc(fix.join(', '))}, LivePi needs permission to change system settings. That takes the installer, once. After that, these fixes are one tap on this page.`);
-  say(`<ol><li>On a computer on the same network, open a terminal and connect to the Pi: <code>ssh ${esc(user)}@${esc(location.hostname)}</code></li>`
-    + `<li>Paste this command and press Enter. Press Enter at each question to keep your current settings.</li></ol>`);
-  const pre = el('pre', 'cmd', cmd); f.append(pre);
-  const c = el('button', '', 'Copy command');
-  c.onclick = async () => { const ok = await copyText(cmd); toast(ok ? 'Copied' : 'Select the command and copy it'); if (!ok) { const rg = document.createRange(); rg.selectNodeContents(pre); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(rg); } };
-  f.append(c);
-  say('3. When it finishes, come back here: this card shows a Reboot button.');
+  box.append(acts);
+  $('fixDlg').classList.remove('hide');
 }
-let relSetupNeeded = false;
+$('fixDlg').addEventListener('click', e => { if (e.target === $('fixDlg')) issueClose(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('fixDlg').classList.contains('hide')) issueClose(); });
+// Warning chips in the top bar open the same popup
+$('status').addEventListener('click', e => { const c = e.target.closest('[data-issue]'); if (c) issueOpen(c.dataset.issue); });
 $('relRefresh').onclick = relLoad;
 setInterval(() => { if (!$('tab-setup').classList.contains('hide') && !document.querySelector('[data-pane="system"]').classList.contains('hide') && !document.hidden) relLoad(); }, 5000);
 
@@ -2198,7 +2293,7 @@ async function refresh() {
     + chip(`CPU <b>${cpu}%</b>`, st.cpu > 0.7) + chip(`xruns <b>${st.xruns ?? 0}</b>`, st.xruns > 0, 'xr')
     + (st.tempC !== undefined ? chip(`<b>${st.tempC.toFixed(0)}</b>°C`, st.tempC > 75) : '')
     + powerChip(st.throttled)
-    + (st.realtime === false && st.deviceName && st.deviceName !== 'none' ? `<span class="st bad" title="The audio is not running at real-time priority, so busy moments can cause dropouts. See Settings > System > Reliability.">Not real-time</span>` : '')
+    + (st.realtime === false && st.deviceName && st.deviceName !== 'none' ? `<span class="st bad tapchip" data-issue="rt" title="The audio is not running at real-time priority, so busy moments can cause dropouts. See Settings > System > Reliability.">Not real-time</span>` : '')
     + chip(esc(st.deviceName || ''), false, 'dev');
   { const x = $('status').querySelector('.st.xr'); if (x) x.title = 'Audio dropouts since the last reset. Tap to reset.'; }
   if (document.activeElement !== $('chCount')) $('chCount').value = st.numChannels;
