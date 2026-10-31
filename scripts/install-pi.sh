@@ -66,8 +66,15 @@ apt-get install -y libfreetype6 libfontconfig1 libx11-6 libxext6 libxrandr2 libx
 apt-get install -y libasound2 2>/dev/null || apt-get install -y libasound2t64
 
 echo "== Installing to /opt/livepi"
+# Running the installer again: stop LivePi first (a running program can't be overwritten). It starts
+# again at the end.
+systemctl stop livepi.service 2>/dev/null || true
+for i in $(seq 1 50); do pgrep -x LivePi >/dev/null || break; sleep 0.2; done
+pkill -9 -x LivePi 2>/dev/null || true
 mkdir -p /opt/livepi
-cp -r "$HERE/LivePi" "$HERE/web" "$HERE/set-password.sh" "$HERE/trusted-network.sh" "$HERE/pisound-setup.sh" "$HERE/rt-tune.sh" "$HERE/run.sh" "$HERE/INSTALLER_LEVEL" /opt/livepi/
+# Copy the program next to the old one and swap it in, so even a still-running copy can't block it
+cp "$HERE/LivePi" /opt/livepi/LivePi.new && mv -f /opt/livepi/LivePi.new /opt/livepi/LivePi
+cp -r "$HERE/web" "$HERE/set-password.sh" "$HERE/trusted-network.sh" "$HERE/pisound-setup.sh" "$HERE/rt-tune.sh" "$HERE/run.sh" "$HERE/INSTALLER_LEVEL" /opt/livepi/
 chmod +x /opt/livepi/LivePi /opt/livepi/set-password.sh /opt/livepi/trusted-network.sh /opt/livepi/pisound-setup.sh /opt/livepi/rt-tune.sh /opt/livepi/run.sh
 # The app owns its folder so it can install offline updates from the web page
 chown -R "$USER_NAME:$(id -gn "$USER_NAME")" /opt/livepi
