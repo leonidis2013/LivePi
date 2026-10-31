@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(LivePi VERSION 0.8.1 LANGUAGES C CXX)
+project(LivePi VERSION 0.9.0 LANGUAGES C CXX)
 
 # Build label shown on the web page (CI passes the run number)
 set(LIVEPI_BUILD "dev" CACHE STRING "Build label")
@@ -38,7 +38,8 @@ target_sources(LivePi PRIVATE
   Source/Main.cpp
   Source/HostEngine.cpp
   Source/WebServer.cpp
-  Source/LiveView.cpp)
+  Source/LiveView.cpp
+  Source/HwMixer.cpp)
 
 
 target_compile_definitions(LivePi PRIVATE

@@ -51,6 +51,7 @@ run_case() {
   sleep 0.3
   M=$(api /api/meters); say "meters right after the device start: $(echo "$M" | jq -c '{in:.in,out:.out}')"
   check "$label: soft start keeps meters quiet while settling" "echo '$M' | jq -e '.in[0] < -90 and .out[0] < -90' >/dev/null"
+  check "$label: interface levels answer" "api /api/hwmixer | jq -e '.ok==true and (.cards|type==\"array\")' >/dev/null"
   post /api/mixer '{"channel":0,"sendDb":0}' >/dev/null
   post /api/monitorbus '{"outputs":[2]}' >/dev/null
   sleep 3

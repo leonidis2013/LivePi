@@ -1,6 +1,6 @@
 # LivePi User Manual
 
-**LivePi v0.8.1** · Copyright © Jerod Ulicki
+**LivePi v0.9.0** · Copyright © Jerod Ulicki
 
 LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Audio goes in through the Pi's sound card, through your plugins (for example LiveVoice), and back out with very little delay. You control everything from a web page on a phone, tablet or computer. The Pi needs no screen, keyboard or mouse.
 
@@ -244,6 +244,8 @@ Press **⚙** (top right). The pages are on the left, as a column of icons on a 
 | **Sample rate** | 48 kHz is a good default. 96 kHz halves the delay but uses more CPU. |
 | **Buffer** | Start at **64**; use 128 if xruns appear. |
 | **Apply** | Uses the settings above. The line below shows what is running now. |
+| **Interface levels** | The sound card's own controls: input gain, output volume, on/off switches and input choices, where the card has them (for example a Pisound Micro or a HiFiBerry DAC+ ADC). Changes take effect at once and LivePi puts them back after a restart. The original **Pisound** has no software controls: its **GAIN** (inputs) and **VOLUME** (outputs and headphones) knobs are analog, so LivePi can't read them. |
+| **Input check** | A live bar per channel showing the raw input before any plugins, with the highest peak held for 3 seconds and advice: *No signal*, *Low: turn the gain up*, *Good*, *Hot*, or *Clipping: turn the gain down*. Sing or play as loud as you will in the service and set the gain so peaks sit around −12 dB, inside the green zone. |
 | **Monitor outputs** | Which interface outputs play the Monitor mix (see [Monitoring](#6-monitoring-pafl)). |
 | **Test audio file** | Only shown when the virtual card's input is **Test file (loop)**. Choose a WAV, AIFF, FLAC or OGG of up to 10 minutes, for example a voice recording, and press **Upload**. It then plays in a loop as the input. |
 

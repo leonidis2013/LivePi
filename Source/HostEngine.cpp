@@ -1,4 +1,5 @@
 #include "HostEngine.h"
+#include "HwMixer.h"
 #include <cstdlib>
 
 using namespace juce;
@@ -165,6 +166,8 @@ void HostEngine::start()
         auto fe = deviceManager.setAudioDeviceSetup (setup, true);
         Logger::writeToLog ("No audio device found, using the virtual one. " + fe);
     }
+
+    HwMixer::restore();   // the interface's own levels as you last set them
 
     deviceManager.addAudioCallback (&player);
     deviceManager.addChangeListener (this);
@@ -921,6 +924,14 @@ var HostEngine::closeEditor (int channel, int slot)
 }
 
 // ---------------------------------------------------------------- uploaded plugin management
+
+StringArray HostEngine::deviceNames()
+{
+    auto setup = deviceManager.getAudioDeviceSetup();
+    StringArray n { setup.inputDeviceName, setup.outputDeviceName };
+    if (auto* d = deviceManager.getCurrentAudioDevice()) n.add (d->getName());
+    return n;
+}
 
 File HostEngine::dataDir()
 {

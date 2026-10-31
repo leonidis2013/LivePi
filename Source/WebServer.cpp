@@ -1,4 +1,5 @@
 #include "WebServer.h"
+#include "HwMixer.h"
 #include "EditorViewer.h"
 #include "Updater.h"
 #include <atomic>
@@ -645,6 +646,20 @@ void WebServer::setupRoutes()
     svr.Get ("/api/devices", [this] (const httplib::Request&, httplib::Response& res)
     {
         reply (res, onMT ([this] { return engine.getDevices(); }));
+    });
+
+    // The interface's own level controls (ALSA mixer)
+    svr.Get ("/api/hwmixer", [this] (const httplib::Request&, httplib::Response& res)
+    {
+        const auto names = onMT ([this] { return var (engine.deviceNames()); });
+        StringArray n;
+        if (auto* a = names.getArray()) for (auto& x : *a) n.add (x.toString());
+        reply (res, HwMixer::list (n));
+    });
+
+    svr.Post ("/api/hwmixer", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        reply (res, HwMixer::set (body (req)));
     });
 
     svr.Post ("/api/device", [this] (const httplib::Request& req, httplib::Response& res)

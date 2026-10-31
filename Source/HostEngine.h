@@ -25,6 +25,7 @@ public:
     void shutdown();
 
     static juce::File dataDir();   // ~/.livepi
+    juce::StringArray deviceNames();   // the audio device in use (message thread)
 
     // Audio device
     juce::var getDevices();

@@ -419,6 +419,26 @@
     #status { order:2; }
     #msg { bottom:calc(12px + env(safe-area-inset-bottom)) !important; }
   }
+
+  /* interface levels + input check */
+  .hwcard { font-size:12px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; font-weight:700; padding:10px 0 2px; }
+  .hwcard em { font-style:normal; color:var(--ok); margin-left:6px; }
+  .hwnote { font-size:13px; color:var(--fg); line-height:1.45; padding:8px 0; }
+  .hwnote b { color:var(--acc); }
+  .sc input.hwr { width:170px; max-width:46vw; accent-color:var(--acc); }
+  .hwv { min-width:64px; text-align:right; font-variant-numeric:tabular-nums; font-size:13px; }
+  .ic { display:grid; grid-template-columns:minmax(70px,120px) 1fr 220px; align-items:center; gap:10px; padding:9px 0; border-top:1px solid var(--line); }
+  .ic b { font-weight:600; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .icbar { position:relative; height:12px; border-radius:6px; background:var(--inset); overflow:hidden; }
+  .icbar .zone { position:absolute; top:0; bottom:0; left:60%; width:30%; background:color-mix(in srgb, var(--ok) 22%, transparent); }
+  .icbar .lvl { position:absolute; left:0; top:0; bottom:0; width:0; background:var(--ok); opacity:.85; }
+  .icbar .hold { position:absolute; top:0; bottom:0; width:2px; left:0; background:var(--fg); }
+  .icbar.hot .lvl { background:var(--warn); } .icbar.clip .lvl { background:var(--bad); }
+  .ict { font-size:12px; min-width:150px; text-align:right; font-variant-numeric:tabular-nums; }
+  .ict.good { color:var(--ok); } .ict.warn { color:var(--warn); } .ict.bad { color:var(--bad); font-weight:700; } .ict.dim { color:var(--dim); }
+  .set.hwvol .sc { flex-wrap:nowrap; }
+  @media (max-width:720px) { .set.hwvol { flex-wrap:wrap; } .set.hwvol .sl { flex-basis:100%; } .set.hwvol .sc { flex:1 1 100%; } .set.hwvol .sc input.hwr { flex:1; width:auto; max-width:none; }
+    .ic { grid-template-columns:1fr auto; } .ic .icbar { grid-column:1 / -1; grid-row:2; } .ict { min-width:0; } }
 </style>
 </head>
 <body>
@@ -467,6 +487,15 @@
     <div class="set"><div class="sl"><b>Sample rate</b></div><div class="sc"><select id="devRate"></select></div></div>
     <div class="set"><div class="sl"><b>Buffer</b><span>Smaller = lower latency, more CPU</span></div><div class="sc"><select id="devBuf"></select></div></div>
     <div class="set"><div class="sl"><b>Apply changes</b><span id="devNow"></span></div><div class="sc"><button id="devApply" class="on">Apply</button></div></div>
+  </div>
+  <div class="card" id="hwCard">
+    <h2>Interface levels</h2>
+    <div id="hwBody"><div class="note">Loading…</div></div>
+  </div>
+  <div class="card">
+    <h2>Input check</h2>
+    <div class="set"><div class="sl"><b>Set your input gain</b><span>Sing or play as loud as you will during the service. Aim for peaks around −12 dB, inside the green zone. The reading holds the highest peak for 3 seconds.</span></div></div>
+    <div id="icRows"></div>
   </div>
   <div class="card">
     <h2>Monitor outputs</h2>
@@ -696,6 +725,7 @@ function showSub(n) {
   document.querySelectorAll('#sub button').forEach(x => x.classList.toggle('on', x.dataset.sub === n));
   document.querySelectorAll('[data-pane]').forEach(x => x.classList.toggle('hide', x.dataset.pane !== n));
   try { localStorage.setItem('lh.sub', n); } catch (e) {}
+  if (n === 'audio' && typeof hwLoad === 'function') setTimeout(() => hwLoad(true), 0);
 }
 document.querySelectorAll('#sub button').forEach(b => b.onclick = () => showSub(b.dataset.sub));
 (function restoreTabs() {
@@ -1622,6 +1652,125 @@ async function monStart() {
   monStream();
 }
 
+/* ---------- interface levels (the sound card's own controls) + input check ---------- */
+let HW = null, hwKey = '', hwHold = 0;
+const IC = {};
+function audioPaneOpen() {
+  return !document.hidden && !$('tab-setup').classList.contains('hide') && !document.querySelector('[data-pane="audio"]').classList.contains('hide');
+}
+async function hwLoad(force) {
+  if (!force && (!audioPaneOpen() || Date.now() < hwHold)) return;
+  const r = await api('/api/hwmixer', undefined, true);
+  if (!r || !r.cards) return;
+  HW = r; hwRender(force);
+}
+function hwFmt(c, v) {
+  const vol = c.volume;
+  if (vol.dB !== undefined) {
+    // while dragging, estimate from the position; the real value comes back from the card
+    const db = v === undefined ? vol.dB : vol.minDb + (vol.maxDb - vol.minDb) * (v - vol.min) / Math.max(1, vol.max - vol.min);
+    return (db > 0 ? '+' : '') + db.toFixed(1) + ' dB';
+  }
+  const x = v === undefined ? vol.value : v;
+  return Math.round(100 * (x - vol.min) / Math.max(1, vol.max - vol.min)) + '%';
+}
+function hwSet(card, c, extra) {
+  hwHold = Date.now() + 1500;
+  return api('/api/hwmixer', Object.assign({ card, control: c.control, index: c.index, kind: c.kind }, extra)).then(r => { if (r && !r.ok && r.error) toast(r.error); });
+}
+function hwRender(force) {
+  const key = JSON.stringify(HW) + (devices && devices.current ? devices.current.type : '');
+  if (!force && key === hwKey) return;
+  hwKey = key;
+  const root = $('hwBody'); root.innerHTML = '';
+  const note = html => { const d = el('div', 'hwnote'); d.innerHTML = html; root.append(d); };
+  const virt = devices && devices.current && /^virtual/i.test(devices.current.type || '');
+  let cards = HW.cards.filter(c => c.inUse);
+  if (!cards.length) {
+    if (virt) return note('The virtual sound card has no hardware levels. Choose your interface above to see its levels here.');
+    cards = HW.cards.filter(c => c.controls.length || c.pisound);
+    if (!cards.length) return note('No sound card with level controls was found.');
+  }
+  for (const card of cards) {
+    const h = el('div', 'hwcard', card.name); if (card.inUse) h.append(el('em', '', 'in use')); root.append(h);
+    if (card.pisound && !card.controls.length) {
+      note('The Pisound sets its levels with two knobs on the board: <b>GAIN</b> for the inputs and <b>VOLUME</b> for the outputs and headphones. They are analog, so LivePi can\'t read or change them. Turn GAIN while you watch the input check below.');
+      continue;
+    }
+    if (!card.controls.length) { note('This interface has no level controls that software can reach. Set its levels with its own knobs and use the input check below.'); continue; }
+    for (const c of card.controls) {
+      const side = c.kind === 'capture' ? 'Input' : c.kind === 'playback' ? 'Output' : '';
+      const row = el('div', c.volume ? 'set hwvol' : 'set'), sl = el('div', 'sl'), sc = el('div', 'sc');
+      sl.append(el('b', '', c.control + (c.index ? ' ' + (c.index + 1) : '')));
+      if (side) sl.append(el('span', '', side + (c.volume ? (c.kind === 'capture' ? ' gain' : ' volume') : '')));
+      if (c.kind === 'enum') {
+        const sel = el('select');
+        c.items.forEach((t, i) => { const o = el('option', '', t); o.value = i; sel.append(o); });
+        sel.value = c.item;
+        sel.onchange = () => hwSet(card.card, c, { item: +sel.value });
+        sc.append(sel);
+      }
+      if (c.volume) {
+        const r = el('input', 'hwr'); r.type = 'range'; r.min = c.volume.min; r.max = c.volume.max; r.step = 1; r.value = c.volume.value;
+        const v = el('span', 'hwv', hwFmt(c));
+        let t = null;
+        r.oninput = () => { hwHold = Date.now() + 1500; v.textContent = hwFmt(c, +r.value); clearTimeout(t); t = setTimeout(() => hwSet(card.card, c, { value: +r.value }), 60); };
+        r.onchange = () => { clearTimeout(t); hwSet(card.card, c, { value: +r.value }).then(() => hwLoad(true)); };
+        sc.append(r, v);
+      }
+      if (c.on !== undefined) {
+        const b = el('button', c.on ? 'on' : '', c.on ? 'On' : 'Off');
+        b.onclick = async () => { await hwSet(card.card, c, { on: !c.on }); hwLoad(true); };
+        sc.append(b);
+      }
+      row.append(sl, sc); root.append(row);
+    }
+  }
+}
+
+function icRender() {
+  const root = $('icRows'); const n = S && S.chains ? S.chains.length : 0;
+  if (root.childElementCount === n && root.dataset.names === (S.chains || []).map(c => c.name).join('|')) return;
+  root.innerHTML = ''; root.dataset.names = (S.chains || []).map(c => c.name).join('|');
+  for (let i = 0; i < n; i++) {
+    const row = el('div', 'ic'); row.dataset.ch = i;
+    const bar = el('div', 'icbar'); bar.append(el('i', 'zone'), el('i', 'lvl'), el('i', 'hold'));
+    row.append(el('b', '', (i + 1) + '  ' + (S.chains[i].name || 'Channel ' + (i + 1))), bar, el('span', 'ict dim', 'No signal'));
+    root.append(row);
+  }
+}
+const icPos = db => Math.max(0, Math.min(100, (db + 60) / 60 * 100));   // −60 … 0 dB
+let icBusy = false;
+async function icPoll() {
+  if (icBusy || !audioPaneOpen() || !S) return;
+  icBusy = true;
+  try {
+    icRender();
+    const r = await fetch('/api/meters'); const m = await r.json();
+    if (r.status === 409 && m.busy) { showBusy(m); return; }
+    const now = Date.now();
+    (m.in || []).forEach((db, i) => {
+      const row = document.querySelector(`#icRows .ic[data-ch="${i}"]`); if (!row) return;
+      const h = IC[i] || (IC[i] = { v: -100, t: 0, show: -100 });
+      h.show = Math.max(db, h.show - 3);
+      if (db >= h.v || now - h.t > 3000) { h.v = db; h.t = now; }
+      const bar = row.querySelector('.icbar');
+      bar.querySelector('.lvl').style.width = icPos(h.show) + '%';
+      bar.querySelector('.hold').style.left = 'calc(' + icPos(h.v) + '% - 1px)';
+      bar.classList.toggle('hot', h.v >= -6 && h.v < -1); bar.classList.toggle('clip', h.v >= -1);
+      const t = row.querySelector('.ict'), pk = h.v <= -99 ? '' : h.v.toFixed(0) + ' dB · ';
+      const [cls, msg] = h.v >= -1 ? ['bad', 'Clipping: turn the gain down']
+                       : h.v >= -6 ? ['warn', 'Hot: turn the gain down a little']
+                       : h.v >= -24 ? ['good', 'Good']
+                       : h.v >= -50 ? ['warn', 'Low: turn the gain up']
+                       : ['dim', 'No signal'];
+      t.className = 'ict ' + cls; t.textContent = cls === 'dim' ? msg : pk + msg;
+    });
+  } catch (e) {} finally { icBusy = false; }
+}
+setInterval(icPoll, 100);
+setInterval(() => hwLoad(false), 3000);
+
 /* ---------- presets ---------- */
 $('presetLoad').onclick = async () => { const n = $('presetList').value; if (!n) return; const r = await api('/api/presets/load', { name: n }); if (r.ok) toast('Loaded ' + n); structKey = ''; refresh(); };
 $('presetSave').onclick = async () => { const n = $('presetName').value.trim(); if (!n) return; const r = await api('/api/presets/save', { name: n }); if (r.ok) { toast('Saved ' + n); $('presetName').value = ''; } refresh(); };
@@ -1649,6 +1798,7 @@ async function loadDevices() {
     await loadDevices();
   };
   const kh = v => (v / 1000).toFixed(v % 1000 ? 1 : 0) + ' kHz';
+  hwLoad(true);
   $('devNow').textContent = 'Running: ' + cur.type + ' · ' + kh(cur.sampleRate) + ' · ' + cur.bufferSize + ' samples';
 }
 function refreshDeviceLists() {
