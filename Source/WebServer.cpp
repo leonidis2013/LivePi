@@ -730,12 +730,6 @@ void WebServer::setupRoutes()
         reply (res, onMT ([this, b] { return engine.setMixer (b); }));
     });
 
-    svr.Post ("/api/master", [this] (const httplib::Request& req, httplib::Response& res)
-    {
-        auto b = body (req);
-        reply (res, onMT ([this, b] { return engine.setMasterDb ((float) (double) b["gainDb"]); }));
-    });
-
     svr.Post ("/api/channel/name", [this] (const httplib::Request& req, httplib::Response& res)
     {
         auto b = body (req);

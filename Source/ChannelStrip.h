@@ -5,7 +5,7 @@
 #include "MonitorRing.h"
 
 // Mono in / mono out processor used at the start (meter only) and end
-// (fader + mute + master gain + meter) of every channel chain.
+// (fader + mute + meter) of every channel chain.
 class ChannelStrip : public juce::AudioProcessor
 {
 public:

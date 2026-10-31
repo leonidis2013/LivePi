@@ -54,7 +54,6 @@ public:
 
     // Mixer
     juce::var setMixer (const juce::var& body);          // { channel, gainDb?, mute? }
-    juce::var setMasterDb (float db);
     juce::var setChannelName (int channel, const juce::String& name);
     juce::var getMeters();
 
@@ -125,12 +124,10 @@ private:
     juce::AudioPluginFormatManager formatManager;
     juce::KnownPluginList known;
 
-    std::atomic<float> masterGain { 1.0f };   // must outlive the graph
     MonitorRing monitorRing;                  // must outlive the graph
     int monitorChannel = -1;
     bool monitorPost = true;
     bool autoFallback = false;                // virtual card chosen automatically: do not remember it
-    float masterDb = 0.0f;
     int paflMode = 0;                                   // global PAFL tap for every channel: 0 = PFL, 1 = input, 2 = AFL
 
     juce::AudioProcessorGraph graph;

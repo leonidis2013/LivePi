@@ -582,7 +582,7 @@ HostEngine::Chain HostEngine::makeChain (int index)
     c.name = "Ch " + String (index + 1);
     c.sendTap = paflMode;
     c.tap   = graph.addNode (std::make_unique<ChannelStrip> (nullptr, true));
-    c.strip = graph.addNode (std::make_unique<ChannelStrip> (&masterGain, false));
+    c.strip = graph.addNode (std::make_unique<ChannelStrip> (nullptr, false));
     if (index != kMonBus)
     {
         c.send = graph.addNode (std::make_unique<ChannelStrip> (nullptr, false));
@@ -901,14 +901,6 @@ var HostEngine::setMixer (const var& body)
         const int t = body.hasProperty ("sendTap") ? jlimit (0, 2, (int) body["sendTap"]) : ((bool) body["sendPre"] ? 1 : 0);
         if (t != c.sendTap) { c.sendTap = t; rebuildConnections(); }
     }
-    markDirty();
-    return ok();
-}
-
-var HostEngine::setMasterDb (float db)
-{
-    masterDb = jlimit (-100.0f, 6.0f, db);
-    masterGain.store (masterDb <= -60.0f ? 0.0f : Decibels::decibelsToGain (masterDb));
     markDirty();
     return ok();
 }
@@ -1539,7 +1531,6 @@ var HostEngine::getState()
     auto* o = new DynamicObject();
     o->setProperty ("numChannels", (int) chains.size());
     o->setProperty ("cpu", deviceManager.getCpuUsage());
-    o->setProperty ("masterDb", masterDb);
     o->setProperty ("paflMode", paflMode);
     o->setProperty ("editorAvailable", std::getenv ("DISPLAY") != nullptr);
     o->setProperty ("monitorChannel", monitorChannel);
@@ -1643,7 +1634,6 @@ var HostEngine::serialise()
 {
     auto* root = new DynamicObject();
     root->setProperty ("numChannels", (int) chains.size());
-    root->setProperty ("masterDb", masterDb);
     root->setProperty ("paflMode", paflMode);
 
     Array<var> chainArr;
@@ -1691,7 +1681,6 @@ var HostEngine::deserialise (const var& v)
     for (int i = 0; i < n; ++i)
         chains.push_back (makeChain (i));
 
-    setMasterDb ((float) (double) v.getProperty ("masterDb", 0.0));
 
     String errors;
     if (auto* chainArr = v.getProperty ("chains", {}).getArray())

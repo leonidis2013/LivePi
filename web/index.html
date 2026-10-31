@@ -60,7 +60,6 @@
   .map { display:flex; flex-wrap:wrap; gap:3px 8px; font-size:11px; color:var(--dim); }
   .map label { display:flex; align-items:center; gap:3px; }
   .strip.bus { background:var(--card2); }
-  .strip.master { width:110px; flex-basis:110px; background:var(--card2); }
   .strip .nm { width:100%; text-align:center; font-weight:600; padding:5px; }
   .strip .mname { text-align:center; font-weight:600; padding:6px 0; }
   .fm { display:flex; justify-content:center; gap:6px; height:220px; }
@@ -198,7 +197,7 @@
 
   .strips { gap:12px; }
   .strip { border-radius:12px; padding:10px; gap:10px; background:var(--card); }
-  .strip.bus, .strip.master { background:var(--card); }
+  .strip.bus { background:var(--card); }
   .strip .nm { background:transparent; text-align:center; font-weight:700; font-size:13px; letter-spacing:.08em; text-transform:uppercase; padding:4px; }
   .strip .nm:focus { background:var(--card2); }
   .strip .mname { font-size:13px; letter-spacing:.08em; text-transform:uppercase; }
@@ -265,7 +264,6 @@
     .panel { max-width:none; }
     .strips { gap:10px; margin:0 -2px; }
     .strip { width:calc((100vw - 38px) / 2); flex-basis:calc((100vw - 38px) / 2); padding:8px; gap:8px; }
-    .strip.master { width:96px; flex-basis:96px; }
     .fm { height:230px; gap:5px; }
     .fader { width:34px; }
     .fader .knob { height:24px; left:1px; right:1px; }
@@ -624,7 +622,6 @@
   </div>
   <div class="card">
     <h2>Mixer</h2>
-    <div class="set"><div class="sl"><b>Master fader</b><span id="masterNote">Hidden, it keeps its level</span></div><div class="sc"><div class="seg" id="masterSeg"><button data-v="on">Show</button><button data-v="off">Hide</button></div></div></div>
     <div class="set"><div class="sl"><b>Plugins open in</b><span>What tapping a plugin name opens (this device)</span></div><div class="sc"><div class="seg" id="pvDefSeg"><button data-v="controls">Controls</button><button data-v="window">Plugin</button></div></div></div>
     <div class="set"><div class="sl"><b>PAFL mode</b><span>PFL before the fader, AFL after it</span></div><div class="sc"><div class="seg" id="paflSeg"><button data-v="0">PFL</button><button data-v="2">AFL</button><button data-v="1">Input</button></div></div></div>
     <div class="set"><div class="sl"><b>Listen delay</b><span>Lower = less delay, more risk of crackles</span></div><div class="sc"><div class="seg" id="leadSeg"><button data-v="40">Lowest</button><button data-v="80">Low</button><button data-v="200">Safe</button></div></div></div>
@@ -989,18 +986,6 @@ $('gear').onclick = () => {
 document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', gearSync));
 gearSync();
 
-/* ---------- master fader on/off ---------- */
-function masterSync() {
-  const v = showMaster() ? 'on' : 'off';
-  document.querySelectorAll('#masterSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
-  const db = S ? S.masterDb : 0;
-  $('masterNote').textContent = v === 'off' ? 'Hidden; stays at ' + (S ? (S.masterDb <= MINDB ? '-inf' : S.masterDb.toFixed(1) + ' dB') : 'its level') : 'Shown on the Mixer';
-}
-document.querySelectorAll('#masterSeg button').forEach(b => b.onclick = () => {
-  try { localStorage.setItem('lh.master', b.dataset.v); } catch (e) {}
-  masterSync(); structKey = ''; if (S) renderStrips(S);
-});
-
 /* ---------- faders ---------- */
 const posFromDb = db => db <= MINDB ? 0 : Math.min(1, Math.pow((db - MINDB) / (MAXDB - MINDB), 1 / CURVE));
 const dbFromPos = p => p < 0.005 ? -100 : MINDB + (MAXDB - MINDB) * Math.pow(p, CURVE);
@@ -1168,18 +1153,8 @@ function buildStrip(c, ch) {
   return s;
 }
 
-function showMaster() { try { return localStorage.getItem('lh.master') !== 'off'; } catch (e) { return true; } }
-function buildMaster() {
-  const s = el('div', 'strip master');
-  s.append(el('div', 'mname', 'Master'));
-  const fm = el('div', 'fm');
-  fm.append(makeFader(db => throttled('master', () => api('/api/master', { gainDb: db }))));
-  s.append(fm, el('div', 'db', '0.0 dB'));
-  return s;
-}
-
 function renderStrips(st) {
-  const key = JSON.stringify(st.chains.map(c => [c.name, c.slots, c.sendDb > -60])) + JSON.stringify([st.monitorBus, st.outputNames]) + '|' + plugins.length + '|' + !!st.editorAvailable + '|' + showMaster() + '|' + (st.paflMode || 0);
+  const key = JSON.stringify(st.chains.map(c => [c.name, c.slots, c.sendDb > -60])) + JSON.stringify([st.monitorBus, st.outputNames]) + '|' + plugins.length + '|' + !!st.editorAvailable + '|' + (st.paflMode || 0);
   if (key === structKey) return;
   const a = document.activeElement;
   if (a && a.tagName === 'INPUT' && a.closest('#strips')) return;   // don't rebuild while renaming
@@ -1187,7 +1162,6 @@ function renderStrips(st) {
   const root = $('strips'); root.innerHTML = '';
   st.chains.forEach((c, ch) => root.append(buildStrip(c, ch)));
   if (st.monitorBus) root.append(buildStrip(st.monitorBus, 100));
-  if (showMaster()) root.append(buildMaster());
   syncMix(st);
 }
 
@@ -1200,8 +1174,6 @@ function syncMix(st) {
     const mb = s.querySelector('.monbtn');
     if (mb) mb.classList.toggle('on', c.sendDb > -60);
   });
-  const m = document.querySelector('.strip.master .fader');
-  if (m && !m.dataset.drag) paintFader(m, st.masterDb);
 }
 
 /* ---------- meters ---------- */
@@ -2302,7 +2274,6 @@ async function refresh() {
   monFill(st);
   renderStrips(st);
   monOutsRender(st);
-  masterSync();
   paflSync();
   syncMix(st);
 }

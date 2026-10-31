@@ -1,6 +1,6 @@
 # LivePi User Manual
 
-**LivePi v0.12.0** · Copyright © Jerod Ulicki
+**LivePi v0.13.0** · Copyright © Jerod Ulicki
 
 LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Audio goes in through the Pi's sound card, through your plugins (for example LiveVoice), and back out with very little delay. You control everything from a web page on a phone, tablet or computer. The Pi needs no screen, keyboard or mouse.
 
@@ -168,10 +168,6 @@ On a phone the chain is folded into one line, for example "LiveVoice ›". Tap i
 | **⋯** | More: **CPU** estimates the plugin's CPU use with a test signal (not during a show), and the **trash can** removes it from the channel. |
 | **+ Add plugin** | Pick an installed plugin and press **Add**. |
 
-### Master
-
-The Master fader controls all channel outputs. You can hide it in **Settings → Mixer → Master fader**; it keeps its level while hidden.
-
 ### Presets
 
 Tap **Presets** to load a saved mix or save the current one under a new name. A preset stores channel names, faders, mutes, plugin chains and all plugin settings, the monitor mix, and the PAFL mode. The last session is restored automatically when the Pi starts.
@@ -287,7 +283,6 @@ If no sound card is found at start-up, LivePi falls back to the virtual card for
 | Setting | Meaning |
 |---|---|
 | **Theme** | Auto (follows the device), Dark or Light. Saved on this device only. |
-| **Master fader** | Show or hide it on the mixer. Saved on this device only. |
 | **Plugins open in** | What tapping a plugin name opens: Controls or Plugin. Saved on this device only. |
 | **PAFL mode** | PFL, AFL or Input, for all channels. Saved in presets. |
 | **Listen delay** | Lowest, Low or Safe, for *Listen here* on this device. |
