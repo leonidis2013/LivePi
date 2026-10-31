@@ -3,6 +3,7 @@
 #include <csignal>
 #include <memory>
 #include "HostEngine.h"
+#include "Reliability.h"
 #include "WebServer.h"
 #include "EditorViewer.h"
 
@@ -41,6 +42,11 @@ public:
         for (int i = 0; i + 1 < args.size(); ++i)
             if (args[i] == "--port")
                 port = args[i + 1].getIntValue();
+
+        // Keep LivePi's memory in RAM (audio code and buffers never wait for the SD card or swap)
+        Reliability::lockMemory();
+        if (Reliability::memLockResult.load() != 0)
+            juce::Logger::writeToLog ("Could not lock memory (errno " + juce::String (Reliability::memLockResult.load()) + "); re-run the installer for the memlock limit");
 
         std::signal (SIGTERM, onStopSignal);
         std::signal (SIGINT, onStopSignal);

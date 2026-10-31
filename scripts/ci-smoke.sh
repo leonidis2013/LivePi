@@ -26,6 +26,7 @@ ls /work/*.zip | tee -a "$RES"
 unzip -q /work/livepi-build-*.zip || say "FAIL  unzip"
 cd livepi || { say "FAIL  no livepi directory in the zip"; exit 1; }
 check "package has pisound-setup.sh" "[ -x pisound-setup.sh ] && bash -n pisound-setup.sh"
+check "package has rt-tune.sh" "[ -x rt-tune.sh ] && bash -n rt-tune.sh"
 check "binary has no missing libraries" "! ldd ./LivePi | grep -q 'not found'"
 [ -s manifest.json ] && say "manifest: $(cat manifest.json)"
 
@@ -135,5 +136,45 @@ Xvfb :99 -screen 0 1024x768x24 >/dev/null 2>&1 &
 sleep 2
 export DISPLAY=:99
 run_case "DISPLAY given (:99)"
+
+# ---- reliability: status, crash-loop safe mode, frozen-audio watchdog
+start_lp() {   # start_lp [ENV=value ...]
+  rm -f /tmp/lh.rc
+  bash -c "cd /tmp/lh/livepi && HOME=/root $* ./LivePi > /tmp/lh.log 2>&1; echo \$? > /tmp/lh.rc" &
+  for i in $(seq 1 40); do api /api/info | jq -e .version >/dev/null 2>&1 && break; sleep 0.5; done
+}
+reliability_case() {
+  say "-- case: reliability"
+  pkill -9 -x LivePi 2>/dev/null; sleep 1
+  rm -rf /root/.livepi; mkdir -p /root/.livepi && echo "127.0.0.0/8" > /root/.livepi/trusted.txt
+  echo '{"numChannels":2,"chains":[{"name":"Alpha","slots":[]},{"name":"Beta","slots":[]}]}' > /root/.livepi/last.json
+  start_lp
+  R=$(api /api/reliability); say "reliability: $(echo "$R" | jq -c .)"
+  check "reliability: status answers" "echo '$R' | jq -e 'has(\"realtime\") and has(\"memoryLocked\") and has(\"watchdog\")' >/dev/null"
+  check "reliability: state lists notices" "api /api/state | jq -e '(.notices|type==\"array\") and .safeMode==false' >/dev/null"
+  check "reliability: session loaded" "api /api/state | jq -e '.chains[1].name==\"Beta\"' >/dev/null"
+  # two crashes in a row while starting -> the third start is in safe mode
+  pkill -9 -x LivePi; sleep 1; start_lp
+  check "reliability: one early crash is not safe mode yet" "api /api/state | jq -e '.safeMode==false' >/dev/null"
+  pkill -9 -x LivePi; sleep 1; start_lp
+  check "reliability: after two early crashes LivePi starts in safe mode" "api /api/state | jq -e '.safeMode==true and any(.notices[]; .id==\"safe\")' >/dev/null"
+  check "reliability: safe mode keeps the channels" "api /api/state | jq -e '.chains[0].name==\"Alpha\"' >/dev/null"
+  check "reliability: restore leaves safe mode" "post /api/safemode/restore '{}' | jq -e .ok >/dev/null && api /api/state | jq -e '.safeMode==false and (any(.notices[]; .id==\"safe\")|not)' >/dev/null"
+  pkill -TERM -x LivePi; for i in $(seq 1 50); do pgrep -x LivePi >/dev/null || break; sleep 0.1; done
+  check "reliability: a clean stop resets the crash count" "[ \"\$(cat /root/.livepi/starts.txt)\" = 0 ]"
+  # frozen audio (a hung plugin): the watchdog restarts LivePi and the page is told why
+  start_lp LIVEPI_TEST_HANG_AFTER=3
+  for i in $(seq 1 60); do pgrep -x LivePi >/dev/null || break; sleep 0.5; done
+  sleep 1
+  say "after the freeze: rc=$(cat /tmp/lh.rc 2>/dev/null) note=$(cat /root/.livepi/restart-note.txt 2>/dev/null)"
+  check "reliability: watchdog ends a frozen LivePi (exit 70) within 30 s" "[ \"\$(cat /tmp/lh.rc 2>/dev/null)\" = 70 ]"
+  check "reliability: watchdog leaves a note" "grep -q 'stopped responding' /root/.livepi/restart-note.txt"
+  start_lp
+  check "reliability: next start shows the note on the page" "api /api/state | jq -e 'any(.notices[]; .id==\"restart\")' >/dev/null"
+  check "reliability: audio running normally again" "sleep 2; api /api/meters | jq -e '.in|type==\"array\"' >/dev/null && api /api/state | jq -e '.xruns <= 2' >/dev/null"
+  pkill -TERM -x LivePi; sleep 2
+  say "log tail:"; tail -n 6 /tmp/lh.log | tee -a "$RES"
+}
+reliability_case
 
 say "RESULT: $([ $FAIL -eq 0 ] && echo ALL PASSED || echo SOME FAILED)"

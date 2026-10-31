@@ -147,41 +147,105 @@ void HostEngine::start()
     deviceManager.getAvailableDeviceTypes();
     deviceManager.addAudioDeviceType (std::make_unique<VirtualAudio::DeviceType> (dataDir().getChildFile ("test-input.wav")));
 
+    deviceChanging = true;
     std::unique_ptr<XmlElement> saved = XmlDocument::parse (appDir().getChildFile ("audio.xml"));
     auto e = deviceManager.initialise (16, 16, saved.get(), true);
     if (e.isNotEmpty())
         Logger::writeToLog ("Audio init: " + e);
 
-    // No usable sound card (or none plugged in): run on the virtual one so the page still works
+    // No usable sound card (or none plugged in yet): run on the virtual one so the page still works.
+    // The reconnect timer below switches to the real card as soon as it appears.
     if (deviceManager.getCurrentAudioDevice() == nullptr)
-    {
-        autoFallback = true;
-        deviceManager.setCurrentAudioDeviceType (VirtualAudio::typeName, true);
-        auto setup = deviceManager.getAudioDeviceSetup();
-        setup.inputDeviceName = VirtualAudio::inTone;
-        setup.outputDeviceName = VirtualAudio::outName;
-        setup.sampleRate = 48000.0;
-        setup.bufferSize = 128;
-        setup.useDefaultInputChannels = setup.useDefaultOutputChannels = true;
-        auto fe = deviceManager.setAudioDeviceSetup (setup, true);
-        Logger::writeToLog ("No audio device found, using the virtual one. " + fe);
-    }
+        useVirtualFallback();
+    deviceChanging = false;
 
     HwMixer::restore();   // the interface's own levels as you last set them
 
     deviceManager.addAudioCallback (&player);
     deviceManager.addChangeListener (this);
     running = true;
+    deviceChanged();
 
-    auto last = appDir().getChildFile ("last.json");
-    if (last.existsAsFile())
-        deserialise (JSON::parse (last));
+    // ---- Crash-loop protection: LivePi counts starts that did not last 30 s. After two in a row it
+    // starts in safe mode: the session without plugins (the audio passes through unprocessed), so a
+    // plugin that crashes on load can't keep the Pi silent. The page offers to load it again.
+    auto starts = dataDir().getChildFile ("starts.txt");
+    const int unstable = starts.loadFileAsString().trim().getIntValue();
+    safeMode = unstable >= 2;
+    starts.replaceWithText (String (unstable + 1));
+
+    auto note = dataDir().getChildFile ("restart-note.txt");
+    if (note.existsAsFile())
+    {
+        addNotice ("restart", note.loadFileAsString().trim());
+        note.deleteFile();
+    }
+
+    auto last = appDir().getChildFile ("last.json"), good = appDir().getChildFile ("last-good.json");
+    var session = JSON::parse (last);
+    if (! session.isObject() && last.existsAsFile())
+    {
+        session = JSON::parse (good);
+        if (session.isObject())
+            addNotice ("damaged", "The saved session file was damaged. LivePi loaded the last good copy instead.");
+    }
+    if (! session.isObject())
+        safeMode = false;                       // nothing was loaded, so there is nothing to leave out
+    if (session.isObject())
+    {
+        if (safeMode)
+        {
+            last.copyFileTo (appDir().getChildFile ("last-crash.json"));
+            deserialise (withoutPlugins (session));
+            addNotice ("safe", "Safe mode: LivePi stopped unexpectedly " + String (unstable) + " times in a row while starting, so it started "
+                               "without plugins. The audio passes through unprocessed.", "bad");
+            Logger::writeToLog ("Safe mode: started without plugins after " + String (unstable) + " failed starts");
+        }
+        else
+        {
+            deserialise (session);
+        }
+    }
 
     rebuildConnections();
 
-    // Loading plugins while the audio already runs can cause a few dropouts: don't count those
     auto flag = alive;
+    // Loading plugins while the audio already runs can cause a few dropouts: don't count those
     Timer::callAfterDelay (3000, [this, flag] { if (flag->load()) resetXruns(); });
+    // Ran fine for 30 s: this start counts as good, and the session is kept as the last good copy
+    Timer::callAfterDelay (30000, [this, flag]
+    {
+        if (! flag->load()) return;
+        dataDir().getChildFile ("starts.txt").replaceWithText ("0");
+        if (! safeMode && appDir().getChildFile ("last.json").existsAsFile() && JSON::parse (appDir().getChildFile ("last.json")).isObject())
+            appDir().getChildFile ("last.json").copyFileTo (appDir().getChildFile ("last-good.json"));
+    });
+
+    // Real sound card missing (not plugged in yet, driver still loading at boot, or unplugged): retry
+    struct Reconnect : Timer
+    {
+        HostEngine& e;
+        explicit Reconnect (HostEngine& h) : e (h) { startTimer (4000); }
+        void timerCallback() override { e.tryReconnect(); }
+    };
+    reconnectTimer = std::make_unique<Reconnect> (*this);
+
+    health = std::make_unique<Reliability::PiHealth>();
+    watchdog = std::thread ([this] { runWatchdog(); });
+}
+
+void HostEngine::useVirtualFallback()
+{
+    autoFallback = true;
+    deviceManager.setCurrentAudioDeviceType (VirtualAudio::typeName, true);
+    auto setup = deviceManager.getAudioDeviceSetup();
+    setup.inputDeviceName = VirtualAudio::inTone;
+    setup.outputDeviceName = VirtualAudio::outName;
+    setup.sampleRate = 48000.0;
+    setup.bufferSize = 128;
+    setup.useDefaultInputChannels = setup.useDefaultOutputChannels = true;
+    auto fe = deviceManager.setAudioDeviceSetup (setup, true);
+    Logger::writeToLog ("No audio device found, using the virtual one. " + fe);
 }
 
 void HostEngine::shutdown()
@@ -190,9 +254,16 @@ void HostEngine::shutdown()
         return;
     running = false;
     *alive = false;
+    sd.send ("STOPPING=1");
+    watchdogStop = true;                 // first, so closing the device below is not taken for a failure
+    if (watchdog.joinable())
+        watchdog.join();
+    reconnectTimer.reset();
+    health.reset();
     if (benchThread.joinable())
         benchThread.join();
     saveLast();
+    dataDir().getChildFile ("starts.txt").replaceWithText ("0");   // a clean stop is not a crash
     editors.clear();
     deviceManager.removeChangeListener (this);
     deviceManager.removeAudioCallback (&player);
@@ -203,10 +274,200 @@ void HostEngine::shutdown()
 void HostEngine::changeListenerCallback (ChangeBroadcaster*)
 {
     xrunBase = 0; xrunDevice = deviceManager.getCurrentAudioDevice();   // device (re)opened: its count starts at 0
-    if (! autoFallback)
+    // Only remember a deliberate, working setup (not the automatic fallback, not "no device")
+    if (! autoFallback && deviceManager.getCurrentAudioDevice() != nullptr)
       if (auto xml = deviceManager.createStateXml())
         xml->writeTo (appDir().getChildFile ("audio.xml"));
+    deviceChanged();
     rebuildConnections();
+}
+
+void HostEngine::deviceChanged()
+{
+    deviceOpen = deviceManager.getCurrentAudioDevice() != nullptr;
+    lastDeviceChangeMs = Time::getMillisecondCounterHiRes();
+}
+
+// ---------------------------------------------------------------- reliability
+
+void HostEngine::addNotice (const String& id, const String& text, const String& level)
+{
+    for (auto& n : notices)
+        if (n.id == id) { n.text = text; n.level = level; return; }
+    notices.push_back ({ id, text, level });
+}
+
+var HostEngine::dismissNotice (const String& id)
+{
+    notices.erase (std::remove_if (notices.begin(), notices.end(), [&] (const Notice& n) { return n.id == id; }), notices.end());
+    if (id == "safe")
+        safeMode = false;          // "keep going without plugins"
+    return ok();
+}
+
+var HostEngine::restoreSession()
+{
+    auto crash = appDir().getChildFile ("last-crash.json");
+    auto v = JSON::parse (crash);
+    if (! v.isObject())
+        return err ("There is no saved session to load.");
+    safeMode = false;
+    dismissNotice ("safe");
+    auto r = deserialise (v);
+    saveLast();
+    return r;
+}
+
+var HostEngine::withoutPlugins (const var& session)
+{
+    auto copy = JSON::parse (JSON::toString (session));        // deep copy
+    if (auto* chainArr = copy.getProperty ("chains", {}).getArray())
+        for (auto& c : *chainArr)
+            if (auto* o = c.getDynamicObject())
+                o->setProperty ("slots", Array<var>());
+    if (auto* mb = copy.getProperty ("monitorBus", {}).getDynamicObject())
+        mb->setProperty ("slots", Array<var>());
+    return copy;
+}
+
+// Watches the audio from its own thread (it keeps working if the rest of LivePi is busy or stuck):
+//  - audio stopped but not inside the plugins (the device failed): reopen the device; if that does
+//    not bring it back within 12 s, restart LivePi.
+//  - stuck inside the plugins for 4 s (a plugin hung): restart LivePi; nothing else can recover it.
+// It also tells systemd that LivePi is alive. If LivePi freezes completely, systemd restarts it after 30 s.
+void HostEngine::runWatchdog()
+{
+    sd.send ("READY=1\nWATCHDOG_USEC=30000000");
+    auto lastHb = player.heartbeat.load();
+    double lastBeat = Time::getMillisecondCounterHiRes(), stageAt = 0.0;
+    int stage = 0;
+
+    while (! watchdogStop.load())
+    {
+        std::this_thread::sleep_for (std::chrono::milliseconds (250));
+        const double t = Time::getMillisecondCounterHiRes();
+        const auto hb = player.heartbeat.load (std::memory_order_relaxed);
+        if (hb != lastHb)
+        {
+            lastHb = hb;
+            lastBeat = t;
+            if (stage != 0) { Logger::writeToLog ("Watchdog: audio is running again"); stage = 0; }
+        }
+
+        const double quiet = t - jmax (lastBeat, player.lastStartMs.load(), lastDeviceChangeMs.load());
+        const bool expectAudio = deviceOpen.load() && ! deviceChanging.load();
+        if (! expectAudio)
+            stage = 0;
+        else if (player.inCallback.load())
+        {
+            if (quiet > 4000)
+                die ("A plugin stopped responding and froze the audio, so LivePi restarted itself");
+        }
+        else if (quiet > 3000)
+        {
+            if (stage == 0)
+            {
+                stage = 1;
+                stageAt = t;
+                Logger::writeToLog ("Watchdog: no audio for 3 s, restarting the audio device");
+                auto flag = alive;
+                MessageManager::callAsync ([this, flag] { if (flag->load()) restartAudio(); });
+            }
+            else if (t - stageAt > 12000)
+            {
+                die ("The audio interface stopped and could not be restarted, so LivePi restarted itself");
+            }
+        }
+
+        sd.send ("WATCHDOG=1");
+    }
+}
+
+void HostEngine::die (const String& reason)
+{
+    const auto text = reason + " at " + Time::getCurrentTime().formatted ("%H:%M:%S on %d %b") + ".";
+    dataDir().getChildFile ("restart-note.txt").replaceWithText (text);
+    Logger::writeToLog ("Watchdog: " + text);
+    std::_Exit (70);                    // systemd starts LivePi again within a second
+}
+
+void HostEngine::restartAudio()
+{
+    deviceChanging = true;
+    deviceManager.closeAudioDevice();
+    deviceManager.restartLastAudioDevice();
+    deviceChanging = false;
+    deviceChanged();
+    if (deviceManager.getCurrentAudioDevice() != nullptr)
+        addNotice ("audio", "The audio stopped at " + Time::getCurrentTime().formatted ("%H:%M:%S") + " and LivePi restarted the audio interface.");
+    else
+        addNotice ("audio", "The audio interface stopped at " + Time::getCurrentTime().formatted ("%H:%M:%S")
+                            + ". LivePi keeps trying to reconnect it.", "bad");
+}
+
+void HostEngine::tryReconnect()
+{
+    const bool haveDevice = deviceManager.getCurrentAudioDevice() != nullptr;
+    if (haveDevice && ! autoFallback)
+        return;
+
+    std::unique_ptr<XmlElement> saved = XmlDocument::parse (appDir().getChildFile ("audio.xml"));
+    if (saved == nullptr)
+        return;
+    const auto typeName = saved->getStringAttribute ("deviceType");
+    if (typeName.isEmpty() || typeName == VirtualAudio::typeName)
+        return;
+
+    AudioIODeviceType* type = nullptr;
+    for (auto* t : deviceManager.getAvailableDeviceTypes())
+        if (t->getTypeName() == typeName) type = t;
+    if (type == nullptr)
+        return;
+    type->scanForDevices();
+    const auto in = saved->getStringAttribute ("audioInputDeviceName"), out = saved->getStringAttribute ("audioOutputDeviceName");
+    if ((in.isNotEmpty() && ! type->getDeviceNames (true).contains (in)) || (out.isNotEmpty() && ! type->getDeviceNames (false).contains (out)))
+        return;                                  // still missing: try again in a few seconds
+
+    deviceChanging = true;
+    const bool wasFallback = autoFallback;
+    autoFallback = false;
+    auto e = deviceManager.initialise (16, 16, saved.get(), false);
+    if (deviceManager.getCurrentAudioDevice() == nullptr)
+    {
+        Logger::writeToLog ("Reconnect failed: " + e);
+        if (wasFallback) useVirtualFallback();
+        deviceChanging = false;
+        deviceChanged();
+        return;
+    }
+    deviceChanging = false;
+    deviceChanged();
+    rebuildConnections();
+    Logger::writeToLog ("Audio interface connected: " + out);
+    addNotice ("audio", "The audio interface (" + (out.isNotEmpty() ? out : in) + ") is connected and in use.", "ok");
+}
+
+var HostEngine::getReliability()
+{
+    auto* o = new DynamicObject();
+    o->setProperty ("realtime", player.rtOk.load());
+    o->setProperty ("realtimeError", player.rtError.load());
+    o->setProperty ("priority", Reliability::RtPlayer::rtPriority);
+    o->setProperty ("audioCpu", player.rtCpu.load());
+    o->setProperty ("isolatedCpu", Reliability::isolatedCpu());
+    o->setProperty ("memoryLocked", Reliability::memLockResult.load() == 0);
+    o->setProperty ("watchdog", sd.available());
+    o->setProperty ("governor", File ("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor").loadFileAsString().trim());
+    o->setProperty ("usbAutosuspend", File ("/sys/module/usbcore/parameters/autosuspend").loadFileAsString().trim());
+    o->setProperty ("kernel", File ("/proc/sys/kernel/version").loadFileAsString().trim());
+    o->setProperty ("aptTimers", File ("/etc/systemd/system/timers.target.wants/apt-daily.timer").exists()
+                                  || File ("/etc/systemd/system/timers.target.wants/apt-daily-upgrade.timer").exists()
+                                  || File ("/lib/systemd/system/timers.target.wants/apt-daily.timer").exists());
+    o->setProperty ("tuning", File ("/etc/livepi-tuning").loadFileAsString().trim());
+    o->setProperty ("throttled", health != nullptr ? health->throttled.load() : -1);
+    o->setProperty ("safeMode", safeMode);
+    o->setProperty ("fallback", autoFallback);
+    return var (o);
 }
 
 // ---------------------------------------------------------------- chains / routing
@@ -415,6 +676,8 @@ var HostEngine::getDevices()
 
 var HostEngine::setDevice (const String& type, const String& in, const String& out, double sr, int bs)
 {
+    deviceChanging = true;
+    struct Done { HostEngine& e; ~Done() { e.deviceChanging = false; e.deviceChanged(); } } done { *this };
     if (type.isNotEmpty() && type != deviceManager.getCurrentAudioDeviceType())
         deviceManager.setCurrentAudioDeviceType (type, true);
 
@@ -1203,6 +1466,20 @@ var HostEngine::getState()
     else
     {
         o->setProperty ("deviceName", "none");
+    }
+
+    o->setProperty ("safeMode", safeMode);
+    o->setProperty ("realtime", player.rtOk.load());
+    o->setProperty ("throttled", health != nullptr ? health->throttled.load() : -1);
+    {
+        Array<var> ns;
+        for (auto& n : notices)
+        {
+            auto* no = new DynamicObject();
+            no->setProperty ("id", n.id); no->setProperty ("text", n.text); no->setProperty ("level", n.level);
+            ns.add (var (no));
+        }
+        o->setProperty ("notices", ns);
     }
 
     Array<var> chainArr;

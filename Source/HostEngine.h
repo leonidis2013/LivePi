@@ -9,6 +9,7 @@
 #include "ChannelStrip.h"
 #include "CpuBench.h"
 #include "MonitorRing.h"
+#include "Reliability.h"
 #include "VirtualAudio.h"
 
 class EditorWindow;
@@ -27,6 +28,9 @@ public:
     static juce::File dataDir();   // ~/.livepi
     juce::StringArray deviceNames();   // the audio device in use (message thread)
     juce::var resetXruns();            // start the dropout count again from 0
+    juce::var getReliability();        // the checklist on the System page
+    juce::var restoreSession();        // leave safe mode: load the session with its plugins again
+    juce::var dismissNotice (const juce::String& id);
 
     // Audio device
     juce::var getDevices();
@@ -130,7 +134,7 @@ private:
     int paflMode = 0;                                   // global PAFL tap for every channel: 0 = PFL, 1 = input, 2 = AFL
 
     juce::AudioProcessorGraph graph;
-    juce::AudioProcessorPlayer player;
+    Reliability::RtPlayer player;
     juce::AudioProcessorGraph::Node::Ptr inputNode, outputNode;
 
     std::vector<Chain> chains;
@@ -147,4 +151,25 @@ private:
     int xrunBase = 0;                    // device xrun count at the last reset
     juce::AudioIODevice* xrunDevice = nullptr;
     std::shared_ptr<std::atomic<bool>> alive = std::make_shared<std::atomic<bool>> (true);
+
+    // ---- reliability (see Reliability.h)
+    Reliability::SdNotify sd;
+    std::unique_ptr<Reliability::PiHealth> health;
+    std::thread watchdog;
+    std::atomic<bool> watchdogStop { false };
+    std::atomic<bool> deviceOpen { false }, deviceChanging { false };
+    std::atomic<double> lastDeviceChangeMs { 0.0 };
+    bool safeMode = false;
+    std::unique_ptr<juce::Timer> reconnectTimer;
+    struct Notice { juce::String id, text, level; };
+    std::vector<Notice> notices;                         // shown as banners on the page (message thread)
+
+    void runWatchdog();
+    [[noreturn]] void die (const juce::String& reason);
+    void restartAudio();
+    void tryReconnect();
+    void useVirtualFallback();
+    void deviceChanged();                               // message thread, after any device change
+    void addNotice (const juce::String& id, const juce::String& text, const juce::String& level = "warn");
+    static juce::var withoutPlugins (const juce::var& session);
 };

@@ -1,6 +1,6 @@
 # LivePi User Manual
 
-**LivePi v0.9.1** · Copyright © Jerod Ulicki
+**LivePi v0.10.0** · Copyright © Jerod Ulicki
 
 LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Audio goes in through the Pi's sound card, through your plugins (for example LiveVoice), and back out with very little delay. You control everything from a web page on a phone, tablet or computer. The Pi needs no screen, keyboard or mouse.
 
@@ -20,7 +20,7 @@ LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Aud
 8. [Setup pages](#8-setup-pages)
 9. [Password, login and trusted access](#9-password-login-and-trusted-access)
 10. [Updating](#10-updating)
-11. [Getting the lowest latency](#11-getting-the-lowest-latency)
+11. [Reliability and latency](#11-reliability-and-latency)
 12. [Troubleshooting](#12-troubleshooting)
 13. [Command reference (on the Pi)](#13-command-reference-on-the-pi)
 14. [Where LivePi keeps its files](#14-where-livepi-keeps-its-files)
@@ -78,6 +78,7 @@ You can answer some of these up front:
 |---|---|
 | `--password` / `--no-password` | Set a password, or skip it, without being asked. |
 | `--pisound` / `--no-pisound` | Set up the Pisound, or don't, without being asked. |
+| `--no-tuning` | Don't apply the live-audio OS tuning (section 11). |
 | `--no-editor` | Don't install plugin-window support (saves a little memory; the Plugin screen view is then unavailable). |
 
 > **No internet on the Pi?** Download `livepi-linux-arm64.tar.gz` from the [Releases page](https://github.com/leonidis2013/LivePi/releases) on your computer, copy it over with `scp livepi-linux-arm64.tar.gz your-user@livepi.local:`, then continue from `tar xzf`.
@@ -275,6 +276,7 @@ If no sound card is found at start-up, LivePi falls back to the virtual card for
 | **Update from: Online / File** | Online checks GitHub; File installs a downloaded update. |
 | **Check / Install update** | Install is grayed out until a newer version is found, or until a file has been chosen. |
 | **Restart LivePi** | Restarts the program. Audio stops for a few seconds. |
+| **Reliability** | A checklist of everything that protects the audio: real-time priority, the reserved CPU core, memory lock, power supply, temperature, CPU speed, automatic OS updates, the watchdog and crash protection. See [Reliability and latency](#11-reliability-and-latency). |
 | **Operating system** | Checks for and installs Raspberry Pi OS updates. Needs internet. Don't run it right before a service: it can cause dropouts and may need a reboot. |
 | **Danger zone → Reboot Pi** | Restarts the whole Pi, which takes about 30 seconds. |
 
@@ -330,13 +332,52 @@ Presets, plugins, password and settings are kept. If a new version fails to star
 
 ---
 
-## 11. Getting the lowest latency
+## 11. Reliability and latency
+
+### What LivePi does to keep the audio running
+
+| Protection | What it does |
+|---|---|
+| **Real-time audio** | The audio runs at real-time priority, ahead of everything else on the Pi, including the web page, plugin screens and the OS. Denormals (tiny numbers that can make plugin math suddenly slow) are flushed to zero. |
+| **Reserved CPU core** | With the installer's tuning, one CPU core is kept for the audio alone and nothing else ever runs on it. |
+| **Memory locked** | LivePi stays in RAM, so the audio never waits for the SD card. |
+| **Soft start** | Outputs stay silent for under a second while the converters and plugins settle after start-up, then fade in. |
+| **Watchdog** | Checks the audio four times a second. If the sound card stops, LivePi reopens it. If a plugin hangs and freezes the audio, LivePi restarts itself within a few seconds. If LivePi ever freezes completely, the system restarts it within 30 seconds. A banner tells you what happened and when. |
+| **Crash recovery** | After a crash LivePi starts again within about a second and reloads your session. |
+| **Safe mode** | If LivePi crashes twice in a row while starting (for example a damaged plugin), it starts **without plugins**, so your voice still passes through unprocessed. A banner offers **Load my session with plugins** or **Keep going without plugins**. |
+| **Sound card reconnect** | If the sound card isn't ready when the Pi boots, or a USB interface is unplugged, LivePi uses the virtual card or waits, and switches back to the real card by itself as soon as it appears. |
+| **Session backup** | A copy of your session is kept after every good start. If the session file is ever damaged (for example by a power cut), LivePi loads the copy. |
+| **Power and heat warnings** | The top bar shows **⚡ Low power**, **Throttled**, **⚡ Power dipped** or **Was throttled** when the Pi's power supply or temperature is causing it to slow down, the most common hidden cause of dropouts on a Raspberry Pi. |
+
+**⚙ → System → Reliability** shows all of this as a checklist. Everything should show a green tick before a service. If something shows **!**, the line says why and what to do.
+
+### What the installer's tuning changes
+
+The installer runs `rt-tune.sh`, which:
+- reserves the last CPU core for the audio (`isolcpus`),
+- switches the kernel to full preemption (`preempt=full`) when the kernel supports it,
+- turns off USB power saving,
+- turns off automatic background OS updates (update from ⚙ → System instead),
+- turns off Wi-Fi power saving,
+- tells the system never to stop restarting LivePi and never to pick LivePi when memory runs out.
+
+The boot settings take effect after a reboot. To see them, run `sudo /opt/livepi/rt-tune.sh status`. To undo them, run `sudo /opt/livepi/rt-tune.sh undo`.
+
+### Before a service
+
+- **Power:** use the official supply (27 W USB-C for a Pi 5, 15 W for a Pi 4). A weak supply or a thin cable causes dropouts and crashes; watch for ⚡ in the top bar.
+- **Cooling:** use a fan or a good heatsink case. Throttling shows in the top bar.
+- **Check the Reliability card** (⚙ → System): all green.
+- **Tap xruns to reset it**, then watch it during the soundcheck. It should stay at 0.
+- **Avoid during the service:** plugin screens, the CPU test, OS updates, uploading plugins and changing audio settings.
+- **Network:** a wired connection is steadier for the page. The audio doesn't depend on the network at all.
+
+### Latency
 
 - Use a HAT like the **Pisound** rather than USB where possible.
 - **Buffer 64 at 48 kHz** gives about 3 ms in-to-out before plugins. 96 kHz with 64 roughly halves that but uses more CPU. Raise to 128 if the **xruns** counter climbs.
 - Plugins can add their own delay, for example any look-ahead.
-- Use a **wired network**, keep the Pi cool (fan), and avoid plugin screens, the CPU test and OS updates during a service.
-- Run one Pi per job. LivePi already sets the CPU to full speed and turns off audio services that get in the way.
+- Run one Pi per job.
 
 ---
 
@@ -352,6 +393,8 @@ Presets, plugins, password and settings are kept. If a new version fails to star
 | **Plugin screen is blank or missing** | ⚙ → Plugins → Plugin windows shows the cause. Restart LivePi; if packages are missing, run the installer again. |
 | **"A session is already in progress"** | Another device has control. Press **Take over**, or wait for it to go idle. |
 | **Locked out by wrong passwords** | Wait for the countdown, or run `sudo /opt/livepi/set-password.sh --off` on the Pi. |
+| **A banner says LivePi restarted itself** | The watchdog recovered from a frozen plugin or sound card. If it happens again, check that plugin (try the service without it) and the power supply. |
+| **Safe mode banner** | LivePi crashed twice while starting. Press **Load my session with plugins**. If it crashes again, one of the plugins is the cause: remove it, or keep going without plugins. |
 | **See what LivePi is doing** | `sudo journalctl -u livepi -n 50` |
 
 ---
@@ -365,6 +408,7 @@ Presets, plugins, password and settings are kept. If a new version fails to star
 | `sudo /opt/livepi/set-password.sh --on` | Turn protection back on (asks for the password to use). |
 | `sudo /opt/livepi/trusted-network.sh add 192.168.2.0/24` | Add a trusted network (also `remove`, `list`, `clear`). |
 | `sudo /opt/livepi/trusted-network.sh on` / `off` | Turn trusted access on or off. |
+| `sudo /opt/livepi/rt-tune.sh` | Apply the live-audio tuning (also `status`, `undo`). Reboot afterwards. |
 | `sudo /opt/livepi/pisound-setup.sh` | Set up the Pisound driver (also `status`, `disable`). Reboot afterwards. |
 | `sudo systemctl restart livepi` | Restart LivePi. |
 | `sudo journalctl -u livepi -n 50` | Show LivePi's recent log. |

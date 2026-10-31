@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Install LivePi on a Raspberry Pi and tune it for low-latency audio.
 # Run from the unpacked livepi folder:
-#   sudo ./install-pi.sh [username] [--no-editor] [--password | --no-password] [--pisound | --no-pisound]
+#   sudo ./install-pi.sh [username] [--no-editor] [--password | --no-password] [--pisound | --no-pisound] [--no-tuning]
+#
+# It also tunes the OS for live audio (rt-tune.sh: a CPU core reserved for the audio, full kernel
+# preemption, no USB power saving, no automatic background updates). Use --no-tuning to skip that.
 #
 # By default this also installs a virtual screen (Xvfb) so plugin windows
 # can be opened from the web page. Use --no-editor to skip that.
@@ -13,6 +16,7 @@ USER_NAME="pi"
 WITH_EDITOR=1
 PW_MODE=ask      # ask | yes | no
 PISOUND=ask      # ask | yes | no
+TUNING=1
 for a in "$@"; do
   case "$a" in
     --no-editor) WITH_EDITOR=0 ;;
@@ -20,6 +24,7 @@ for a in "$@"; do
     --no-password) PW_MODE=no ;;
     --pisound) PISOUND=yes ;;
     --no-pisound) PISOUND=no ;;
+    --no-tuning) TUNING=0 ;;
     *) USER_NAME="$a" ;;
   esac
 done
@@ -62,8 +67,8 @@ apt-get install -y libasound2 2>/dev/null || apt-get install -y libasound2t64
 
 echo "== Installing to /opt/livepi"
 mkdir -p /opt/livepi
-cp -r "$HERE/LivePi" "$HERE/web" "$HERE/set-password.sh" "$HERE/trusted-network.sh" "$HERE/pisound-setup.sh" "$HERE/run.sh" "$HERE/INSTALLER_LEVEL" /opt/livepi/
-chmod +x /opt/livepi/LivePi /opt/livepi/set-password.sh /opt/livepi/trusted-network.sh /opt/livepi/pisound-setup.sh /opt/livepi/run.sh
+cp -r "$HERE/LivePi" "$HERE/web" "$HERE/set-password.sh" "$HERE/trusted-network.sh" "$HERE/pisound-setup.sh" "$HERE/rt-tune.sh" "$HERE/run.sh" "$HERE/INSTALLER_LEVEL" /opt/livepi/
+chmod +x /opt/livepi/LivePi /opt/livepi/set-password.sh /opt/livepi/trusted-network.sh /opt/livepi/pisound-setup.sh /opt/livepi/rt-tune.sh /opt/livepi/run.sh
 # The app owns its folder so it can install offline updates from the web page
 chown -R "$USER_NAME:$(id -gn "$USER_NAME")" /opt/livepi
 
@@ -96,6 +101,13 @@ echo "== Stopping services that fight for the audio device"
 systemctl disable --now pulseaudio.service pulseaudio.socket 2>/dev/null || true
 systemctl --global disable pulseaudio.service pulseaudio.socket 2>/dev/null || true
 systemctl disable --now bluetooth.service 2>/dev/null || true
+
+echo "== System tuning for live audio"
+if [[ $TUNING -eq 1 ]]; then
+  /opt/livepi/rt-tune.sh apply || echo "Tuning did not finish; run later: sudo /opt/livepi/rt-tune.sh"
+else
+  echo "Skipped (--no-tuning)."
+fi
 
 echo "== OS update helper (apt) for the web page"
 install -m 755 -o root -g root "$HERE/livepi-os" "$HERE/livepi-os-job" /usr/local/sbin/
@@ -134,6 +146,8 @@ cat > /etc/systemd/system/livepi.service <<EOF
 Description=LivePi VST3 host
 After=sound.target network-online.target
 Wants=network-online.target
+# Never give up restarting it, however often it stops
+StartLimitIntervalSec=0
 
 [Service]
 User=${USER_NAME}
@@ -141,7 +155,12 @@ Environment=HOME=/home/${USER_NAME}
 WorkingDirectory=/opt/livepi
 ExecStart=/opt/livepi/run.sh --port 8080${EDITOR_ARG}
 Restart=always
-RestartSec=2
+RestartSec=1
+# LivePi tells systemd it is alive; if it ever freezes, systemd restarts it (it enables the timeout itself)
+NotifyAccess=main
+TimeoutStopSec=15
+# Under memory pressure the OS stops something else, never the audio
+OOMScoreAdjust=-900
 # SIGTERM goes to LivePi only; its helpers (virtual screen, viewer) are cleaned up after it has exited
 KillMode=mixed
 LimitRTPRIO=95

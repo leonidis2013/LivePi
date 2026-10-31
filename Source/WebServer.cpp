@@ -648,6 +648,22 @@ void WebServer::setupRoutes()
         reply (res, onMT ([this] { return engine.getDevices(); }));
     });
 
+    svr.Get ("/api/reliability", [this] (const httplib::Request&, httplib::Response& res)
+    {
+        reply (res, onMT ([this] { return engine.getReliability(); }));
+    });
+
+    svr.Post ("/api/notice/dismiss", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto b = body (req);
+        reply (res, onMT ([this, b] { return engine.dismissNotice (b["id"].toString()); }));
+    });
+
+    svr.Post ("/api/safemode/restore", [this] (const httplib::Request&, httplib::Response& res)
+    {
+        reply (res, onMT ([this] { return engine.restoreSession(); }, 60000));
+    });
+
     svr.Post ("/api/xruns/reset", [this] (const httplib::Request&, httplib::Response& res)
     {
         reply (res, onMT ([this] { return engine.resetXruns(); }));

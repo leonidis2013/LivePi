@@ -440,6 +440,24 @@
   .set.hwvol .sc { flex-wrap:nowrap; }
   @media (max-width:720px) { .set.hwvol { flex-wrap:wrap; } .set.hwvol .sl { flex-basis:100%; } .set.hwvol .sc { flex:1 1 100%; } .set.hwvol .sc input.hwr { flex:1; width:auto; max-width:none; }
     .ic { grid-template-columns:1fr auto; } .ic .icbar { grid-column:1 / -1; grid-row:2; } .ict { min-width:0; } }
+
+  /* notices + reliability */
+  #notices { display:flex; flex-direction:column; gap:8px; margin:10px 12px 0; }
+  #notices:empty { display:none; }
+  .ntc { display:flex; align-items:center; gap:10px; flex-wrap:wrap; border:1px solid var(--warn); background:color-mix(in srgb, var(--warn) 12%, var(--card)); border-radius:10px; padding:10px 12px; font-size:14px; }
+  .ntc.bad { border-color:var(--bad); background:color-mix(in srgb, var(--bad) 14%, var(--card)); }
+  .ntc.ok { border-color:var(--ok); background:color-mix(in srgb, var(--ok) 12%, var(--card)); }
+  .ntc span { flex:1 1 260px; line-height:1.4; }
+  .ntc .nb { display:flex; gap:6px; flex-wrap:wrap; }
+  .st.warn { background:color-mix(in srgb, var(--warn) 18%, transparent); color:var(--warn); }
+  .st.warn b { color:var(--warn); }
+  .rel { display:flex; gap:10px; align-items:flex-start; padding:9px 0; border-top:1px solid var(--line); }
+  .rel i { flex:0 0 22px; height:22px; border-radius:50%; display:grid; place-items:center; font-style:normal; font-weight:800; font-size:13px; color:#fff; margin-top:1px; }
+  .rel.ok i { background:var(--ok); } .rel.warn i { background:var(--warn); color:#1a1300; } .rel.bad i { background:var(--bad); } .rel.dim i { background:var(--faint); }
+  .rel div { display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .rel b { font-weight:600; font-size:14px; }
+  .rel span { font-size:12px; color:var(--dim); line-height:1.4; }
+  #relFix code { user-select:all; }
 </style>
 </head>
 <body>
@@ -455,6 +473,7 @@
   </nav>
 </header>
 <div id="app">
+<div id="notices"></div>
 
 
 <section id="tab-mix">
@@ -548,6 +567,12 @@
     </div>
     <div id="updStat" class="note"></div>
     <div class="set"><div class="sl"><b>Restart LivePi</b><span>Audio stops for a few seconds</span></div><div class="sc"><button id="sysRestart">Restart</button></div></div>
+  </div>
+  <div class="card">
+    <h2>Reliability</h2>
+    <div class="set"><div class="sl"><b>How well this Pi is set up for live audio</b><span>Everything should show a green tick before a service. LivePi checks this all the time.</span></div><div class="sc"><button id="relRefresh">Refresh</button></div></div>
+    <div id="relRows"></div>
+    <div id="relFix" class="note hide"></div>
   </div>
   <div class="card">
     <h2>Operating system</h2>
@@ -727,6 +752,7 @@ function showSub(n) {
   document.querySelectorAll('[data-pane]').forEach(x => x.classList.toggle('hide', x.dataset.pane !== n));
   try { localStorage.setItem('lh.sub', n); } catch (e) {}
   if (n === 'audio' && typeof hwLoad === 'function') setTimeout(() => hwLoad(true), 0);
+  if (n === 'system' && typeof relLoad === 'function') setTimeout(relLoad, 0);
 }
 document.querySelectorAll('#sub button').forEach(b => b.onclick = () => showSub(b.dataset.sub));
 (function restoreTabs() {
@@ -1778,6 +1804,81 @@ $('status').addEventListener('click', async e => {
   const r = await api('/api/xruns/reset', {});
   if (r.ok) { toast('Dropout count reset'); refresh(); }
 });
+/* ---------- reliability: notices, power chip, System > Reliability ---------- */
+function powerChip(t) {
+  if (t === undefined || t < 0) return '';
+  const now = t & 0xF, past = (t >> 16) & 0xF;
+  if (now & 1) return `<span class="st bad" title="The power supply voltage is too low right now. This causes dropouts and crashes. Use the official power supply.">⚡ Low power</span>`;
+  if (now & 0xE) return `<span class="st bad" title="The Pi is slowing itself down right now (too hot or low power). This causes dropouts. Check cooling and the power supply.">Throttled</span>`;
+  if (past & 1) return `<span class="st warn" title="The power supply voltage dropped at some point since the Pi started. Use the official power supply and a short cable.">⚡ Power dipped</span>`;
+  if (past & 0xE) return `<span class="st warn" title="The Pi slowed itself down at some point since it started (heat or power). Check cooling and the power supply.">Was throttled</span>`;
+  return '';
+}
+let noticesKey = '';
+function noticesRender(list) {
+  const key = JSON.stringify(list); if (key === noticesKey) return; noticesKey = key;
+  const root = $('notices'); root.innerHTML = '';
+  for (const n of list) {
+    const d = el('div', 'ntc ' + (n.level || 'warn')), nb = el('div', 'nb');
+    d.append(el('span', '', n.text), nb);
+    if (n.id === 'safe') {
+      const a = el('button', 'on', 'Load my session with plugins'), b = el('button', '', 'Keep going without plugins');
+      a.onclick = async () => { a.disabled = true; a.textContent = 'Loading…'; const r = await api('/api/safemode/restore', {}); if (r.ok) toast('Session loaded'); else if (r.error) toast(r.error); structKey = ''; refresh(); };
+      b.onclick = async () => { await api('/api/notice/dismiss', { id: n.id }); refresh(); };
+      nb.append(a, b);
+    } else {
+      const x = el('button', '', 'OK'); x.onclick = async () => { await api('/api/notice/dismiss', { id: n.id }); refresh(); }; nb.append(x);
+    }
+    root.append(d);
+  }
+}
+async function relLoad() {
+  const r = await api('/api/reliability', undefined, true);
+  if (!r || r.realtime === undefined) return;
+  const rows = [], fix = [];
+  const add = (lvl, title, text) => rows.push([lvl, title, text]);
+  add(r.realtime ? 'ok' : 'bad', 'Real-time audio',
+      r.realtime ? `On. The audio runs at real-time priority ${r.priority}` + (r.audioCpu >= 0 ? `, on its own CPU core (core ${r.audioCpu}).` : '.')
+                 : 'Off. The audio runs at normal priority, so a busy moment can cause a dropout.');
+  if (!r.realtime) fix.push('real-time limits');
+  add(r.isolatedCpu >= 0 ? 'ok' : 'warn', 'Reserved CPU core',
+      r.isolatedCpu >= 0 ? `Core ${r.isolatedCpu} is kept free for the audio only.` : 'Not set up. One core can be reserved for the audio so nothing else ever runs there.');
+  if (r.isolatedCpu < 0) fix.push('reserved core');
+  add(r.memoryLocked ? 'ok' : 'warn', 'Memory locked', r.memoryLocked ? 'LivePi stays in RAM, so the audio never waits for the SD card.' : 'Not locked. The OS could move parts of LivePi out of RAM.');
+  if (!r.memoryLocked) fix.push('memory lock');
+  const t = r.throttled;
+  if (t === undefined || t < 0) add('dim', 'Power and temperature', 'Unknown on this computer.');
+  else {
+    const now = t & 0xF, past = (t >> 16) & 0xF;
+    add(now & 1 ? 'bad' : past & 1 ? 'warn' : 'ok', 'Power supply',
+        now & 1 ? 'Voltage too low right now. This causes dropouts and crashes. Use the official power supply (27 W for a Pi 5, 15 W for a Pi 4).'
+        : past & 1 ? 'The voltage dropped at some point since the Pi started. Use the official power supply and a short, thick cable.' : 'OK, no voltage drops since the Pi started.');
+    add(now & 0xE ? 'bad' : past & 0xE ? 'warn' : 'ok', 'Temperature and speed',
+        now & 0xE ? 'The Pi is slowing itself down right now. Improve the cooling (a fan) and check the power supply.'
+        : past & 0xE ? 'The Pi slowed itself down at some point since it started. Add a fan or improve airflow.' : 'Full speed, never slowed down since the Pi started.');
+  }
+  add(r.governor === 'performance' || !r.governor ? (r.governor ? 'ok' : 'dim') : 'warn', 'CPU speed',
+      r.governor === 'performance' ? 'Fixed at full speed.' : r.governor ? `"${r.governor}": the CPU changes speed, which can cause dropouts.` : 'Unknown on this computer.');
+  if (r.governor && r.governor !== 'performance') fix.push('CPU speed');
+  add(r.aptTimers ? 'warn' : 'ok', 'Automatic OS updates', r.aptTimers ? 'On. Background updates can slow the Pi during a service.' : 'Off. Update the OS yourself from this page, not before a service.');
+  if (r.aptTimers) fix.push('automatic updates');
+  add(r.watchdog ? 'ok' : 'warn', 'Watchdog', r.watchdog ? 'On. If LivePi ever freezes it restarts by itself.' : 'Off. LivePi still restarts after a crash, but not after a freeze.');
+  if (!r.watchdog) fix.push('watchdog');
+  add('ok', 'Crash protection', r.safeMode ? 'Safe mode is on: plugins were not loaded after failed starts (see the banner).'
+      : 'On. After two failed starts in a row LivePi starts without plugins, so the audio keeps passing through.');
+  if (r.usbAutosuspend && r.usbAutosuspend !== '-1') add('dim', 'USB power saving', 'On. Only matters for USB audio interfaces: the installer turns it off.');
+  const root = $('relRows'); root.innerHTML = '';
+  for (const [lvl, title, text] of rows) {
+    const d = el('div', 'rel ' + lvl), i = el('i', '', lvl === 'ok' ? '✓' : lvl === 'dim' ? '?' : '!'), c = el('div');
+    c.append(el('b', '', title), el('span', '', text)); d.append(i, c); root.append(d);
+  }
+  const f = $('relFix');
+  f.classList.toggle('hide', !fix.length);
+  if (fix.length) f.innerHTML = `To fix ${esc(fix.join(', '))}: on the Pi, run the installer again from the livepi folder (<code>sudo ./install-pi.sh ${'your-user'}</code>), then reboot.`;
+}
+$('relRefresh').onclick = relLoad;
+setInterval(() => { if (!$('tab-setup').classList.contains('hide') && !document.querySelector('[data-pane="system"]').classList.contains('hide') && !document.hidden) relLoad(); }, 5000);
+
 /* ---------- presets ---------- */
 $('presetLoad').onclick = async () => { const n = $('presetList').value; if (!n) return; const r = await api('/api/presets/load', { name: n }); if (r.ok) toast('Loaded ' + n); structKey = ''; refresh(); };
 $('presetSave').onclick = async () => { const n = $('presetName').value.trim(); if (!n) return; const r = await api('/api/presets/save', { name: n }); if (r.ok) { toast('Saved ' + n); $('presetName').value = ''; } refresh(); };
@@ -2049,10 +2150,13 @@ async function refresh() {
     + chip(`<b>${st.bufferSize}</b> smp`) + chip(`<b>${(st.latencyMs || 0).toFixed(1)}</b> ms`)
     + chip(`CPU <b>${cpu}%</b>`, st.cpu > 0.7) + chip(`xruns <b>${st.xruns ?? 0}</b>`, st.xruns > 0, 'xr')
     + (st.tempC !== undefined ? chip(`<b>${st.tempC.toFixed(0)}</b>°C`, st.tempC > 75) : '')
+    + powerChip(st.throttled)
+    + (st.realtime === false && st.deviceName && st.deviceName !== 'none' ? `<span class="st bad" title="The audio is not running at real-time priority, so busy moments can cause dropouts. See Settings > System > Reliability.">Not real-time</span>` : '')
     + chip(esc(st.deviceName || ''), false, 'dev');
   { const x = $('status').querySelector('.st.xr'); if (x) x.title = 'Audio dropouts since the last reset. Tap to reset.'; }
   if (document.activeElement !== $('chCount')) $('chCount').value = st.numChannels;
   const pl = $('presetList'), prev = pl.value; fill(pl, st.presets || [], prev); $('tbPresetName').textContent = pl.value || '';
+  noticesRender(st.notices || []);
   monFill(st);
   renderStrips(st);
   monOutsRender(st);
