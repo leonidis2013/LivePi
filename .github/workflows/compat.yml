@@ -1,9 +1,13 @@
 name: compat
 
-# Runs the latest released LivePi build in clean Debian containers (ARM64) with no sound card.
-# Runs after every build has finished (and published its release), so it always tests the newest one.
+# Runs the newest LivePi build in clean Debian containers (ARM64) with no sound card.
+# Runs after every build, on that exact build (released or not), so nothing is released untested twice.
 on:
   workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Test the build from this build run instead of the latest release"
+        required: false
   workflow_run:
     workflows: [build]
     types: [completed]
@@ -11,6 +15,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   smoke:
@@ -22,10 +27,18 @@ jobs:
         image: [debian:bookworm, debian:trixie]
     steps:
       - uses: actions/checkout@v4
-      - name: Get the latest release package
+      - name: Get the package (the build that just finished, or the latest release)
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release download --pattern 'livepi-build-*.zip' --repo "$GITHUB_REPOSITORY"
+          RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
+        run: |
+          if [ -n "$RUN_ID" ]; then
+            gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern 'livepi-build-*' --dir art
+            find art -name 'livepi-build-*.zip' -exec mv {} . \;
+          else
+            gh release download --pattern 'livepi-build-*.zip' --repo "$GITHUB_REPOSITORY"
+          fi
+          ls -l livepi-build-*.zip
       - name: Run in ${{ matrix.image }}
         run: |
           set +e
