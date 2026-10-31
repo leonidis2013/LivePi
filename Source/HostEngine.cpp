@@ -178,6 +178,10 @@ void HostEngine::start()
         deserialise (JSON::parse (last));
 
     rebuildConnections();
+
+    // Loading plugins while the audio already runs can cause a few dropouts: don't count those
+    auto flag = alive;
+    Timer::callAfterDelay (3000, [this, flag] { if (flag->load()) resetXruns(); });
 }
 
 void HostEngine::shutdown()
@@ -198,6 +202,7 @@ void HostEngine::shutdown()
 
 void HostEngine::changeListenerCallback (ChangeBroadcaster*)
 {
+    xrunBase = 0; xrunDevice = deviceManager.getCurrentAudioDevice();   // device (re)opened: its count starts at 0
     if (! autoFallback)
       if (auto xml = deviceManager.createStateXml())
         xml->writeTo (appDir().getChildFile ("audio.xml"));
@@ -925,6 +930,16 @@ var HostEngine::closeEditor (int channel, int slot)
 
 // ---------------------------------------------------------------- uploaded plugin management
 
+var HostEngine::resetXruns()
+{
+    if (auto* dev = deviceManager.getCurrentAudioDevice())
+    {
+        xrunDevice = dev;
+        xrunBase = dev->getXRunCount();
+    }
+    return ok();
+}
+
 StringArray HostEngine::deviceNames()
 {
     auto setup = deviceManager.getAudioDeviceSetup();
@@ -1179,7 +1194,9 @@ var HostEngine::getState()
         o->setProperty ("bufferSize", dev->getCurrentBufferSizeSamples());
         o->setProperty ("inputChannels",  dev->getActiveInputChannels().countNumberOfSetBits());
         o->setProperty ("outputChannels", dev->getActiveOutputChannels().countNumberOfSetBits());
-        o->setProperty ("xruns", dev->getXRunCount());
+        if (dev != xrunDevice) { xrunDevice = dev; xrunBase = 0; }   // a newly opened device starts at 0
+        if (dev->getXRunCount() < xrunBase) xrunBase = 0;
+        o->setProperty ("xruns", dev->getXRunCount() - xrunBase);
         o->setProperty ("latencyMs",
                         sr > 0 ? 1000.0 * (dev->getInputLatencyInSamples() + dev->getOutputLatencyInSamples()) / sr : 0.0);
     }

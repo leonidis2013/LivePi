@@ -184,6 +184,7 @@
   .st b { color:var(--fg); font-weight:600; }
   .st.bad { background:color-mix(in srgb, var(--bad) 18%, transparent); color:var(--bad); }
   .st.bad b { color:var(--bad); }
+  .st.xr { cursor:pointer; } .st.xr:hover { color:var(--fg); }
 
   .toolbar { display:flex; gap:8px; margin-bottom:10px; }
   .pill { display:flex; align-items:center; gap:7px; border-radius:999px; padding:7px 14px; min-width:0; }
@@ -1771,6 +1772,12 @@ async function icPoll() {
 setInterval(icPoll, 100);
 setInterval(() => hwLoad(false), 3000);
 
+/* ---------- xruns: tap the counter to start it again from 0 ---------- */
+$('status').addEventListener('click', async e => {
+  const x = e.target.closest('.st.xr'); if (!x) return;
+  const r = await api('/api/xruns/reset', {});
+  if (r.ok) { toast('Dropout count reset'); refresh(); }
+});
 /* ---------- presets ---------- */
 $('presetLoad').onclick = async () => { const n = $('presetList').value; if (!n) return; const r = await api('/api/presets/load', { name: n }); if (r.ok) toast('Loaded ' + n); structKey = ''; refresh(); };
 $('presetSave').onclick = async () => { const n = $('presetName').value.trim(); if (!n) return; const r = await api('/api/presets/save', { name: n }); if (r.ok) { toast('Saved ' + n); $('presetName').value = ''; } refresh(); };
@@ -2040,9 +2047,10 @@ async function refresh() {
   const chip = (html, bad, cls = '') => `<span class="st ${cls}${bad ? ' bad' : ''}">${html}</span>`;
   $('status').innerHTML = chip(`<b>${(st.sampleRate / 1000).toFixed(st.sampleRate % 1000 ? 1 : 0)}</b> kHz`)
     + chip(`<b>${st.bufferSize}</b> smp`) + chip(`<b>${(st.latencyMs || 0).toFixed(1)}</b> ms`)
-    + chip(`CPU <b>${cpu}%</b>`, st.cpu > 0.7) + chip(`xruns <b>${st.xruns ?? 0}</b>`, st.xruns > 0)
+    + chip(`CPU <b>${cpu}%</b>`, st.cpu > 0.7) + chip(`xruns <b>${st.xruns ?? 0}</b>`, st.xruns > 0, 'xr')
     + (st.tempC !== undefined ? chip(`<b>${st.tempC.toFixed(0)}</b>°C`, st.tempC > 75) : '')
     + chip(esc(st.deviceName || ''), false, 'dev');
+  { const x = $('status').querySelector('.st.xr'); if (x) x.title = 'Audio dropouts since the last reset. Tap to reset.'; }
   if (document.activeElement !== $('chCount')) $('chCount').value = st.numChannels;
   const pl = $('presetList'), prev = pl.value; fill(pl, st.presets || [], prev); $('tbPresetName').textContent = pl.value || '';
   monFill(st);

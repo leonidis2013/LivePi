@@ -648,6 +648,11 @@ void WebServer::setupRoutes()
         reply (res, onMT ([this] { return engine.getDevices(); }));
     });
 
+    svr.Post ("/api/xruns/reset", [this] (const httplib::Request&, httplib::Response& res)
+    {
+        reply (res, onMT ([this] { return engine.resetXruns(); }));
+    });
+
     // The interface's own level controls (ALSA mixer)
     svr.Get ("/api/hwmixer", [this] (const httplib::Request&, httplib::Response& res)
     {

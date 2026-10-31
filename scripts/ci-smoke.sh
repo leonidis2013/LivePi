@@ -66,6 +66,8 @@ run_case() {
   post /api/mixer '{"paflMode":0}' >/dev/null
   X=$(api /api/state | jq '.xruns // 0'); say "xruns after 3 s: $X"
   check "$label: no more than 2 xruns" "[ '$X' -le 2 ]"
+  post /api/xruns/reset '{}' >/dev/null
+  check "$label: xrun count resets" "api /api/state | jq -e '.xruns <= 1' >/dev/null"
   post /api/monitor '{"channel":100,"post":true}' >/dev/null
   B=$(curl -s -m 2 http://127.0.0.1:8080/api/monitor/stream | wc -c); say "stream bytes in 2 s: $B (48 kHz mono 16-bit would be about 192000)"
   check "$label: monitor stream delivers audio" "[ '$B' -gt 100000 ]"

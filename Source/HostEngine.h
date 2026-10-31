@@ -26,6 +26,7 @@ public:
 
     static juce::File dataDir();   // ~/.livepi
     juce::StringArray deviceNames();   // the audio device in use (message thread)
+    juce::var resetXruns();            // start the dropout count again from 0
 
     // Audio device
     juce::var getDevices();
@@ -143,5 +144,7 @@ private:
     std::map<juce::uint32, CpuInfo> cpu;                 // keyed by graph node id
     std::thread benchThread;
     bool benchBusy = false;
+    int xrunBase = 0;                    // device xrun count at the last reset
+    juce::AudioIODevice* xrunDevice = nullptr;
     std::shared_ptr<std::atomic<bool>> alive = std::make_shared<std::atomic<bool>> (true);
 };

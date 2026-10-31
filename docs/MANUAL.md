@@ -1,6 +1,6 @@
 # LivePi User Manual
 
-**LivePi v0.9.0** · Copyright © Jerod Ulicki
+**LivePi v0.9.1** · Copyright © Jerod Ulicki
 
 LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Audio goes in through the Pi's sound card, through your plugins (for example LiveVoice), and back out with very little delay. You control everything from a web page on a phone, tablet or computer. The Pi needs no screen, keyboard or mouse.
 
@@ -125,7 +125,7 @@ A device that closes the page, or leaves it in the background for about 12 secon
 | **smp** | Buffer size in samples. Smaller means less delay but more CPU. |
 | **ms** | Latency reported by the audio interface. The virtual card shows 0.0. |
 | **CPU** | How busy the audio processing is. It turns red above 70 %. |
-| **xruns** | Audio dropouts since start. It should stay at **0**; red means raise the buffer. |
+| **xruns** | Audio dropouts (clicks) since the last reset. Dropouts while LivePi starts up and loads plugins are not counted. It turns red as soon as there is one. **Tap it to reset it to 0**, then watch: if it climbs again, raise the buffer. |
 | **°C** | Pi temperature. It turns red above 75 °C. |
 | **⛶** | Full screen. |
 | **⚙** | Opens the setup pages. In setup it becomes **Done**, which returns to the mixer. |
