@@ -1,6 +1,6 @@
 # LivePi User Manual
 
-**LivePi v0.8** · Copyright © Jerod Ulicki
+**LivePi v0.8.1** · Copyright © Jerod Ulicki
 
 LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Audio goes in through the Pi's sound card, through your plugins (for example LiveVoice), and back out with very little delay. You control everything from a web page on a phone, tablet or computer. The Pi needs no screen, keyboard or mouse.
 
@@ -149,6 +149,8 @@ Each channel has its own strip.
 | **Plugin chain** | The plugins on this channel, in order (see below). |
 
 With one channel, its output feeds both left and right. With more channels, channel N goes to output N.
+
+**Soft start:** when LivePi starts, the audio device changes, or a preset loads, the outputs stay silent for under a second while the converters and plugins settle, then fade in. The meters ignore that moment too, so start-up thumps never reach the speakers. Adding a plugin to a channel does the same for that channel only.
 
 ### Plugin chain
 

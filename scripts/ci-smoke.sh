@@ -48,6 +48,9 @@ run_case() {
   say "state: $(api /api/state | jq -c '{deviceName,sampleRate,bufferSize,virtualDevice,xruns,cpu}')"
   check "$label: falls back to the virtual sound card" "api /api/state | jq -e '.virtualDevice==true' >/dev/null"
   post /api/device '{"type":"Virtual (no audio hardware)","input":"Pink noise","output":"Discard (no output)","sampleRate":48000,"bufferSize":128}' >/dev/null
+  sleep 0.3
+  M=$(api /api/meters); say "meters right after the device start: $(echo "$M" | jq -c '{in:.in,out:.out}')"
+  check "$label: soft start keeps meters quiet while settling" "echo '$M' | jq -e '.in[0] < -90 and .out[0] < -90' >/dev/null"
   post /api/mixer '{"channel":0,"sendDb":0}' >/dev/null
   post /api/monitorbus '{"outputs":[2]}' >/dev/null
   sleep 3

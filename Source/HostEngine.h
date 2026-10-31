@@ -99,6 +99,8 @@ private:
     void removeChain (Chain&);
     void clearChains();
     void applyMix (Chain&);
+    void settle (Chain&, bool includeInput, int ms);   // soft start, see ChannelStrip::settle
+    void settleAll();
     Slot* findSlot (int channel, int slot);
     Chain* chainFor (int channel);                      // a channel, or the monitor mix (kMonBus)
     void clearSlots (Chain&);

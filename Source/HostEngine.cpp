@@ -243,6 +243,21 @@ void HostEngine::removeChain (Chain& c)
         graph.removeNode (c.send->nodeID);
 }
 
+void HostEngine::settle (Chain& c, bool includeInput, int ms)
+{
+    for (auto* n : { includeInput ? c.tap.get() : nullptr, c.strip.get(), c.send.get() })
+        if (n != nullptr)
+            if (auto* st = dynamic_cast<ChannelStrip*> (n->getProcessor()))
+                st->settle (ms);
+}
+
+void HostEngine::settleAll()
+{
+    for (auto& c : chains)
+        settle (c, true, ChannelStrip::kSettleMs);
+    settle (monBus, true, ChannelStrip::kSettleMs);
+}
+
 void HostEngine::clearChains()
 {
     for (auto& c : chains)
@@ -452,6 +467,7 @@ var HostEngine::addPlugin (int channel, const String& pluginId)
 
     chain->slots.push_back (std::move (s));
     rebuildConnections();
+    settle (*chain, false, 400);   // a new plugin can start with a burst (e.g. a compressor at full makeup gain)
     saveLast();
     return ok();
 }
@@ -1309,6 +1325,7 @@ var HostEngine::deserialise (const var& v)
     }
 
     rebuildConnections();
+    settleAll();   // fresh plugins and (at start-up) the converters settle before anything is heard or metered
     return errors.isEmpty() ? ok() : err (errors);
 }
 
