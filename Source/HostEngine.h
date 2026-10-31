@@ -159,6 +159,11 @@ private:
     std::atomic<bool> watchdogStop { false };
     std::atomic<bool> deviceOpen { false }, deviceChanging { false };
     std::atomic<double> lastDeviceChangeMs { 0.0 };
+    std::atomic<double> startDeadlineMs { 0.0 }, messageBeatMs { 0.0 };
+    std::atomic<bool> startDone { false };
+    std::unique_ptr<juce::Timer> messageBeat;
+    int reconnectFailures = 0;
+    double reconnectNotBeforeMs = 0.0;
     bool safeMode = false;
     std::unique_ptr<juce::Timer> reconnectTimer;
     struct Notice { juce::String id, text, level; };
@@ -166,7 +171,8 @@ private:
 
     void runWatchdog();
     [[noreturn]] void die (const juce::String& reason);
-    void restartAudio();
+    void restartAudio (juce::uint64 heartbeatWhenStalled);
+    int recentWatchdogRestarts();
     void tryReconnect();
     void useVirtualFallback();
     void deviceChanged();                               // message thread, after any device change

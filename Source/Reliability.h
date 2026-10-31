@@ -15,6 +15,7 @@
 #include <pthread.h>
 #include <sched.h>
 #include <sys/mman.h>
+#include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -36,13 +37,17 @@ extern char** environ;
 
 namespace Reliability
 {
-    inline std::atomic<int> memLockResult { -1 };   // 0 = locked, errno otherwise, -1 = not tried
+    inline std::atomic<int> memLockResult { -1 };   // 0 = locked, -2 = only partly (limited), errno otherwise, -1 = not tried
 
     // Lock pages into RAM as they are first used (MCL_ONFAULT), so nothing the audio has touched can be
     // swapped out or dropped from the page cache, without pre-allocating every thread's full stack.
+    // MCL_FUTURE only with an unlimited memlock limit (the installer sets one): with a finite limit,
+    // new threads and buffers would start failing once it is used up.
     inline void lockMemory()
     {
-        memLockResult = mlockall (MCL_CURRENT | MCL_FUTURE | MCL_ONFAULT) == 0 ? 0 : errno;
+        rlimit rl {};
+        const bool unlimited = getrlimit (RLIMIT_MEMLOCK, &rl) == 0 && rl.rlim_cur == RLIM_INFINITY;
+        memLockResult = mlockall (MCL_CURRENT | MCL_ONFAULT | (unlimited ? MCL_FUTURE : 0)) == 0 ? (unlimited ? 0 : -2) : errno;
     }
 
     // The highest CPU the kernel keeps free for us (isolcpus=...), or -1.

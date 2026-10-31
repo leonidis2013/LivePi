@@ -159,9 +159,14 @@ reliability_case() {
   pkill -9 -x LivePi; sleep 1; start_lp
   check "reliability: after two early crashes LivePi starts in safe mode" "api /api/state | jq -e '.safeMode==true and any(.notices[]; .id==\"safe\")' >/dev/null"
   check "reliability: safe mode keeps the channels" "api /api/state | jq -e '.chains[0].name==\"Alpha\"' >/dev/null"
+  post /api/mixer '{"channel":0,"gainDb":-7}' >/dev/null; sleep 3
+  check "reliability: changes in safe mode are saved apart (last.json keeps the plugins)" "[ -s /root/.livepi/last-safe.json ] && jq -e '.chains[0].gainDb != -7' /root/.livepi/last.json >/dev/null"
+  pkill -TERM -x LivePi; for i in $(seq 1 50); do pgrep -x LivePi >/dev/null || break; sleep 0.1; done; start_lp
+  check "reliability: safe mode survives a restart until you choose" "api /api/state | jq -e '.safeMode==true and .chains[0].gainDb==-7' >/dev/null"
   check "reliability: restore leaves safe mode" "post /api/safemode/restore '{}' | jq -e .ok >/dev/null && api /api/state | jq -e '.safeMode==false and (any(.notices[]; .id==\"safe\")|not)' >/dev/null"
   pkill -TERM -x LivePi; for i in $(seq 1 50); do pgrep -x LivePi >/dev/null || break; sleep 0.1; done
   check "reliability: a clean stop resets the crash count" "[ \"\$(cat /root/.livepi/starts.txt)\" = 0 ]"
+  check "reliability: safe mode flag cleared after restore" "[ ! -e /root/.livepi/safe-mode ]"
   # frozen audio (a hung plugin): the watchdog restarts LivePi and the page is told why
   start_lp LIVEPI_TEST_HANG_AFTER=3
   for i in $(seq 1 60); do pgrep -x LivePi >/dev/null || break; sleep 0.5; done

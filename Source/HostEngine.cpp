@@ -166,13 +166,24 @@ void HostEngine::start()
     running = true;
     deviceChanged();
 
-    // ---- Crash-loop protection: LivePi counts starts that did not last 30 s. After two in a row it
-    // starts in safe mode: the session without plugins (the audio passes through unprocessed), so a
-    // plugin that crashes on load can't keep the Pi silent. The page offers to load it again.
+    // ---- Crash-loop protection. Two kinds of failure are counted:
+    //  - starts that did not last 30 s (a crash or a hang while loading the session), and
+    //  - restarts by the watchdog (a plugin froze the audio) within 10 minutes.
+    // After two failed starts, or three watchdog restarts, LivePi starts in safe mode: the session
+    // without plugins, so the audio passes through unprocessed. Safe mode stays on (also after a
+    // reboot) until you choose on the page, and last.json keeps your plugins all along.
     auto starts = dataDir().getChildFile ("starts.txt");
     const int unstable = starts.loadFileAsString().trim().getIntValue();
-    safeMode = unstable >= 2;
     starts.replaceWithText (String (unstable + 1));
+    const int kills = recentWatchdogRestarts();
+    const bool wasSafe = dataDir().getChildFile ("safe-mode").existsAsFile();
+    safeMode = wasSafe || unstable >= 2 || kills >= 3;
+
+    // The watchdog runs from here on, so a plugin that hangs while loading is caught too
+    health = std::make_unique<Reliability::PiHealth>();
+    startDeadlineMs = Time::getMillisecondCounterHiRes() + 90000.0;
+    messageBeatMs = Time::getMillisecondCounterHiRes();
+    watchdog = std::thread ([this] { runWatchdog(); });
 
     auto note = dataDir().getChildFile ("restart-note.txt");
     if (note.existsAsFile())
@@ -187,27 +198,35 @@ void HostEngine::start()
     {
         session = JSON::parse (good);
         if (session.isObject())
+        {
             addNotice ("damaged", "The saved session file was damaged. LivePi loaded the last good copy instead.");
+            last.replaceWithText (JSON::toString (session, true));
+        }
     }
     if (! session.isObject())
-        safeMode = false;                       // nothing was loaded, so there is nothing to leave out
-    if (session.isObject())
+        safeMode = false;                       // nothing to load, so nothing to leave out
+
+    if (safeMode)
     {
-        if (safeMode)
+        if (! wasSafe)
         {
-            last.copyFileTo (appDir().getChildFile ("last-crash.json"));
-            deserialise (withoutPlugins (session));
-            addNotice ("safe", "Safe mode: LivePi stopped unexpectedly " + String (unstable) + " times in a row while starting, so it started "
-                               "without plugins. The audio passes through unprocessed.", "bad");
-            Logger::writeToLog ("Safe mode: started without plugins after " + String (unstable) + " failed starts");
+            dataDir().getChildFile ("safe-mode").replaceWithText (Time::getCurrentTime().toISO8601 (true));
+            dataDir().getChildFile ("watchdog-restarts.txt").deleteFile();
+            Logger::writeToLog ("Safe mode: started without plugins (" + String (unstable) + " failed starts, " + String (kills) + " watchdog restarts)");
         }
-        else
-        {
-            deserialise (session);
-        }
+        // What you changed while in safe mode (faders, names...) is in last-safe.json; last.json keeps the plugins
+        auto safeSession = JSON::parse (appDir().getChildFile ("last-safe.json"));
+        deserialise (safeSession.isObject() ? withoutPlugins (safeSession) : withoutPlugins (session));
+        addNotice ("safe", String ("Safe mode: ") + (kills >= 3 ? "a plugin froze the audio several times" : "LivePi stopped unexpectedly while starting")
+                           + ", so it is running without plugins. The audio passes through unprocessed. Your plugins are kept.", "bad");
+    }
+    else if (session.isObject())
+    {
+        deserialise (session);
     }
 
     rebuildConnections();
+    startDone = true;
 
     auto flag = alive;
     // Loading plugins while the audio already runs can cause a few dropouts: don't count those
@@ -217,7 +236,7 @@ void HostEngine::start()
     {
         if (! flag->load()) return;
         dataDir().getChildFile ("starts.txt").replaceWithText ("0");
-        if (! safeMode && appDir().getChildFile ("last.json").existsAsFile() && JSON::parse (appDir().getChildFile ("last.json")).isObject())
+        if (! safeMode && JSON::parse (appDir().getChildFile ("last.json")).isObject())
             appDir().getChildFile ("last.json").copyFileTo (appDir().getChildFile ("last-good.json"));
     });
 
@@ -230,8 +249,25 @@ void HostEngine::start()
     };
     reconnectTimer = std::make_unique<Reconnect> (*this);
 
-    health = std::make_unique<Reliability::PiHealth>();
-    watchdog = std::thread ([this] { runWatchdog(); });
+    // Proof of life from the message thread (the page, plugin loading, device changes all run there)
+    struct Beat : Timer
+    {
+        std::atomic<double>& t;
+        explicit Beat (std::atomic<double>& x) : t (x) { startTimer (1000); }
+        void timerCallback() override { t = Time::getMillisecondCounterHiRes(); }
+    };
+    messageBeatMs = Time::getMillisecondCounterHiRes();
+    messageBeat = std::make_unique<Beat> (messageBeatMs);
+}
+
+int HostEngine::recentWatchdogRestarts()
+{
+    const auto now = Time::currentTimeMillis() / 1000;
+    int n = 0;
+    for (auto& l : StringArray::fromLines (dataDir().getChildFile ("watchdog-restarts.txt").loadFileAsString()))
+        if (l.trim().isNotEmpty() && now - l.trim().getLargeIntValue() < 600)
+            ++n;
+    return n;
 }
 
 void HostEngine::useVirtualFallback()
@@ -259,6 +295,7 @@ void HostEngine::shutdown()
     if (watchdog.joinable())
         watchdog.join();
     reconnectTimer.reset();
+    messageBeat.reset();
     health.reset();
     if (benchThread.joinable())
         benchThread.join();
@@ -284,7 +321,8 @@ void HostEngine::changeListenerCallback (ChangeBroadcaster*)
 
 void HostEngine::deviceChanged()
 {
-    deviceOpen = deviceManager.getCurrentAudioDevice() != nullptr;
+    auto* d = deviceManager.getCurrentAudioDevice();
+    deviceOpen = d != nullptr && d->isOpen();
     lastDeviceChangeMs = Time::getMillisecondCounterHiRes();
 }
 
@@ -300,19 +338,27 @@ void HostEngine::addNotice (const String& id, const String& text, const String& 
 var HostEngine::dismissNotice (const String& id)
 {
     notices.erase (std::remove_if (notices.begin(), notices.end(), [&] (const Notice& n) { return n.id == id; }), notices.end());
-    if (id == "safe")
-        safeMode = false;          // "keep going without plugins"
+    if (id == "safe" && safeMode)
+    {
+        // "Keep going without plugins": a deliberate choice. Keep a copy of the session with its plugins.
+        appDir().getChildFile ("last.json").copyFileTo (appDir().getChildFile ("last-before-safe-mode.json"));
+        safeMode = false;
+        dataDir().getChildFile ("safe-mode").deleteFile();
+        appDir().getChildFile ("last-safe.json").deleteFile();
+        saveLast();
+    }
     return ok();
 }
 
 var HostEngine::restoreSession()
 {
-    auto crash = appDir().getChildFile ("last-crash.json");
-    auto v = JSON::parse (crash);
+    auto v = JSON::parse (appDir().getChildFile ("last.json"));     // never overwritten in safe mode
     if (! v.isObject())
         return err ("There is no saved session to load.");
     safeMode = false;
-    dismissNotice ("safe");
+    dataDir().getChildFile ("safe-mode").deleteFile();
+    appDir().getChildFile ("last-safe.json").deleteFile();
+    notices.erase (std::remove_if (notices.begin(), notices.end(), [] (const Notice& n) { return n.id == "safe"; }), notices.end());
     auto r = deserialise (v);
     saveLast();
     return r;
@@ -339,7 +385,7 @@ void HostEngine::runWatchdog()
 {
     sd.send ("READY=1\nWATCHDOG_USEC=30000000");
     auto lastHb = player.heartbeat.load();
-    double lastBeat = Time::getMillisecondCounterHiRes(), stageAt = 0.0;
+    double lastBeat = Time::getMillisecondCounterHiRes(), stageAt = 0.0, changingSince = 0.0;
     int stage = 0;
 
     while (! watchdogStop.load())
@@ -354,16 +400,38 @@ void HostEngine::runWatchdog()
             if (stage != 0) { Logger::writeToLog ("Watchdog: audio is running again"); stage = 0; }
         }
 
+        // Loading the session at start-up must finish (a plugin can hang in its constructor)
+        if (! startDone.load() && t > startDeadlineMs.load())
+            die ("Loading the session took more than 90 seconds (a plugin hung while loading), so LivePi restarted itself");
+
+        // The message thread runs the page, plugin loading and device changes. Stuck for 3 minutes
+        // means a deadlock: nothing can be controlled any more, so restart.
+        if (startDone.load() && t - messageBeatMs.load() > 180000.0)
+            die ("LivePi stopped responding to the page for 3 minutes, so it restarted itself");
+
+        // A device change (or a restart of the device) must finish too
+        if (deviceChanging.load())
+        {
+            if (changingSince == 0.0) changingSince = t;
+            if (t - changingSince > 20000.0)
+                die ("The audio interface did not open or close within 20 seconds, so LivePi restarted itself");
+        }
+        else
+        {
+            changingSince = 0.0;
+        }
+
         const double quiet = t - jmax (lastBeat, player.lastStartMs.load(), lastDeviceChangeMs.load());
-        const bool expectAudio = deviceOpen.load() && ! deviceChanging.load();
-        if (! expectAudio)
-            stage = 0;
+        if (! deviceOpen.load())
+        {
+            stage = 0;                                  // no device: the reconnect timer is on it
+        }
         else if (player.inCallback.load())
         {
             if (quiet > 4000)
                 die ("A plugin stopped responding and froze the audio, so LivePi restarted itself");
         }
-        else if (quiet > 3000)
+        else if (! deviceChanging.load() && quiet > 3000)
         {
             if (stage == 0)
             {
@@ -371,7 +439,7 @@ void HostEngine::runWatchdog()
                 stageAt = t;
                 Logger::writeToLog ("Watchdog: no audio for 3 s, restarting the audio device");
                 auto flag = alive;
-                MessageManager::callAsync ([this, flag] { if (flag->load()) restartAudio(); });
+                MessageManager::callAsync ([this, flag, hb] { if (flag->load()) restartAudio (hb); });
             }
             else if (t - stageAt > 12000)
             {
@@ -387,28 +455,43 @@ void HostEngine::die (const String& reason)
 {
     const auto text = reason + " at " + Time::getCurrentTime().formatted ("%H:%M:%S on %d %b") + ".";
     dataDir().getChildFile ("restart-note.txt").replaceWithText (text);
+    dataDir().getChildFile ("watchdog-restarts.txt").appendText (String (Time::currentTimeMillis() / 1000) + "\n");
     Logger::writeToLog ("Watchdog: " + text);
     std::_Exit (70);                    // systemd starts LivePi again within a second
 }
 
-void HostEngine::restartAudio()
+void HostEngine::restartAudio (juce::uint64 heartbeatWhenStalled)
 {
+    if (player.heartbeat.load() != heartbeatWhenStalled)
+        return;                          // it came back by itself meanwhile: leave the working device alone
     deviceChanging = true;
     deviceManager.closeAudioDevice();
     deviceManager.restartLastAudioDevice();
     deviceChanging = false;
     deviceChanged();
-    if (deviceManager.getCurrentAudioDevice() != nullptr)
+    if (deviceOpen.load())
+    {
+        HwMixer::restore();
         addNotice ("audio", "The audio stopped at " + Time::getCurrentTime().formatted ("%H:%M:%S") + " and LivePi restarted the audio interface.");
+    }
     else
+    {
         addNotice ("audio", "The audio interface stopped at " + Time::getCurrentTime().formatted ("%H:%M:%S")
                             + ". LivePi keeps trying to reconnect it.", "bad");
+    }
 }
 
 void HostEngine::tryReconnect()
 {
-    const bool haveDevice = deviceManager.getCurrentAudioDevice() != nullptr;
+    const bool haveDevice = deviceOpen.load();
     if (haveDevice && ! autoFallback)
+    {
+        reconnectFailures = 0;
+        return;
+    }
+    // After a failed attempt to open it, wait longer each time (up to a minute), so a device that is
+    // listed but will not open does not keep the rest of LivePi busy
+    if (Time::getMillisecondCounterHiRes() < reconnectNotBeforeMs)
         return;
 
     std::unique_ptr<XmlElement> saved = XmlDocument::parse (appDir().getChildFile ("audio.xml"));
@@ -432,14 +515,19 @@ void HostEngine::tryReconnect()
     const bool wasFallback = autoFallback;
     autoFallback = false;
     auto e = deviceManager.initialise (16, 16, saved.get(), false);
-    if (deviceManager.getCurrentAudioDevice() == nullptr)
+    if (deviceManager.getCurrentAudioDevice() == nullptr || ! deviceManager.getCurrentAudioDevice()->isOpen())
     {
-        Logger::writeToLog ("Reconnect failed: " + e);
+        if (reconnectFailures == 0)
+            Logger::writeToLog ("Reconnect failed (will keep trying): " + e);
+        ++reconnectFailures;
+        reconnectNotBeforeMs = Time::getMillisecondCounterHiRes() + jmin (60000.0, 4000.0 * std::pow (2.0, (double) jmin (reconnectFailures, 4)));
         if (wasFallback) useVirtualFallback();
         deviceChanging = false;
         deviceChanged();
         return;
     }
+    reconnectFailures = 0;
+    HwMixer::restore();
     deviceChanging = false;
     deviceChanged();
     rebuildConnections();
@@ -1636,7 +1724,8 @@ var HostEngine::deserialise (const var& v)
 
 void HostEngine::saveLast()
 {
-    appDir().getChildFile ("last.json").replaceWithText (JSON::toString (serialise(), true));
+    // In safe mode the session has no plugins: save it elsewhere so last.json keeps them
+    appDir().getChildFile (safeMode ? "last-safe.json" : "last.json").replaceWithText (JSON::toString (serialise(), true));
 }
 
 void HostEngine::markDirty()

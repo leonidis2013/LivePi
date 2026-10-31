@@ -20,6 +20,7 @@ set -euo pipefail
 CMD="${1:-apply}"
 CMDLINE="${LIVEPI_CMDLINE:-/boot/firmware/cmdline.txt}"; [[ -f $CMDLINE ]] || CMDLINE=/boot/cmdline.txt
 MARK=/etc/livepi-tuning
+PREV=/etc/livepi-tuning.before   # what was set before LivePi changed anything (for undo)
 NM_CONF=/etc/NetworkManager/conf.d/livepi-wifi-powersave.conf
 TIMERS="apt-daily.timer apt-daily-upgrade.timer man-db.timer"
 
@@ -39,7 +40,7 @@ status() {
   echo "Reserved CPU core(s): $(cat /sys/devices/system/cpu/isolated 2>/dev/null || true)"
   echo "USB autosuspend: $(cat /sys/module/usbcore/parameters/autosuspend 2>/dev/null || echo '?')"
   echo "CPU governor: $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo '?')"
-  for t in $TIMERS; do echo "$t: $(systemctl is-enabled "$t" 2>/dev/null || echo absent)"; done
+  for t in $TIMERS; do st="$(systemctl is-enabled "$t" 2>/dev/null | head -n1 || true)"; echo "$t: ${st:-absent}"; done
   [[ -f $MARK ]] && echo "LivePi tuning: $(cat "$MARK")" || echo "LivePi tuning: not applied"
 }
 
@@ -61,10 +62,15 @@ set_cmdline() {
   fi
   if [[ "$new" != "$line" ]]; then
     cp -n "$CMDLINE" "$CMDLINE.livepi-backup" 2>/dev/null || true
-    printf '%s\n' "$new" > "$CMDLINE.livepi-new"
-    mv "$CMDLINE.livepi-new" "$CMDLINE"
-    sync
-    REBOOT=1
+    # Write a new file, check it reads back exactly, and only then replace the original
+    # (a full /boot partition must never leave an empty cmdline.txt behind)
+    if printf '%s\n' "$new" > "$CMDLINE.livepi-new" && sync && [[ "$(head -n1 "$CMDLINE.livepi-new")" == "$new" ]]; then
+      mv "$CMDLINE.livepi-new" "$CMDLINE" && sync && REBOOT=1
+    else
+      rm -f "$CMDLINE.livepi-new"
+      echo "Could not write $CMDLINE (is /boot full?). Boot options not changed."
+      return 1
+    fi
   fi
 }
 
@@ -73,7 +79,15 @@ set_cmdline() {
 [[ $EUID -eq 0 ]] || { echo "Run with sudo"; exit 1; }
 REBOOT=0
 
+UNITS="$TIMERS unattended-upgrades.service ModemManager.service"
 if [[ $CMD == apply ]]; then
+  # Remember the original state once, so undo can put back exactly that
+  if [[ ! -f $PREV ]]; then
+    {
+      echo "cmdline_keys=$(for tok in $(head -n1 "$CMDLINE" 2>/dev/null); do case "${tok%%=*}" in usbcore.autosuspend|isolcpus|preempt) printf '%s ' "$tok";; esac; done)"
+      for u in $UNITS; do st="$(systemctl is-enabled "$u" 2>/dev/null | head -n1 || true)"; echo "unit $u ${st:-absent}"; done
+    } > "$PREV"
+  fi
   TOK="$(want_tokens)"
   if [[ -f $CMDLINE ]]; then
     set_cmdline "$TOK" "usbcore.autosuspend isolcpus preempt" || true
@@ -90,9 +104,16 @@ if [[ $CMD == apply ]]; then
   echo "applied $(date -Iseconds); boot options: $TOK" > "$MARK"
   echo "LivePi tuning applied (boot options: $TOK)."
 else
-  [[ -f $CMDLINE ]] && set_cmdline "" "usbcore.autosuspend isolcpus preempt" || true
-  for t in $TIMERS; do systemctl enable --now "$t" >/dev/null 2>&1 || true; done
-  rm -f "$NM_CONF" "$MARK"
+  ORIG=""; [[ -f $PREV ]] && ORIG="$(sed -n 's/^cmdline_keys=//p' "$PREV")"
+  [[ -f $CMDLINE ]] && { set_cmdline "$ORIG" "usbcore.autosuspend isolcpus preempt" || true; }
+  if [[ -f $PREV ]]; then
+    while read -r kw u state; do
+      [[ $kw == unit && $state == enabled ]] && systemctl enable --now "$u" >/dev/null 2>&1 || true
+    done < "$PREV"
+  else
+    for t in $TIMERS; do systemctl enable --now "$t" >/dev/null 2>&1 || true; done
+  fi
+  rm -f "$NM_CONF" "$MARK" "$PREV"
   echo "LivePi tuning removed."
 fi
 (( REBOOT )) && echo "Reboot to use the new boot options: sudo reboot"
