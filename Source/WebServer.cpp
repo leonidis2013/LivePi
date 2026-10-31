@@ -1,4 +1,5 @@
 #include "WebServer.h"
+#include <map>
 #include "HwMixer.h"
 #include "Reliability.h"
 #include "EditorViewer.h"
@@ -656,15 +657,29 @@ void WebServer::setupRoutes()
 
     // Apply the live-audio tuning (root helper installed by the installer; allowed by its sudo rule).
     // Runs on this web thread with posix_spawn, so neither the audio nor the page's main work waits.
-    svr.Post ("/api/reliability/fix", [this] (const httplib::Request&, httplib::Response& res)
+    svr.Post ("/api/reliability/fix", [this] (const httplib::Request& req, httplib::Response& res)
     {
+        // Which item to fix (from the popup); nothing = everything. Only known names reach the helper.
+        const auto item = body (req).getProperty ("item", var()).toString();
+        static const std::map<String, String> items { { "core", "core,preempt" }, { "rt", "service" }, { "mem", "service" },
+                                                      { "wd", "service" }, { "apt", "updates" }, { "cpu", "cpu" }, { "usb", "usb" } };
+        String only;
+        if (item.isNotEmpty())
+        {
+            auto it = items.find (item);
+            if (it == items.end()) { reply (res, errVar ("Unknown item")); return; }
+            only = it->second;
+        }
         if (! File ("/usr/local/sbin/livepi-tune").existsAsFile())
         {
             reply (res, errVar ("setup"));
             return;
         }
         int code = -1;
-        const auto out = Reliability::spawnRead ({ "/usr/bin/sudo", "-n", "/usr/local/sbin/livepi-tune", "apply" }, 60000, &code).trim();
+        std::vector<std::string> cmd { "/usr/bin/sudo", "-n", "/usr/local/sbin/livepi-tune", "apply" };
+        if (only.isNotEmpty())
+            cmd.push_back (("--only=" + only).toStdString());
+        const auto out = Reliability::spawnRead (cmd, 60000, &code).trim();
         Logger::writeToLog ("Reliability fix (exit " + String (code) + "): " + out);
         if (code != 0)
         {

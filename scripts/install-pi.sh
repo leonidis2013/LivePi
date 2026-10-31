@@ -87,6 +87,48 @@ cat > /etc/security/limits.d/99-audio.conf <<EOF
 @audio - nice -10
 EOF
 
+echo
+echo "== Live-audio tuning"
+echo "   These settings protect the audio from dropouts. You can change any of them later on the"
+echo "   LivePi page: Settings > System > Reliability (tap an item marked ! to fix it)."
+TUNE_SKIP=""
+if [[ $TUNING -eq 1 && -t 0 ]]; then
+  if yesno_early "Apply all recommended settings? [Y/n]" Y; then
+    echo "   All recommended settings will be applied."
+  else
+    q() {   # q item "question" "note line" ...
+      local item="$1" question="$2"; shift 2
+      echo
+      for l in "$@"; do echo "   $l"; done
+      yesno_early "$question [Y/n]" Y || TUNE_SKIP="$TUNE_SKIP,$item"
+    }
+    q core "Reserve one CPU core for the audio?" \
+      "Nothing else ever runs on that core: the strongest protection against dropouts." \
+      "Everything else shares the other cores. Takes effect after a reboot."
+    v="$(uname -v)"
+    if [[ "$v" == *PREEMPT_DYNAMIC* && "$v" != *PREEMPT_RT* ]]; then
+      q preempt "Use the faster-responding kernel mode (full preemption)?" \
+        "The audio gets the CPU sooner when it needs it. Costs a little CPU overall." \
+        "Takes effect after a reboot."
+    fi
+    q updates "Turn off automatic background OS updates?" \
+      "They can start downloading and installing in the middle of a service." \
+      "You can still update any time from Settings > System on the LivePi page."
+    q cpu "Keep the CPU at full speed?" \
+      "No delays while the CPU speeds up when the plugins need it." \
+      "Uses a little more power and makes more heat: use a fan or a cooling case."
+    q service "Restart LivePi automatically if it ever freezes (watchdog)?" \
+      "LivePi always restarts after a crash; this also catches a freeze." \
+      "Also makes sure the system never gives up restarting it."
+    q usb "Turn off USB power saving?" \
+      "Keeps USB audio interfaces awake. Makes no difference for a Pisound or other HAT." \
+      "Takes effect after a reboot."
+    q wifi "Turn off Wi-Fi power saving?" \
+      "Keeps the LivePi page responsive over Wi-Fi. Makes no difference on a wired network."
+  fi
+fi
+TUNE_SKIP="${TUNE_SKIP#,}"
+
 echo "== CPU governor: performance"
 # A tiny boot service works on every Raspberry Pi OS release (cpufrequtils is gone in Debian 13)
 cat > /etc/systemd/system/livepi-governor.service <<'EOF'
@@ -102,7 +144,12 @@ RemainAfterExit=yes
 WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
-systemctl enable --now livepi-governor.service >/dev/null 2>&1 || true
+if [[ ",$TUNE_SKIP," == *",cpu,"* ]]; then
+  systemctl disable livepi-governor.service >/dev/null 2>&1 || true
+  echo "   Skipped: the CPU changes speed as usual."
+else
+  systemctl enable --now livepi-governor.service >/dev/null 2>&1 || true
+fi
 
 echo "== Stopping services that fight for the audio device"
 systemctl disable --now pulseaudio.service pulseaudio.socket 2>/dev/null || true
@@ -114,7 +161,7 @@ echo "== System tuning for live audio"
 # /opt/livepi belongs to the LivePi user, so it must never be what runs as root.
 install -m 755 -o root -g root "$HERE/rt-tune.sh" /usr/local/sbin/livepi-tune
 if [[ $TUNING -eq 1 ]]; then
-  /usr/local/sbin/livepi-tune apply || echo "Tuning did not finish; run later: sudo /usr/local/sbin/livepi-tune apply"
+  /usr/local/sbin/livepi-tune apply ${TUNE_SKIP:+--skip=$TUNE_SKIP} || echo "Tuning did not finish; run later: sudo /usr/local/sbin/livepi-tune apply"
 else
   echo "Skipped (--no-tuning)."
 fi
@@ -126,7 +173,7 @@ chmod 755 /var/lib/livepi-os
 
 echo "== Allow the web page to reboot / shut down the Pi and run OS updates"
 cat > /etc/sudoers.d/livepi <<EOF
-${USER_NAME} ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/local/sbin/livepi-os check, /usr/local/sbin/livepi-os upgrade, /usr/local/sbin/livepi-tune apply
+${USER_NAME} ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/local/sbin/livepi-os check, /usr/local/sbin/livepi-os upgrade, /usr/local/sbin/livepi-tune apply, /usr/local/sbin/livepi-tune apply --only\=*
 EOF
 chmod 440 /etc/sudoers.d/livepi
 visudo -c -f /etc/sudoers.d/livepi >/dev/null || { echo "sudoers check failed, removing rule"; rm -f /etc/sudoers.d/livepi; }
@@ -144,7 +191,8 @@ if grep -qi pisound /proc/asound/cards 2>/dev/null; then
   echo "A Pisound is fitted and working."
   [[ $PISOUND == ask ]] && PISOUND=yes
 elif [[ $PISOUND == ask ]]; then
-  if [[ -t 0 ]] && yesno_early "Will you use a Blokas Pisound (sets up its driver)? [y/N]" N; then PISOUND=yes; else PISOUND=no; fi
+  [[ -t 0 ]] && echo "   The Pisound's driver is already part of the OS; this switches it on (needs a reboot). Answer N for other sound cards."
+  if [[ -t 0 ]] && yesno_early "Will you use a Blokas Pisound? [y/N]" N; then PISOUND=yes; else PISOUND=no; fi
 fi
 if [[ $PISOUND == yes ]]; then
   /opt/livepi/pisound-setup.sh enable || echo "Pisound setup did not finish; run later: sudo /opt/livepi/pisound-setup.sh"

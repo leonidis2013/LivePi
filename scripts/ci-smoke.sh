@@ -153,6 +153,8 @@ reliability_case() {
   check "reliability: status answers" "echo '$R' | jq -e 'has(\"realtime\") and has(\"memoryLocked\") and has(\"watchdog\")' >/dev/null"
   check "reliability: says whether the page can fix things" "echo '$R' | jq -e 'has(\"fixAvailable\") and has(\"rebootNeeded\") and (.user|length>0)' >/dev/null"
   check "reliability: fix without the installer's helper asks for the one-time setup" "post /api/reliability/fix '{}' | jq -e '.error==\"setup\"' >/dev/null"
+  check "reliability: fixing one item without the helper also asks for the setup" "post /api/reliability/fix '{\"item\":\"core\"}' | jq -e '.error==\"setup\"' >/dev/null"
+  check "reliability: unknown fix items are refused" "post /api/reliability/fix '{\"item\":\"rm -rf\"}' | jq -e '.error==\"Unknown item\"' >/dev/null"
   check "reliability: state lists notices" "api /api/state | jq -e '(.notices|type==\"array\") and .safeMode==false' >/dev/null"
   check "reliability: session loaded" "api /api/state | jq -e '.chains[1].name==\"Beta\"' >/dev/null"
   # two crashes in a row while starting -> the third start is in safe mode

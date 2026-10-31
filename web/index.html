@@ -1948,11 +1948,11 @@ async function issueOpen(id) {
     b.onclick = async () => { b.disabled = true; const res = await api('/api/system/reboot', {}); if (res.ok) { issueClose(); toast('Rebooting. The page reconnects by itself in about 30 seconds.'); } else b.disabled = false; };
     acts.append(b, el('button', '', 'Later')); acts.lastChild.onclick = issueClose;
   } else if (it.fix === 'tune' && r.fixAvailable && !relSetupNeeded) {
-    box.append(el('h4', '', 'Fix it'), el('p', '', 'LivePi applies the live-audio system settings for you. This fixes this item and any other system settings on this list.'));
+    box.append(el('h4', '', 'Fix it'), el('p', '', 'LivePi changes this setting for you. Nothing else is changed.'));
     const b = el('button', 'on', 'Fix it');
     b.onclick = async () => {
       b.disabled = true; b.textContent = 'Fixing…';
-      const res = await api('/api/reliability/fix', {});
+      const res = await api('/api/reliability/fix', { item: id });
       if (res.error === 'setup') { relSetupNeeded = true; issueOpen(id); return; }
       if (!res.ok) { toast(res.error || 'The fix did not finish'); b.disabled = false; b.textContent = 'Fix it'; return; }
       await relLoad();

@@ -1,6 +1,6 @@
 # LivePi User Manual
 
-**LivePi v0.13.1** · Copyright © Jerod Ulicki
+**LivePi v0.14.0** · Copyright © Jerod Ulicki
 
 LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Audio goes in through the Pi's sound card, through your plugins (for example LiveVoice), and back out with very little delay. You control everything from a web page on a phone, tablet or computer. The Pi needs no screen, keyboard or mouse.
 
@@ -69,7 +69,8 @@ The installer sets up LivePi to start at boot, tunes the Pi for low-latency audi
 | Question | What to answer |
 |---|---|
 | **Will you use a Blokas Pisound?** | **Y** if you have one. LivePi switches on its driver; nothing is downloaded. If a Pisound is already fitted and working, this is done without asking. |
-| **Do you want to set a password? [Y/n]** | **Y** to protect the page with a password (at least 4 characters). **N** lets everyone on your network use LivePi. You can change this later in Settings. |
+| **Apply all recommended settings?** (live-audio tuning) | **Enter** applies them all. Answer **n** to go through them one by one, each with a short note: reserve a CPU core for the audio, the faster-responding kernel mode, automatic OS updates off, CPU at full speed, the watchdog, USB power saving off and Wi-Fi power saving off. Anything you skip can be fixed later from ⚙ → System → Reliability. |
+| **Do you want to set a password? [Y/n]** | **Y** to protect the page with a password (at least 4 characters). **N** lets everyone on your network use LivePi. When you run the installer again and a password is already set, it asks **Keep it?** instead: press Enter to keep your password and trusted access as they are. |
 | **Turn on trusted access?** *(only after setting a password)* | **Y** lets devices on networks you trust skip the password. You then enter the network (the Pi's own network is suggested) and can add more. |
 
 You can answer some of these up front:
@@ -346,7 +347,7 @@ Presets, plugins, password and settings are kept. If a new version fails to star
 
 **⚙ → System → Reliability** shows all of this as a checklist. Everything should show a green tick before a service. Problems are highlighted with a **!**: tap one and a popup explains what is wrong, why it matters, and fixes it:
 
-- **Fix**: applies the live-audio system settings with one tap. If the fix needs a restart, the item then says *Fixed. Reboot to finish* and the popup offers **Reboot now**.
+- **Fix**: changes that one setting with one tap; nothing else is changed. If the fix needs a restart, the item then says *Fixed. Reboot to finish* and the popup offers **Reboot now**.
 - **How to fix**: for things only you can fix, like the power supply or cooling, the popup lists what to do.
 - **One-time setup first**: on Pis installed before v0.11, changing system settings needs administrator permission, which only the installer can give, once. The popup shows the exact command with a **Copy command** button: connect to the Pi from a computer (`ssh your-user@livepi.local`), paste it, and press Enter at each question to keep your settings. Then tap **Check again**.
 
