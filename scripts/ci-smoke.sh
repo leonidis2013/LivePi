@@ -73,6 +73,10 @@ run_case() {
   B=$(curl -s -m 2 http://127.0.0.1:8080/api/monitor/stream | wc -c); say "stream bytes in 2 s: $B (48 kHz mono 16-bit would be about 192000)"
   check "$label: monitor stream delivers audio" "[ '$B' -gt 100000 ]"
   sleep 1
+  post /api/presets/save '{"name":"Smoke test"}' >/dev/null
+  check "$label: preset saved" "api /api/state | jq -e '.presets | index(\"Smoke test\")' >/dev/null"
+  check "$label: preset deleted" "post /api/presets/delete '{\"name\":\"Smoke test\"}' | jq -e .ok >/dev/null && api /api/state | jq -e '(.presets | index(\"Smoke test\")) == null' >/dev/null"
+  check "$label: deleting a missing preset is refused" "post /api/presets/delete '{\"name\":\"../last\"}' | jq -e .error >/dev/null"
   check "$label: update status endpoint" "api /api/update/status | jq -e .state >/dev/null"
   check "$label: OS status endpoint" "api /api/os/status | jq -e .state >/dev/null"
   check "$label: still running" "kill -0 \$(cat /tmp/lh.pid)"

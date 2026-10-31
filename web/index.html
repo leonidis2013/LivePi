@@ -511,7 +511,7 @@
     <button class="pill" id="tbPresets"><svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></svg><span>Presets</span><b id="tbPresetName"></b></button>
   </div>
   <div id="pnPresets" class="panel hide">
-    <div class="row"><select id="presetList" class="grow"></select><button id="presetLoad">Load</button></div>
+    <div class="row"><select id="presetList" class="grow"></select><button id="presetLoad">Load</button><button id="presetDel" class="danger">Delete</button></div>
     <div class="row"><input id="presetName" class="grow" placeholder="Save current mix as…"><button id="presetSave">Save</button></div>
   </div>
   <div id="strips" class="strips"></div>
@@ -1994,6 +1994,13 @@ setInterval(() => { if (!$('tab-setup').classList.contains('hide') && !document.
 
 /* ---------- presets ---------- */
 $('presetLoad').onclick = async () => { const n = $('presetList').value; if (!n) return; const r = await api('/api/presets/load', { name: n }); if (r.ok) toast('Loaded ' + n); structKey = ''; refresh(); };
+$('presetDel').onclick = async () => {
+  const n = $('presetList').value; if (!n) return;
+  if (!confirm('Delete the preset "' + n + '"? This can\'t be undone. What is playing now is not affected.')) return;
+  const r = await api('/api/presets/delete', { name: n });
+  if (r.ok) toast('Deleted ' + n); else if (r.error) toast(r.error);
+  refresh();
+};
 $('presetSave').onclick = async () => { const n = $('presetName').value.trim(); if (!n) return; const r = await api('/api/presets/save', { name: n }); if (r.ok) { toast('Saved ' + n); $('presetName').value = ''; } refresh(); };
 
 /* ---------- setup tab ---------- */

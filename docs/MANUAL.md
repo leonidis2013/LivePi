@@ -1,6 +1,6 @@
 # LivePi User Manual
 
-**LivePi v0.14.1** · Copyright © Jerod Ulicki
+**LivePi v0.15.0** · Copyright © Jerod Ulicki
 
 LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Audio goes in through the Pi's sound card, through your plugins (for example LiveVoice), and back out with very little delay. You control everything from a web page on a phone, tablet or computer. The Pi needs no screen, keyboard or mouse.
 
@@ -171,7 +171,7 @@ On a phone the chain is folded into one line, for example "LiveVoice ›". Tap i
 
 ### Presets
 
-Tap **Presets** to load a saved mix or save the current one under a new name. A preset stores channel names, faders, mutes, plugin chains and all plugin settings, the monitor mix, and the PAFL mode. The last session is restored automatically when the Pi starts.
+Tap **Presets** to load a saved mix, save the current one under a new name, or **Delete** the preset chosen in the list (you're asked to confirm; what is playing now isn't affected). A preset stores channel names, faders, mutes, plugin chains and all plugin settings, the monitor mix, and the PAFL mode. The last session is restored automatically when the Pi starts.
 
 ---
 

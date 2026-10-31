@@ -1269,6 +1269,12 @@ void WebServer::setupRoutes()
         reply (res, onMT ([this, b] { return engine.savePreset (b["name"].toString()); }));
     });
 
+    svr.Post ("/api/presets/delete", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto b = body (req);
+        reply (res, onMT ([this, b] { return engine.deletePreset (b["name"].toString()); }));
+    });
+
     svr.Post ("/api/presets/load", [this] (const httplib::Request& req, httplib::Response& res)
     {
         auto b = body (req);

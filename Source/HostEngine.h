@@ -78,6 +78,7 @@ public:
     juce::var listPresets();
     juce::var savePreset (const juce::String& name);
     juce::var loadPreset (const juce::String& name);
+    juce::var deletePreset (const juce::String& name);
 
 private:
     struct Slot

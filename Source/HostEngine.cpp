@@ -1762,6 +1762,16 @@ var HostEngine::savePreset (const String& name)
     return ok();
 }
 
+var HostEngine::deletePreset (const String& name)
+{
+    auto f = presetFile (name);            // a plain file name inside the presets folder (no paths)
+    if (name.trim().isEmpty() || ! f.existsAsFile())
+        return err ("no such preset");
+    if (! f.deleteFile())
+        return err ("could not delete the preset");
+    return ok();
+}
+
 var HostEngine::loadPreset (const String& name)
 {
     auto f = presetFile (name);
