@@ -1,5 +1,6 @@
 #include "WebServer.h"
 #include "HwMixer.h"
+#include "Reliability.h"
 #include "EditorViewer.h"
 #include "Updater.h"
 #include <atomic>
@@ -651,6 +652,29 @@ void WebServer::setupRoutes()
     svr.Get ("/api/reliability", [this] (const httplib::Request&, httplib::Response& res)
     {
         reply (res, onMT ([this] { return engine.getReliability(); }));
+    });
+
+    // Apply the live-audio tuning (root helper installed by the installer; allowed by its sudo rule).
+    // Runs on this web thread with posix_spawn, so neither the audio nor the page's main work waits.
+    svr.Post ("/api/reliability/fix", [this] (const httplib::Request&, httplib::Response& res)
+    {
+        if (! File ("/usr/local/sbin/livepi-tune").existsAsFile())
+        {
+            reply (res, errVar ("setup"));
+            return;
+        }
+        int code = -1;
+        const auto out = Reliability::spawnRead ({ "/usr/bin/sudo", "-n", "/usr/local/sbin/livepi-tune", "apply" }, 60000, &code).trim();
+        Logger::writeToLog ("Reliability fix (exit " + String (code) + "): " + out);
+        if (code != 0)
+        {
+            reply (res, errVar (out.containsIgnoreCase ("password") || out.containsIgnoreCase ("sudo") ? String ("setup") : "The fix did not finish: " + out.getLastCharacters (300)));
+            return;
+        }
+        auto* o = new DynamicObject();
+        o->setProperty ("ok", true);
+        o->setProperty ("output", out);
+        reply (res, var (o));
     });
 
     svr.Post ("/api/notice/dismiss", [this] (const httplib::Request& req, httplib::Response& res)

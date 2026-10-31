@@ -551,7 +551,23 @@ var HostEngine::getReliability()
     o->setProperty ("aptTimers", File ("/etc/systemd/system/timers.target.wants/apt-daily.timer").exists()
                                   || File ("/etc/systemd/system/timers.target.wants/apt-daily-upgrade.timer").exists()
                                   || File ("/lib/systemd/system/timers.target.wants/apt-daily.timer").exists());
-    o->setProperty ("tuning", File ("/etc/livepi-tuning").loadFileAsString().trim());
+    const auto tuning = File ("/etc/livepi-tuning").loadFileAsString().trim();
+    o->setProperty ("tuning", tuning);
+    // The page can fix things itself when the installer has set up the root helper and its sudo rule
+    o->setProperty ("fixAvailable", File ("/usr/local/sbin/livepi-tune").existsAsFile());
+    o->setProperty ("user", SystemStats::getLogonName());
+    // Applied, but the Pi has not been restarted since (boot options, or the service settings)
+    bool reboot = false;
+    if (tuning.contains ("boot options:"))
+    {
+        const auto running = File ("/proc/cmdline").loadFileAsString();
+        for (auto& tok : StringArray::fromTokens (tuning.fromFirstOccurrenceOf ("boot options:", false, false).trim(), " ", ""))
+            if (tok.isNotEmpty() && ! running.contains (tok))
+                reboot = true;
+    }
+    if (File ("/etc/systemd/system/livepi.service.d/10-reliability.conf").existsAsFile() && ! sd.available())
+        reboot = true;
+    o->setProperty ("rebootNeeded", reboot);
     o->setProperty ("throttled", health != nullptr ? health->throttled.load() : -1);
     o->setProperty ("safeMode", safeMode);
     o->setProperty ("fallback", autoFallback);

@@ -103,8 +103,11 @@ systemctl --global disable pulseaudio.service pulseaudio.socket 2>/dev/null || t
 systemctl disable --now bluetooth.service 2>/dev/null || true
 
 echo "== System tuning for live audio"
+# A root-owned copy the web page may run (Settings > System > Reliability > Fix now). The copy in
+# /opt/livepi belongs to the LivePi user, so it must never be what runs as root.
+install -m 755 -o root -g root "$HERE/rt-tune.sh" /usr/local/sbin/livepi-tune
 if [[ $TUNING -eq 1 ]]; then
-  /opt/livepi/rt-tune.sh apply || echo "Tuning did not finish; run later: sudo /opt/livepi/rt-tune.sh"
+  /usr/local/sbin/livepi-tune apply || echo "Tuning did not finish; run later: sudo /usr/local/sbin/livepi-tune apply"
 else
   echo "Skipped (--no-tuning)."
 fi
@@ -116,7 +119,7 @@ chmod 755 /var/lib/livepi-os
 
 echo "== Allow the web page to reboot / shut down the Pi and run OS updates"
 cat > /etc/sudoers.d/livepi <<EOF
-${USER_NAME} ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/local/sbin/livepi-os check, /usr/local/sbin/livepi-os upgrade
+${USER_NAME} ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/local/sbin/livepi-os check, /usr/local/sbin/livepi-os upgrade, /usr/local/sbin/livepi-tune apply
 EOF
 chmod 440 /etc/sudoers.d/livepi
 visudo -c -f /etc/sudoers.d/livepi >/dev/null || { echo "sudoers check failed, removing rule"; rm -f /etc/sudoers.d/livepi; }
@@ -182,6 +185,10 @@ yesno() {   # yesno "question" default(Y|N)  -> returns 0 for yes
 }
 
 if [[ -n "${LIVEPI_PASSWORD:-}" ]]; then PW_MODE=yes; fi
+# Running the installer again: keep the password (and trusted access) you already have
+if [[ "$PW_MODE" == ask && -s "$HOME_DIR/.livepi/auth.json" ]] && grep -q '"hash"' "$HOME_DIR/.livepi/auth.json"; then
+  if [[ ! -t 0 ]] || yesno "A web password is already set. Keep it (and your trusted access settings)? [Y/n]" Y; then PW_MODE=keep; fi
+fi
 if [[ "$PW_MODE" == ask ]]; then
   if [[ -t 0 ]]; then
     echo "A password protects the web page. Without one, anyone on your network can use LivePi."
@@ -224,6 +231,8 @@ PY
   else
     echo "No password was set. LivePi will still start; set one later in Setup > Settings."
   fi
+elif [[ "$PW_MODE" == keep ]]; then
+  echo "Keeping your password and trusted access settings."
 else
   echo "Continuing without a password: everyone on your network can use LivePi. Set one any time in Setup > Settings."
 fi

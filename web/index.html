@@ -458,6 +458,13 @@
   .rel b { font-weight:600; font-size:14px; }
   .rel span { font-size:12px; color:var(--dim); line-height:1.4; }
   #relFix code { user-select:all; }
+
+  .relfix { display:flex; flex-direction:column; gap:10px; align-items:flex-start; margin-top:6px; padding:12px; border-radius:10px;
+            background:color-mix(in srgb, var(--acc) 9%, var(--card)); border:1px solid color-mix(in srgb, var(--acc) 35%, transparent); font-size:13px; line-height:1.45; }
+  .relfix.hide { display:none; }
+  .relfix ol { margin:0; padding-left:18px; } .relfix li { margin:4px 0; }
+  .relfix code { font-size:12px; background:var(--inset); padding:1px 5px; border-radius:4px; }
+  .relfix pre.cmd { margin:0; width:100%; box-sizing:border-box; white-space:pre-wrap; word-break:break-all; background:var(--inset); padding:10px; border-radius:8px; font-size:12px; user-select:all; -webkit-user-select:all; }
 </style>
 </head>
 <body>
@@ -1872,10 +1879,50 @@ async function relLoad() {
     const d = el('div', 'rel ' + lvl), i = el('i', '', lvl === 'ok' ? '✓' : lvl === 'dim' ? '?' : '!'), c = el('div');
     c.append(el('b', '', title), el('span', '', text)); d.append(i, c); root.append(d);
   }
-  const f = $('relFix');
-  f.classList.toggle('hide', !fix.length);
-  if (fix.length) f.innerHTML = `To fix ${esc(fix.join(', '))}: on the Pi, run the installer again from the livepi folder (<code>sudo ./install-pi.sh ${'your-user'}</code>), then reboot.`;
+  if (r.usbAutosuspend && r.usbAutosuspend !== '-1') fix.push('USB power saving');
+  relFixRender(r, fix);
 }
+function copyText(t) {
+  try { if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(t).then(() => true); } catch (e) {}
+  const ta = el('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.append(ta);
+  ta.focus(); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch (e) {} ta.remove();
+  return Promise.resolve(ok);
+}
+function relFixRender(r, fix) {
+  const f = $('relFix'); f.innerHTML = ''; f.className = 'relfix';
+  const say = (html) => { const d = el('div'); d.innerHTML = html; f.append(d); };
+  if (r.rebootNeeded) {
+    say('<b>Almost done.</b> Reboot the Pi to finish. The audio stops for about 30 seconds, so not during a service.');
+    const b = el('button', 'on', 'Reboot now'); b.onclick = () => $('sysReboot').click(); f.append(b);
+    return;
+  }
+  if (!fix.length) { f.classList.add('hide'); return; }
+  if (r.fixAvailable && !relSetupNeeded) {
+    say(`<b>${fix.length === 1 ? 'This can' : 'These can'} be fixed from here:</b> ${esc(fix.join(', '))}. Afterwards the Pi needs one reboot.`);
+    const b = el('button', 'on', 'Fix now');
+    b.onclick = async () => {
+      b.disabled = true; b.textContent = 'Fixing…';
+      const res = await api('/api/reliability/fix', {});
+      if (res.ok) { toast('Fixed. Reboot the Pi to finish.'); relLoad(); return; }
+      if (res.error === 'setup') { relSetupNeeded = true; relFixRender(r, fix); return; }
+      toast(res.error || 'The fix did not finish'); b.disabled = false; b.textContent = 'Fix now';
+    };
+    f.append(b);
+    return;
+  }
+  // First time only: the page needs permission to change system settings, which takes the installer once
+  const user = r.user || 'your-user';
+  const cmd = `curl -fsSL https://github.com/leonidis2013/LivePi/releases/latest/download/livepi-linux-arm64.tar.gz | tar xz && cd livepi && sudo ./install-pi.sh ${user}`;
+  say(`<b>One-time setup needed.</b> To fix ${esc(fix.join(', '))}, LivePi needs permission to change system settings. That takes the installer, once. After that, these fixes are one tap on this page.`);
+  say(`<ol><li>On a computer on the same network, open a terminal and connect to the Pi: <code>ssh ${esc(user)}@${esc(location.hostname)}</code></li>`
+    + `<li>Paste this command and press Enter. Press Enter at each question to keep your current settings.</li></ol>`);
+  const pre = el('pre', 'cmd', cmd); f.append(pre);
+  const c = el('button', '', 'Copy command');
+  c.onclick = async () => { const ok = await copyText(cmd); toast(ok ? 'Copied' : 'Select the command and copy it'); if (!ok) { const rg = document.createRange(); rg.selectNodeContents(pre); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(rg); } };
+  f.append(c);
+  say('3. When it finishes, come back here: this card shows a Reboot button.');
+}
+let relSetupNeeded = false;
 $('relRefresh').onclick = relLoad;
 setInterval(() => { if (!$('tab-setup').classList.contains('hide') && !document.querySelector('[data-pane="system"]').classList.contains('hide') && !document.hidden) relLoad(); }, 5000);
 

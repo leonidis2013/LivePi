@@ -14,6 +14,8 @@
 #    service. Update from the LivePi page instead (Settings > System > Operating system).
 #  - Wi-Fi power saving off, so the web page stays responsive.
 #  - ModemManager off (it probes serial/USB devices at random times).
+#  - The LivePi service: never stop restarting it, restart within 1 s, let LivePi use the systemd
+#    watchdog, and never pick LivePi when memory runs out (a drop-in, takes effect when LivePi restarts).
 # Boot settings take effect after a reboot. A backup of cmdline.txt is kept next to it.
 set -euo pipefail
 
@@ -22,6 +24,7 @@ CMDLINE="${LIVEPI_CMDLINE:-/boot/firmware/cmdline.txt}"; [[ -f $CMDLINE ]] || CM
 MARK=/etc/livepi-tuning
 PREV=/etc/livepi-tuning.before   # what was set before LivePi changed anything (for undo)
 NM_CONF=/etc/NetworkManager/conf.d/livepi-wifi-powersave.conf
+DROPIN=/etc/systemd/system/livepi.service.d/10-reliability.conf
 TIMERS="apt-daily.timer apt-daily-upgrade.timer man-db.timer"
 
 ncpu=$(nproc --all 2>/dev/null || echo 1)
@@ -101,6 +104,24 @@ if [[ $CMD == apply ]]; then
     printf '[connection]\n# LivePi: keep Wi-Fi awake so the web page stays responsive\nwifi.powersave = 2\n' > "$NM_CONF"
     systemctl reload NetworkManager >/dev/null 2>&1 || true
   fi
+  if [[ -f /etc/systemd/system/livepi.service ]]; then
+    mkdir -p "$(dirname "$DROPIN")"
+    cat > "$DROPIN" <<'UNIT'
+# Added by LivePi rt-tune.sh
+[Unit]
+StartLimitIntervalSec=0
+
+[Service]
+Restart=always
+RestartSec=1
+NotifyAccess=main
+TimeoutStopSec=15
+OOMScoreAdjust=-900
+LimitRTPRIO=95
+LimitMEMLOCK=infinity
+UNIT
+    systemctl daemon-reload >/dev/null 2>&1 || true
+  fi
   echo "applied $(date -Iseconds); boot options: $TOK" > "$MARK"
   echo "LivePi tuning applied (boot options: $TOK)."
 else
@@ -113,7 +134,8 @@ else
   else
     for t in $TIMERS; do systemctl enable --now "$t" >/dev/null 2>&1 || true; done
   fi
-  rm -f "$NM_CONF" "$MARK" "$PREV"
+  rm -f "$NM_CONF" "$MARK" "$PREV" "$DROPIN"
+  systemctl daemon-reload >/dev/null 2>&1 || true
   echo "LivePi tuning removed."
 fi
 (( REBOOT )) && echo "Reboot to use the new boot options: sudo reboot"

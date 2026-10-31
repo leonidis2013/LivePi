@@ -178,7 +178,7 @@ namespace Reliability
     // 3 soft temperature limit now; 16..19 the same "has happened since boot".
     // Runs a command and returns its output. Uses posix_spawn (vfork-style), not fork: forking a
     // process whose memory is locked makes the audio thread hit copy-on-write page faults.
-    inline juce::String spawnRead (const std::vector<std::string>& args, int timeoutMs)
+    inline juce::String spawnRead (const std::vector<std::string>& args, int timeoutMs, int* exitCode = nullptr)
     {
         int pfd[2];
         if (::pipe2 (pfd, O_CLOEXEC) != 0)
@@ -187,7 +187,7 @@ namespace Reliability
         posix_spawn_file_actions_init (&fa);
         posix_spawn_file_actions_adddup2 (&fa, pfd[1], 1);
         posix_spawn_file_actions_addopen (&fa, 0, "/dev/null", O_RDONLY, 0);
-        posix_spawn_file_actions_addopen (&fa, 2, "/dev/null", O_WRONLY, 0);
+        posix_spawn_file_actions_adddup2 (&fa, pfd[1], 2);
         std::vector<char*> argv;
         for (auto& a : args) argv.push_back (const_cast<char*> (a.c_str()));
         argv.push_back (nullptr);
@@ -195,7 +195,7 @@ namespace Reliability
         const int r = posix_spawn (&pid, argv[0], &fa, nullptr, argv.data(), environ);
         posix_spawn_file_actions_destroy (&fa);
         ::close (pfd[1]);
-        if (r != 0) { ::close (pfd[0]); return {}; }
+        if (r != 0) { ::close (pfd[0]); if (exitCode != nullptr) *exitCode = -1; return {}; }
 
         std::string out;
         char buf[256];
@@ -211,7 +211,10 @@ namespace Reliability
             if (out.size() > 4096) break;
         }
         ::close (pfd[0]);
-        ::waitpid (pid, nullptr, 0);
+        int status = 0;
+        ::waitpid (pid, &status, 0);
+        if (exitCode != nullptr)
+            *exitCode = WIFEXITED (status) ? WEXITSTATUS (status) : -1;
         return juce::String (out);
     }
 
