@@ -14,12 +14,17 @@ static void check (bool ok, const char* what) { std::printf ("%s  %s\n", ok ? "P
 
 static void allOn (VoiceChannel& v)
 {
-    for (auto id : { "hpfOn", "pseOn", "fbOn", "eqOn", "dsOn", "proxOn", "lvlOn", "compOn" })
+    for (auto id : { "hpfOn", "pseOn", "fbOn", "eqOn", "dsOn", "proxOn", "lvlOn", "compOn", "peqOn" })
         v.setParam (id, 1.0);
     v.setParam ("warmth", 30.0);
     v.setParam ("b3_gain", -4.0);
     v.setParam ("b5_dyn", 1.0);
     v.setParam ("pseThr", -80.0);          // let the impulse through the expander
+    v.setParam ("peq2_gain", 5.0);
+    v.setParam ("peq1_type", 3.0);         // low cut
+    std::vector<int> all;
+    for (int m = 0; m < VoiceChannel::numModules; ++m) all.push_back (m);
+    v.setOrder (all);                      // every module, the parametric EQ too
 }
 
 int main()
@@ -90,7 +95,7 @@ int main()
     // ---- state round trip keeps the order and the settings ----
     {
         VoiceChannel a, b;
-        std::array<int, VoiceChannel::numModules> o { 8, 7, 6, 5, 4, 3, 2, 1, 0 };
+        std::vector<int> o { 9, 8, 6, 5, 4, 3, 1, 0 };   // two modules taken out
         a.setOrder (o);
         a.setParam ("compThr", -33.0);
         juce::MemoryBlock mb;
@@ -99,6 +104,10 @@ int main()
         check (b.getOrder() == o, "state keeps the module order");
         check (std::abs (b.apvts.getRawParameterValue ("compThr")->load() + 33.0f) < 0.01f, "state keeps the settings");
         check (b.loadFactoryPreset (1), "factory preset loads");
+        check (! b.setOrder ({ 1, 1 }) && ! b.setOrder ({}) && ! b.setOrder ({ 12 }), "bad flows refused");
+        b.setParam ("peq3_gain", 6.0);
+        b.loadFactoryPreset (0);
+        check (std::abs (b.apvts.getRawParameterValue ("peq3_gain")->load() - 6.0f) < 0.01f, "voice preset keeps the parametric EQ");
     }
 
     std::printf ("%s\n", failures == 0 ? "ALL PASSED" : "SOME FAILED");

@@ -534,13 +534,13 @@
   .cvside .keys { flex-direction:column; width:100%; }
   .cvside .keys button { width:100%; }
   .cvmain { flex:1; min-width:0; display:flex; gap:12px; }
-  .cvflow { flex:0 0 220px; display:flex; flex-direction:column; gap:6px; overflow:auto; }
+  .cvflow { flex:0 0 250px; display:flex; flex-direction:column; gap:6px; overflow:auto; }
   .fb { display:flex; align-items:center; gap:8px; padding:10px 10px; border-radius:10px; border:1px solid var(--line); background:var(--card); cursor:pointer; user-select:none; -webkit-user-select:none; touch-action:pan-y; position:relative; min-height:48px; }
   .fb.sel { border-color:var(--acc); box-shadow:inset 3px 0 0 var(--acc); background:var(--card2); }
   .fb.off .fbn { color:var(--dim); }
   .fb .grip { width:22px; height:30px; display:grid; place-items:center; color:var(--faint); cursor:grab; touch-action:none; flex:0 0 22px; }
   .fb .fbn { flex:1; min-width:0; font-weight:700; font-size:13px; letter-spacing:.04em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .fb .fbm { font-size:11px; color:var(--dim); font-variant-numeric:tabular-nums; min-width:44px; text-align:right; }
+  .fb .fbm { font-size:11px; color:var(--dim); font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap; }
   .fb .pwr { width:30px; height:30px; min-height:0; padding:0; border-radius:8px; display:grid; place-items:center; }
   .fb .pwr svg { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2.2; stroke-linecap:round; }
   .fb .pwr.on { background:var(--acc); border-color:var(--acc); color:var(--onacc); }
@@ -687,7 +687,7 @@
   .sldr { align-items:center; }
   @media (max-width:720px) {
     /* phone: the module tiles go full width above; input left, panel, output right */
-    .cvbody { display:grid; grid-template-columns:56px minmax(0,1fr) 50px; grid-template-rows:auto minmax(0,1fr); grid-template-areas:"flow flow flow" "in panel out"; gap:6px; }
+    .cvbody { display:grid; grid-template-columns:34px minmax(0,1fr) 66px; grid-template-rows:auto minmax(0,1fr); grid-template-areas:"flow flow flow" "in panel out"; gap:6px; }
     .cvmain { display:contents; }
     .cvflow { grid-area:flow; }
     .cvpanel { grid-area:panel; }
@@ -703,6 +703,56 @@
     .fb .pwr { width:24px; height:24px; flex:0 0 24px; }
     .fb .dot { display:none; }
   }
+
+  /* ---- channel screen: graphs, add-module menu, notches ---- */
+  .cvgraphs { display:flex; gap:10px; }
+  .cvgt { position:relative; flex:1; min-width:0; height:200px; border-radius:10px; background:var(--inset); overflow:hidden; touch-action:none; }
+  .cvgt.sq { flex:0 0 200px; }
+  .cvgt canvas { width:100%; height:100%; display:block; }
+  .cvcl, .cvhint { position:absolute; left:8px; top:6px; font-size:10px; color:var(--dim); pointer-events:none; right:8px; }
+  .cvhint { top:auto; bottom:18px; left:auto; right:10px; text-align:right; }
+  .cvside.cvin { flex:0 0 64px; }
+  .fb.fixed { box-shadow:inset 3px 0 0 var(--mc); }
+  .fb.fixed.sel { box-shadow:inset 3px 0 0 var(--acc); }
+  .fb.fixed .grip { visibility:hidden; }
+  .fbadd { justify-content:center; color:var(--acc); font-weight:700; border-style:dashed; background:transparent; }
+  .cvaddmenu { position:absolute; inset:0; z-index:5; background:#0008; display:flex; align-items:center; justify-content:center; padding:16px; }
+  .cvaddcard { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; width:min(360px,100%); display:flex; flex-direction:column; gap:8px; }
+  .cvaddcard h3 { margin:0; }
+  .cvaddopt { display:flex; align-items:center; gap:10px; justify-content:flex-start; text-align:left; }
+  .cvaddopt .dot { width:10px; height:10px; border-radius:50%; background:var(--mc); }
+  .cvrm { color:var(--bad); }
+  .nadd { align-items:center; }
+  .nadd input.num { width:96px; }
+  .nrow input.nf { width:90px; }
+  .nrow select.nd { width:96px; }
+  @media (max-width:720px) {
+    .cvgraphs { flex-direction:column; }
+    .cvgt { height:150px; }
+    .cvgt.sq { flex:none; height:190px; }
+    .cvside.cvin { padding:8px 2px; }
+  }
+
+  /* Safari full screen on iPad: its ✕ sits in the top-left corner */
+  body.iosfs header, body.iosfs .cvbar, body.iosfs .obar { padding-left:76px; }
+
+  /* ---- setup assistant ---- */
+  .wz { position:fixed; inset:0; z-index:35; background:var(--bg); display:flex; align-items:flex-start; justify-content:center; overflow:auto; padding:calc(16px + env(safe-area-inset-top)) 12px 16px; }
+  .wzcard { width:min(760px,100%); display:flex; flex-direction:column; gap:12px; }
+  .wzhead { display:flex; align-items:center; gap:12px; }
+  .wzhead b { display:block; font-size:20px; }
+  .wzhead span { display:block; font-size:13px; color:var(--dim); margin-top:2px; }
+  .wzlogo { width:42px; height:42px; border-radius:10px; }
+  .wzdots { display:flex; gap:6px; }
+  .wzdots i { flex:1; height:4px; border-radius:2px; background:var(--line); }
+  .wzdots i.done { background:color-mix(in srgb, var(--acc) 50%, var(--line)); }
+  .wzdots i.on { background:var(--acc); }
+  .wzbody { display:flex; flex-direction:column; gap:10px; min-height:120px; }
+  .wzbody > p { margin:0; }
+  .wzbody .card { margin:0; max-width:none; }
+  .wzfoot { display:flex; gap:8px; align-items:center; position:sticky; bottom:0; background:var(--bg); padding:10px 0 calc(6px + env(safe-area-inset-bottom)); }
+  .wzfoot button { min-width:84px; }
+  .wzsp { flex:1; }
 </style>
 </head>
 <body>
@@ -743,7 +793,7 @@
   </div>
   <div class="pane">
   <div data-pane="audio">
-  <div class="card">
+  <div class="card" id="audCard">
     <h2>Audio interface</h2>
     <div class="set hide" id="psRow"><div class="sl"><b>Pisound found</b><span>Use it for input and output at 48 kHz, 64 samples</span></div><div class="sc"><button id="psUse" class="on">Use Pisound</button></div></div>
     <div class="set"><div class="sl"><b>Driver</b><span>ALSA for a sound card, or the virtual card for testing</span></div><div class="sc"><select id="devType"></select></div></div>
@@ -773,7 +823,7 @@
   </div>
   </div>
   <div data-pane="channels" class="hide">
-  <div class="card">
+  <div class="card" id="chCard">
     <h2>Channels</h2>
     <div class="set"><div class="sl"><b>Number of channels</b><span>With one channel the output feeds both left and right.</span></div><div class="sc"><input id="chCount" type="number" min="1" max="16" value="1" class="num"><button id="chApply">Set</button></div></div>
   </div>
@@ -832,7 +882,11 @@
   </div>
   </div>
   <div data-pane="settings" class="hide">
-  <div class="card">
+  <div class="card" id="setupCard">
+    <h2>Setup assistant</h2>
+    <div class="set"><div class="sl"><b>Run setup again</b><span>Step by step: audio interface, channels, mode, microphones, network and password. Handy if something isn't working.</span></div><div class="sc"><button id="wzRun" class="on">Run setup</button></div></div>
+  </div>
+  <div class="card" id="modeCard">
     <h2>Mode</h2>
     <div class="set"><div class="sl"><b>LivePi mode</b><span id="modeNote"></span></div><div class="sc"><div class="seg" id="modeSeg"><button data-v="vst">VST rack</button><button data-v="mixer">Mixer</button></div></div></div>
     <div class="set" id="pvDefRow"><div class="sl"><b>Plugins open in</b><span>When you tap a plugin name (this device)</span></div><div class="sc"><div class="seg" id="pvDefSeg"><button data-v="controls">Controls</button><button data-v="window">Plugin</button></div></div></div>
@@ -852,7 +906,7 @@
     <h2>Pisound button</h2>
     <div id="btnBody"><div class="note">Loading…</div></div>
   </div>
-  <div class="card">
+  <div class="card" id="pwCard">
     <h2>Password</h2>
     <div class="set"><div class="sl"><b>Password protection</b><span id="pwNote"></span></div><div class="sc"><div class="seg" id="pwSeg"><button data-v="on">On</button><button data-v="off">Off</button></div></div></div>
     <form id="pwOnBox" class="pwform hide" autocomplete="on">
@@ -888,6 +942,14 @@
  </div>
 </section>
 
+</div>
+<div id="wz" class="wz hide">
+  <div class="wzcard">
+    <div class="wzhead"><img src="logo.svg" alt="" class="wzlogo"><div class="grow"><b id="wzTitle"></b><span id="wzStep"></span></div><button id="wzX" class="ico" title="Close (you can run setup again from Settings)">✕</button></div>
+    <div class="wzdots" id="wzDots"></div>
+    <div id="wzBody" class="wzbody"></div>
+    <div class="wzfoot"><button id="wzBack">Back</button><span class="wzsp"></span><button id="wzSkip">Skip</button><button id="wzNext" class="on">Next</button></div>
+  </div>
 </div>
 <div id="cv" class="chview hide">
   <div class="cvbar">
@@ -1079,11 +1141,28 @@ $('busyTake').onclick = async () => {
   const isFs = () => !!(d.fullscreenElement || d.webkitFullscreenElement);
   const standalone = matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || navigator.standalone;
   $('fsBtn').classList.toggle('hide', !can || !!standalone);
+  // iPad / iPhone: Safari's full screen always shows its own ✕ in the top-left corner and it can't be
+  // hidden. The Home Screen app has no ✕ and no Safari bars, so that is offered first.
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const enter = () => { const r = (root.requestFullscreen || root.webkitRequestFullscreen).call(root); if (r && r.catch) r.catch(() => {}); };
   $('fsBtn').onclick = () => {
-    if (isFs()) (d.exitFullscreen || d.webkitExitFullscreen).call(d);
-    else { const r = (root.requestFullscreen || root.webkitRequestFullscreen).call(root); if (r && r.catch) r.catch(() => {}); }
+    if (isFs()) { (d.exitFullscreen || d.webkitExitFullscreen).call(d); return; }
+    if (!ios) { enter(); return; }
+    const box = $('fixBox'); box.innerHTML = '';
+    const head = el('div', 'fxhead'), x = el('button', 'fxx', '✕'); x.onclick = issueClose;
+    head.append(el('h3', '', 'Full screen on an iPad'), x);
+    const ol = el('ol');
+    ol.innerHTML = '<li>Tap Safari’s <b>Share</b> button (the square with the arrow).</li><li>Choose <b>Add to Home Screen</b>, then <b>Add</b>.</li><li>Open LivePi from its new icon. It fills the screen with no ✕ and no Safari bars.</li>';
+    box.append(head, el('p', '', 'Safari’s own full screen always puts a ✕ in the top-left corner; Safari doesn’t let a page hide it. The LivePi Home Screen app has no ✕:'), ol,
+      el('p', 'fxsmall', 'The Home Screen app keeps its own login, so you may need to enter the password once there. Turn on Keep screen awake in Settings > This device too.'));
+    const acts = el('div', 'fxacts'), anyway = el('button', '', 'Use Safari full screen anyway'), ok = el('button', 'on', 'OK');
+    anyway.onclick = () => { issueClose(); enter(); };
+    ok.onclick = issueClose;
+    acts.append(anyway, ok); box.append(acts);
+    $('fixDlg').classList.remove('hide');
   };
-  const sync = () => { $('fsBtn').classList.toggle('on2', isFs()); $('fsBtn').title = isFs() ? 'Leave full screen' : 'Full screen'; };
+  // In Safari's full screen, move the top-left content out from under its ✕
+  const sync = () => { $('fsBtn').classList.toggle('on2', isFs()); $('fsBtn').title = isFs() ? 'Leave full screen' : 'Full screen'; document.body.classList.toggle('iosfs', ios && isFs()); };
   d.addEventListener('fullscreenchange', sync); d.addEventListener('webkitfullscreenchange', sync);
 })();
 
@@ -2749,10 +2828,10 @@ awakeStart();
 /* ---------- mixer mode: the built-in LiveVoice channel ----------
    Left: input gain + fader (+ mute, PAFL). Middle: the flow of modules (tap one, drag the grip to
    reorder) and the big panel of the selected module. Right: output trim + output meter. */
-const MOD_COLOR = { hpf: '#7ea9cc', pse: '#8bd450', feedback: '#ff8a3d', eq: '#2ec4b6', deess: '#a78bfa', prox: '#4cc9f0', leveler: '#80ed99', warmth: '#f4978e', comp: '#f6c453' };
+const MOD_COLOR = { input: '#9aa5b1', peq: '#5aa9ff', hpf: '#7ea9cc', pse: '#8bd450', feedback: '#ff8a3d', eq: '#2ec4b6', deess: '#a78bfa', prox: '#4cc9f0', leveler: '#80ed99', warmth: '#f4978e', comp: '#f6c453' };
 const BAND_COLOR = ['#2ec4b6', '#4cc9f0', '#7bdff2', '#80ed99', '#f7d070', '#f4978e'];
-const SPEC_MODS = ['hpf', 'eq', 'feedback', 'deess'];
-const MOD_SHORT = { hpf: 'HPF', pse: 'PSE', feedback: 'Feedback', eq: 'EQ', deess: 'De-ess', prox: 'Proximity', leveler: 'Leveler', warmth: 'Warmth', comp: 'Comp' };
+const SPEC_MODS = ['hpf', 'eq', 'peq', 'feedback', 'deess'];
+const MOD_SHORT = { input: 'Input', peq: 'Para EQ', eq: 'Dyn EQ', hpf: 'HPF', pse: 'PSE', feedback: 'Feedback', deess: 'De-ess', prox: 'Proximity', leveler: 'Leveler', warmth: 'Warmth', comp: 'Comp' };
 const PHONE = window.matchMedia('(max-width:720px)');
 const CV = { ch: -1, view: null, live: null, spec: null, sel: 'eq', band: 0, out: true, timers: [], key: '', ctls: {}, hold: null, warmthLast: 30, quietUntil: 0 };
 function isMixer() { return !!(S && S.mode === 'mixer'); }
@@ -2842,7 +2921,7 @@ function cvSyncCtls() {
 }
 function cvRender() {
   const v = CV.view, ch = CV.ch;
-  if (!v.modules[CV.sel]) CV.sel = v.order[0];
+  if (!v.modules[CV.sel] || (CV.sel !== 'input' && !v.order.includes(CV.sel))) CV.sel = v.order[0] || 'input';
   const key = [ch, CV.sel, CV.band, v.order.join(','), (v.presets || []).join('|')].join('/');
   const chain = S && S.chains ? S.chains[ch] : null;
   $('cvTitle').textContent = chain ? chain.name : 'Channel ' + (ch + 1);
@@ -2885,24 +2964,25 @@ $('cvBypass').onclick = () => { const on = !(CV.view.bypass && CV.view.bypass.no
 function cvMeter(kind, label) { const m = meterCol(kind, label, kind === 'vin' ? 'l' : 'r', ''); m.querySelector('.meter').dataset.k = kind; return m; }
 function cvSides() {
   const v = CV.view, ch = CV.ch, chain = S.chains[ch] || {};
-  const L = $('cvIn'); L.innerHTML = ''; L.className = 'cvside cvin strip'; L.dataset.ch = ch;
-  L.append(el('h4', '', 'Input'));
-  if (v.inGain) L.append(cvCtl(v.inGain, 'Gain', true));
+  // left: what comes in (the gain itself is the Input module, always first in the flow)
+  const L = $('cvIn'); L.innerHTML = ''; L.className = 'cvside cvin';
+  L.append(el('h4', '', 'In'));
+  const fi = el('div', 'fm'); fi.append(cvMeter('vin', 'IN')); L.append(fi);
+  // right: output trim, the channel fader with the OUT meter, Mute, PAFL
+  const R = $('cvOut'); R.innerHTML = ''; R.className = 'cvside cvout strip'; R.dataset.ch = ch;
+  R.append(el('h4', '', 'Output'));
+  if (v.outGain) R.append(cvCtl(v.outGain, 'Trim', true));
   const fm = el('div', 'fm');
   const fader = makeFader(db => throttled('g' + ch, () => api('/api/mixer', { channel: ch, gainDb: db })));
-  fm.append(cvMeter('vin', 'IN'), fader);
-  L.append(fm, el('div', 'db', '0.0 dB'));
+  fm.append(fader, cvMeter('vout', 'OUT'));
+  R.append(fm, el('div', 'db', '0.0 dB'));
   paintFader(fader, chain.gainDb || 0);
   const keys = el('div', 'keys');
   const mute = el('button', 'mute' + (chain.mute ? ' on' : ''), 'Mute');
   mute.onclick = () => { const on = !mute.classList.contains('on'); mute.classList.toggle('on', on); api('/api/mixer', { channel: ch, mute: on }); };
   const mb = el('button', 'monbtn' + (chain.sendDb > -60 ? ' on' : ''), 'PAFL'); mb.dataset.ch = ch;
   mb.onclick = () => setMonitorSource(mb.classList.contains('on') ? -1 : ch);
-  keys.append(mute, mb); L.append(keys);
-  const R = $('cvOut'); R.innerHTML = '';
-  R.append(el('h4', '', 'Output'));
-  if (v.outGain) R.append(cvCtl(v.outGain, 'Trim', true));
-  const fo = el('div', 'fm'); fo.append(cvMeter('vout', 'OUT')); R.append(fo, el('div', 'db cvoutdb', ''));
+  keys.append(mute, mb); R.append(keys);
 }
 function cvSetMeter(kind, db) {
   const k = 'cv' + kind;
@@ -2913,21 +2993,52 @@ function cvSetMeter(kind, db) {
 // ---- the flow ----
 function cvFlow() {
   const v = CV.view, F = $('cvFlow'); F.innerHTML = '';
-  v.order.forEach((id, i) => {
-    const m = v.modules[id];
-    const b = el('div', 'fb' + (id === CV.sel ? ' sel' : '') + (m.on ? '' : ' off')); b.dataset.id = id; b.style.setProperty('--mc', MOD_COLOR[id]);
-    const grip = el('div', 'grip'); grip.innerHTML = '<svg viewBox="0 0 10 16" width="10" height="16"><g fill="currentColor"><circle cx="2" cy="2" r="1.4"/><circle cx="8" cy="2" r="1.4"/><circle cx="2" cy="8" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="2" cy="14" r="1.4"/><circle cx="8" cy="14" r="1.4"/></g></svg>';
-    grip.title = 'Drag to move this module';
+  ['input', ...v.order].forEach((id, i) => {
+    const m = v.modules[id]; if (!m) return;
+    const fixed = id === 'input';
+    const b = el('div', 'fb' + (fixed ? ' fixed' : ' mov') + (id === CV.sel ? ' sel' : '') + (m.on ? '' : ' off')); b.dataset.id = id; b.style.setProperty('--mc', MOD_COLOR[id]);
+    const grip = el('div', 'grip');
+    if (!fixed) {
+      grip.innerHTML = '<svg viewBox="0 0 10 16" width="10" height="16"><g fill="currentColor"><circle cx="2" cy="2" r="1.4"/><circle cx="8" cy="2" r="1.4"/><circle cx="2" cy="8" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="2" cy="14" r="1.4"/><circle cx="8" cy="14" r="1.4"/></g></svg>';
+      grip.title = 'Drag to move this module';
+    }
     const pw = el('button', 'pwr' + (m.on ? ' on' : '')); pw.title = m.on ? 'On: tap to switch off' : 'Off: tap to switch on';
     pw.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg>';
     pw.onclick = e => { e.stopPropagation(); cvToggle(id); };
-    b.append(grip, el('span', 'fbi', String(i + 1)), el('span', 'dot' + (m.on ? ' on' : '')), el('span', 'fbn', m.name), el('span', 'fbs', MOD_SHORT[id] || m.name), el('span', 'fbm', ''), pw);
+    if (fixed) pw.classList.add('hide');
+    b.append(grip, el('span', 'fbi', fixed ? 'IN' : String(i)), el('span', 'dot' + (m.on ? ' on' : '')), el('span', 'fbn', m.name), el('span', 'fbs', MOD_SHORT[id] || m.name), el('span', 'fbm', ''), pw);
     b.onclick = () => { CV.sel = id; try { localStorage.setItem('lh.cvsel', id); } catch (e) {} cvRender(); };
-    cvDrag(grip, b);
+    if (!fixed) cvDrag(grip, b);
     F.append(b);
   });
-  F.append(el('div', 'fbflowhint', PHONE.matches ? 'Tap a module to open it. ↑ ↓ at the top of its panel move it in the flow.' : 'Top to bottom is the signal flow. Drag ⋮⋮ to change the order.'));
+  const missing = Object.keys(v.modules).filter(id => id !== 'input' && !v.order.includes(id));
+  if (missing.length) {
+    const add = el('button', 'fb fbadd', '+ Add module'); add.title = 'Put a module into the flow';
+    add.onclick = () => cvAddMenu(missing);
+    F.append(add);
+  }
+  F.append(el('div', 'fbflowhint', PHONE.matches ? 'Tap a module to open it. ↑ ↓ at the top of its panel move it; Remove takes it out.' : 'Top to bottom is the signal flow. Drag ⋮⋮ to change the order.'));
   cvFlowSync();
+}
+function cvAddMenu(missing) {
+  const v = CV.view, box = el('div', 'cvaddmenu'), card = el('div', 'cvaddcard');
+  card.append(el('h3', '', 'Add a module'), el('p', 'note', 'It goes in after the module that is open now. Its settings are as you left them.'));
+  missing.forEach(id => {
+    const b = el('button', 'cvaddopt'); b.style.setProperty('--mc', MOD_COLOR[id]);
+    b.append(el('span', 'dot on'), el('span', '', v.modules[id].name));
+    b.onclick = async () => {
+      box.remove();
+      const o = v.order.slice(), at = o.indexOf(CV.sel);
+      o.splice(at < 0 ? 0 : at + 1, 0, id);
+      CV.sel = id; try { localStorage.setItem('lh.cvsel', id); } catch (e) {}
+      await cvSetOrder(o);
+      CV.key = ''; await cvLoad(true);
+    };
+    card.append(b);
+  });
+  const c = el('button', '', 'Cancel'); c.onclick = () => box.remove(); card.append(c);
+  box.append(card); box.onclick = e => { if (e.target === box) box.remove(); };
+  $('cv').append(box);
 }
 function cvToggle(id) {
   const m = CV.view.modules[id];
@@ -2948,8 +3059,9 @@ async function cvSendReal(id, value) {
 }
 function cvFlowSync() {
   const v = CV.view, L = CV.live || {};
-  document.querySelectorAll('#cvFlow .fb').forEach(b => {
+  document.querySelectorAll('#cvFlow .fb[data-id]').forEach(b => {
     const id = b.dataset.id, m = v.modules[id]; if (!m) return;
+    if (id === 'input') { const ip = L.inPeak ?? -100; b.querySelector('.fbm').textContent = ip <= -99 ? '' : ip.toFixed(0) + ' dB'; return; }
     const onp = id === 'warmth' ? ((cvParam('warmth') || {}).value > 0.5) : ((cvParam(m.onParam) || {}).norm >= 0.5);
     m.on = onp;
     b.classList.toggle('off', !onp); b.querySelector('.dot').classList.toggle('on', onp);
@@ -2967,7 +3079,7 @@ function cvDrag(grip, block) {
   grip.addEventListener('pointerdown', e => {
     e.preventDefault(); e.stopPropagation(); grip.setPointerCapture(e.pointerId);
     const F = $('cvFlow'), row = getComputedStyle(F).flexDirection === 'row';
-    start = { x: e.clientX, y: e.clientY, row, items: [...F.querySelectorAll('.fb')], idx: [...F.querySelectorAll('.fb')].indexOf(block) };
+    start = { x: e.clientX, y: e.clientY, row, items: [...F.querySelectorAll('.fb.mov')], idx: [...F.querySelectorAll('.fb.mov')].indexOf(block) };
     block.classList.add('dragging'); CV.quietUntil = Date.now() + 60000;
   });
   grip.addEventListener('pointermove', e => {
@@ -2995,25 +3107,55 @@ async function cvSetOrder(order) {
 function cvPanel() {
   const v = CV.view, id = CV.sel, m = v.modules[id], P = $('cvPanel'); P.innerHTML = '';
   P.style.setProperty('--mc', MOD_COLOR[id]);
-  const pos = v.order.indexOf(id);
+  const pos = v.order.indexOf(id), fixed = id === 'input';
   const h = el('div', 'cvph');
-  const t = el('h3', '', m.name); t.append(el('small', '', `${pos + 1} of ${v.order.length} in the flow`)); h.append(t);
+  const t = el('h3', '', m.name); t.append(el('small', '', fixed ? 'always first' : `${pos + 2} of ${v.order.length + 1} in the flow`)); h.append(t);
+  if (fixed) { P.append(h); cvPanelBody(v, id, m, P); return; }
   const up = el('button', 'ico mv', '↑'); up.title = 'Move this module earlier in the flow'; up.disabled = pos === 0;
   const dn = el('button', 'ico mv', '↓'); dn.title = 'Move this module later in the flow'; dn.disabled = pos === v.order.length - 1;
   up.onclick = () => { const o = v.order.slice(); [o[pos - 1], o[pos]] = [o[pos], o[pos - 1]]; cvSetOrder(o); };
   dn.onclick = () => { const o = v.order.slice(); [o[pos + 1], o[pos]] = [o[pos], o[pos + 1]]; cvSetOrder(o); };
   const pwr = el('button', 'tog cvpower' + (m.on ? ' on' : ''), m.on ? 'ON' : 'OFF'); pwr.onclick = () => cvToggle(id);
-  h.append(up, dn, pwr); P.append(h);
+  const rm = el('button', 'ico danger cvrm', 'Remove'); rm.title = 'Take this module out of the flow (its settings are kept)';
+  rm.onclick = async () => {
+    if (v.order.length <= 1) return toast('The flow needs at least one module besides Input');
+    const o = v.order.filter(x => x !== id), next = o[Math.min(pos, o.length - 1)];
+    CV.sel = next; try { localStorage.setItem('lh.cvsel', next); } catch (e) {}
+    await cvSetOrder(o); CV.key = ''; await cvLoad(true);
+    toast(m.name + ' removed. + Add module puts it back, with its settings.');
+  };
+  h.append(up, dn, pwr, rm); P.append(h);
+  cvPanelBody(v, id, m, P);
+}
+function cvPanelBody(v, id, m, P) {
 
   if (SPEC_MODS.includes(id)) {
     const viz = el('div', 'cvviz'); const cnv = el('canvas'); viz.append(cnv); P.append(viz);
-    if (id === 'eq') cvEqDrag(cnv);
+    if (id === 'eq' || id === 'peq') cvEqDrag(cnv, id);
+    if (id === 'hpf') { cvHpfDrag(cnv); viz.append(el('span', 'cvhint', 'Drag sideways to set the cut-off')); }
+    if (id === 'feedback') cvNotchTap(cnv);
   }
-  if (id === 'eq') {
-    const bs = el('div', 'cvbands');
+  if (id === 'comp') {
+    const viz = el('div', 'cvgraphs');
+    const t = el('div', 'cvgt sq'), hst = el('div', 'cvgt');
+    const c1 = el('canvas'); c1.id = 'cmpT'; const c2 = el('canvas'); c2.id = 'cmpH';
+    t.append(c1, el('span', 'cvcl', 'Curve: drag for the threshold')); hst.append(c2, el('span', 'cvcl', 'History: input, output (line), gain reduction (red). Drag up/down for the threshold'));
+    viz.append(t, hst); P.append(viz);
+    cvThrDrag(c1, 'compThr', 'x'); cvThrDrag(c2, 'compThr', 'y');
+  }
+  if (id === 'pse') {
+    const viz = el('div', 'cvgraphs'), hst = el('div', 'cvgt');
+    const c2 = el('canvas'); c2.id = 'pseH';
+    hst.append(c2, el('span', 'cvcl', 'History: voice level (green = open), turned down (red). Drag up/down for the threshold'));
+    viz.append(hst); P.append(viz);
+    cvThrDrag(c2, 'pseThr', 'y');
+  }
+  if (id === 'eq' || id === 'peq') {
+    const bs = el('div', 'cvbands'), bp = id === 'peq' ? 'peq' : 'b';
     for (let b = 0; b < 6; b++) {
-      const on = (cvParam('b' + (b + 1) + '_on') || {}).norm >= 0.5;
-      const btn = el('button', b === CV.band ? 'on' : '', 'Band ' + (b + 1) + (on ? '' : ' (off)')); btn.style.setProperty('--bc', BAND_COLOR[b]);
+      const on = (cvParam(bp + (b + 1) + '_on') || {}).norm >= 0.5;
+      const ty = id === 'peq' ? (cvParam('peq' + (b + 1) + '_type') || {}).text : '';
+      const btn = el('button', b === CV.band ? 'on' : '', (id === 'peq' && ty ? (b + 1) + ' ' + ty : 'Band ' + (b + 1)) + (on ? '' : ' (off)')); btn.style.setProperty('--bc', BAND_COLOR[b]);
       btn.onclick = () => { CV.band = b; cvRender(); }; bs.append(btn);
     }
     P.append(bs);
@@ -3027,6 +3169,13 @@ function cvPanel() {
       b.onclick = () => { const on = !(p.norm >= 0.5); p.norm = on ? 1 : 0; b.classList.toggle('on', on); cvSend(pid, on ? 1 : 0); };
       row.append(b);
     }
+    const add = el('div', 'cvrow nadd');
+    const fin = el('input', 'num'); fin.type = 'number'; fin.min = 20; fin.max = 20000; fin.placeholder = 'Hz'; fin.inputMode = 'decimal';
+    const dep = el('select'); [-3, -6, -9, -12, -18, -24].forEach(d => { const o = el('option', '', d + ' dB'); o.value = d; dep.append(o); }); dep.value = -6;
+    const ab = el('button', 'on', 'Add notch');
+    ab.onclick = async () => { const f = +fin.value; if (!(f >= 20 && f <= 20000)) return toast('Enter a frequency from 20 to 20000 Hz'); const r = await api('/api/voice/notch', { channel: CV.ch, cmd: 'addFixed', freq: f, depth: +dep.value }); if (r.ok) { fin.value = ''; toast('Fixed notch at ' + fmtHz(f)); } else toast(r.error || 'Could not add the notch'); };
+    add.append(el('b', '', 'Set by hand'), fin, dep, ab, el('span', 'note', 'or tap the graph'));
+    P.append(add);
     const cf = el('button', '', 'Clear floating'); cf.onclick = () => api('/api/voice/notch', { channel: CV.ch, cmd: 'clearFloating' });
     const ca = el('button', 'danger', 'Clear all'); ca.onclick = () => { if (confirm('Remove every notch, including the fixed ones learned during the ring-out?')) api('/api/voice/notch', { channel: CV.ch, cmd: 'clearAll' }); };
     row.append(cf, ca); P.append(row);
@@ -3035,7 +3184,8 @@ function cvPanel() {
   const grid = el('div', 'cvctls');
   let ids = (m.params || []).map(p => p.id).filter(x => x !== m.onParam && x !== 'fbLearn' && x !== 'fbFreeze');
   if (id === 'eq') ids = ids.filter(x => x.startsWith('b' + (CV.band + 1) + '_'));
-  for (const pid of ids) { const p = cvParam(pid); if (p) grid.append(cvCtl(p, id === 'eq' ? cvLabel(p.name).replace(/^On$/, 'Band on') : cvLabel(p.name))); }
+  if (id === 'peq') { const n = 'peq' + (CV.band + 1) + '_'; ids = [n + 'on', n + 'type', n + 'freq', n + 'gain', n + 'q', n + 'slope', 'peqPropQ', 'peqOut']; }
+  for (const pid of ids) { const p = cvParam(pid); if (p) grid.append(cvCtl(p, id === 'eq' ? cvLabel(p.name).replace(/^On$/, 'Band on') : id === 'peq' ? p.name.replace(/^Band \d+ /, '').replace(/^On$/, 'Band on') : cvLabel(p.name))); }
   P.append(grid);
   cvMeters();
 }
@@ -3049,7 +3199,10 @@ function cvMeters() {
   const box = $('cvMeters'); if (!box) return;
   const L = CV.live || {}, id = CV.sel, rows = [];
   const pv = x => (cvParam(x) || {}).value;
-  if (id === 'comp') {
+  if (id === 'input') {
+    const ip = L.inPeak ?? -100;
+    rows.push(hmRow('Input level', (ip + 60) / 60, ip <= -99 ? '-inf' : ip.toFixed(1) + ' dB', { mark: (-12 + 60) / 60 }));
+  } else if (id === 'comp') {
     rows.push(hmRow('Input level', ((L.compIn ?? -100) + 60) / 60, (L.compIn ?? -100) <= -99 ? '-inf' : (L.compIn).toFixed(1) + ' dB', { mark: (pv('compThr') + 60) / 60 }));
     rows.push(hmRow('Gain reduction', (L.compGr || 0) / 20, '-' + (L.compGr || 0).toFixed(1) + ' dB', { gr: true }));
     rows.push(hmRow('Makeup', (L.compMakeup || 0) / 24, '+' + (L.compMakeup || 0).toFixed(1) + ' dB', { color: MOD_COLOR.comp }));
@@ -3074,12 +3227,18 @@ function cvMeters() {
   if (nt) {
     const list = (L.notches || []).slice().sort((a, b) => a.freq - b.freq);
     const k = JSON.stringify(list.map(n => [n.slot, Math.round(n.freq), Math.round(n.target), n.fixed]));
-    if (nt._k !== k) {
+    if (nt._k !== k && !(document.activeElement && nt.contains(document.activeElement))) {
       nt._k = k; nt.innerHTML = '';
       if (!list.length) nt.append(el('div', 'note', 'No notches. Feedback is caught as it starts; use Ring-out learn during the soundcheck to set fixed notches.'));
       list.forEach(n => {
         const r = el('div', 'nrow');
-        r.append(el('span', '', (n.freq >= 1000 ? (n.freq / 1000).toFixed(2) + ' kHz' : Math.round(n.freq) + ' Hz')), el('span', '', n.target.toFixed(1) + ' dB'), el('span', '', n.fixed ? 'fixed' : 'floating'));
+        const fe = el('input', 'num nf'); fe.type = 'number'; fe.min = 20; fe.max = 20000; fe.value = Math.round(n.freq); fe.title = 'Frequency (Hz): change it to move the notch';
+        const de = el('select', 'nd'); [-3, -6, -9, -12, -18, -24, -30].forEach(d => { const o = el('option', '', d + ' dB'); o.value = d; de.append(o); });
+        if (![...de.options].some(o => +o.value === Math.round(n.target))) { const o = el('option', '', n.target.toFixed(1) + ' dB'); o.value = n.target; de.prepend(o); }
+        de.value = [...de.options].find(o => Math.abs(+o.value - n.target) < 0.6)?.value ?? de.options[0].value;
+        const upd = async () => { const f = +fe.value; if (!(f >= 20 && f <= 20000)) { fe.value = Math.round(n.freq); return toast('20 to 20000 Hz'); } nt._k = ''; await api('/api/voice/notch', { channel: CV.ch, cmd: 'setNotch', slot: n.slot, freq: f, depth: +de.value }); };
+        fe.onchange = upd; de.onchange = upd;
+        r.append(fe, de, el('span', '', n.fixed ? 'fixed' : 'floating'));
         const act = el('div', 'cvrow');
         if (!n.fixed) { const f = el('button', '', 'Make fixed'); f.onclick = () => api('/api/voice/notch', { channel: CV.ch, cmd: 'makeFixed', slot: n.slot }); act.append(f); }
         const x = el('button', '', 'Remove'); x.onclick = () => api('/api/voice/notch', { channel: CV.ch, cmd: 'removeSlot', slot: n.slot }); act.append(x);
@@ -3096,7 +3255,120 @@ async function cvLive() {
   cvSetMeter('vin', v.live.inPeak);
   if (v.order && v.order.join(',') !== CV.view.order.join(',') && Date.now() > CV.quietUntil) { CV.view.order = v.order; CV.key = ''; cvRender(); }
   if (v.preset !== undefined) CV.view.preset = v.preset;
-  cvFlowSync(); cvMeters();
+  cvHistPush(v.live);
+  cvFlowSync(); cvMeters(); cvGraphs();
+}
+// ---- history graphs (compressor, PSE) and the compressor's curve
+function cvHistPush(L) {
+  const H = CV.hist || (CV.hist = []);
+  H.push({ i: L.compIn ?? -100, g: L.compGr || 0, o: L.compOut ?? -100, k: L.pseKey ?? -100, op: !!L.pseOpen, pg: L.pseGr || 0 });
+  if (H.length > 240) H.shift();
+}
+function compGr(x, thr, ratio, knee) {
+  const slope = 1 - 1 / Math.max(1, ratio), d = x - thr;
+  if (2 * d < -knee) return 0;
+  if (knee > 0 && 2 * Math.abs(d) <= knee) return slope * (d + knee / 2) * (d + knee / 2) / (2 * knee);
+  return slope * d;
+}
+function cvCanvas(id) {
+  const c = $(id); if (!c) return null;
+  const dpr = window.devicePixelRatio || 1, W = c.clientWidth, H = c.clientHeight;
+  if (!W || !H) return null;
+  if (c.width !== Math.round(W * dpr) || c.height !== Math.round(H * dpr)) { c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); }
+  const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  return { g, W, H };
+}
+function cvColors() { const css = getComputedStyle(document.documentElement); return { line: css.getPropertyValue('--line').trim(), dim: css.getPropertyValue('--dim').trim() }; }
+// History: one column per reading (about 26 s across); level bars from the bottom, reduction from the top
+function cvHistDraw(id, level, out, gr, grMax, thr, colorOf) {
+  const B = cvCanvas(id); if (!B) return;
+  const { g, W, H } = B, { line, dim } = cvColors(), Hs = CV.hist || [], n = 240, bw = W / n, lo = -60;
+  const y = d => H - Math.max(0, Math.min(1, (d - lo) / -lo)) * H;
+  g.strokeStyle = line; g.lineWidth = 1; g.font = '10px system-ui, sans-serif'; g.fillStyle = dim;
+  for (const d of [-48, -36, -24, -12]) { g.beginPath(); g.moveTo(0, y(d) + .5); g.lineTo(W, y(d) + .5); g.stroke(); g.fillText(d, 3, y(d) - 2); }
+  const off = n - Hs.length;
+  Hs.forEach((h, k) => {
+    const x = (off + k) * bw, lv = level(h);
+    g.fillStyle = colorOf ? colorOf(h) : 'rgba(124,135,148,0.45)'; g.fillRect(x, y(lv), Math.ceil(bw), H - y(lv));
+    const r = gr(h); if (r > 0.05) { g.fillStyle = 'rgba(239,76,76,0.75)'; g.fillRect(x, 0, Math.ceil(bw), Math.min(H, r / grMax * H)); }
+  });
+  const col = MOD_COLOR[CV.sel];
+  if (out) { g.beginPath(); Hs.forEach((h, k) => { const x = (off + k + .5) * bw; k ? g.lineTo(x, y(out(h))) : g.moveTo(x, y(out(h))); }); g.strokeStyle = col; g.lineWidth = 2; g.stroke(); }
+  if (thr !== undefined) { g.strokeStyle = col; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(0, y(thr) + .5); g.lineTo(W, y(thr) + .5); g.stroke(); g.setLineDash([]); g.fillStyle = col; g.fillText('threshold ' + thr.toFixed(0), W - 86, y(thr) - 3); }
+}
+function cvGraphs() {
+  const L = CV.live || {}, pv = x => (cvParam(x) || {}).value;
+  if (CV.sel === 'comp') {
+    const thr = pv('compThr') ?? -20, ratio = pv('compRatio') ?? 3, knee = pv('compKnee') ?? 10, mk = L.compMakeup || 0;
+    const A = cvCanvas('cmpT');
+    if (A) {
+      const { g, W, H } = A, { line, dim } = cvColors(), col = MOD_COLOR.comp, lo = -60;
+      const sx = x => (x - lo) / -lo * W, sy = y => H - (y - lo) / -lo * H;
+      g.strokeStyle = line; g.lineWidth = 1; g.font = '10px system-ui, sans-serif'; g.fillStyle = dim;
+      for (const d of [-48, -36, -24, -12]) { g.beginPath(); g.moveTo(sx(d) + .5, 0); g.lineTo(sx(d) + .5, H); g.moveTo(0, sy(d) + .5); g.lineTo(W, sy(d) + .5); g.stroke(); g.fillText(d, sx(d) + 2, H - 3); }
+      g.setLineDash([4, 4]); g.beginPath(); g.moveTo(0, H); g.lineTo(W, 0); g.stroke(); g.setLineDash([]);
+      g.beginPath();
+      for (let k = 0; k <= 120; k++) { const x = lo + k / 2, yv = x - compGr(x, thr, ratio, knee) + mk; k ? g.lineTo(sx(x), sy(yv)) : g.moveTo(sx(x), sy(yv)); }
+      g.strokeStyle = col; g.lineWidth = 2.5; g.stroke();
+      const xi = L.compIn ?? -100;
+      if (xi > lo) { const yo = xi - (L.compGr || 0) + mk; g.beginPath(); g.arc(sx(xi), sy(Math.max(lo, yo)), 6, 0, Math.PI * 2); g.fillStyle = '#fff'; g.fill(); g.strokeStyle = col; g.lineWidth = 2; g.stroke(); }
+      g.fillStyle = dim; g.fillText('in →', W - 26, H - 14); g.fillText('out ↑', 3, 24);
+    }
+    cvHistDraw('cmpH', h => h.i, h => h.o, h => h.g, 24, thr);
+  } else if (CV.sel === 'pse') {
+    cvHistDraw('pseH', h => h.k, null, h => h.pg, 40, pv('pseThr'), h => h.op ? 'rgba(139,212,80,0.55)' : 'rgba(124,135,148,0.4)');
+  }
+}
+// High-pass: drag anywhere on the graph sideways to move the cut-off
+function cvHpfDrag(cnv) {
+  let on = false;
+  const set = e => {
+    const r = cnv.getBoundingClientRect();
+    const f = Math.round(Math.max(20, Math.min(1000, 20 * Math.pow(1000, (e.clientX - r.left) / r.width))));
+    const p = cvParam('hpfFreq'); if (!p) return;
+    p.value = f;
+    throttled('hpfd', async () => {
+      const res = await api('/api/voice/param', { channel: CV.ch, id: 'hpfFreq', value: p.value });
+      if (res && res.text) Object.assign(cvParam('hpfFreq'), res);
+      cvSyncCtls();
+    }, 60);
+    cvDraw();
+  };
+  cnv.addEventListener('pointerdown', e => { on = true; cnv.setPointerCapture(e.pointerId); CV.quietUntil = Date.now() + 60000; set(e); });
+  cnv.addEventListener('pointermove', e => { if (on) set(e); });
+  const end = () => { on = false; CV.quietUntil = Date.now() + 1500; };
+  cnv.addEventListener('pointerup', end); cnv.addEventListener('pointercancel', end);
+}
+
+// Threshold on a graph: drag anywhere (sideways on the curve, up and down on the history)
+function cvThrDrag(cnv, pid, axis) {
+  let on = false;
+  cnv.style.touchAction = 'none';
+  const set = e => {
+    const r = cnv.getBoundingClientRect(), p = cvParam(pid); if (!p) return;
+    const frac = axis === 'x' ? (e.clientX - r.left) / r.width : 1 - (e.clientY - r.top) / r.height;
+    p.value = Math.round(Math.max(p.min ?? -60, Math.min(p.max ?? 0, -60 + 60 * frac)) * 2) / 2;
+    throttled('thr' + pid, async () => {
+      const res = await api('/api/voice/param', { channel: CV.ch, id: pid, value: p.value });
+      if (res && res.text) Object.assign(cvParam(pid), res);
+      cvSyncCtls();
+    }, 60);
+    cvGraphs();
+  };
+  cnv.addEventListener('pointerdown', e => { on = true; cnv.setPointerCapture(e.pointerId); CV.quietUntil = Date.now() + 60000; set(e); });
+  cnv.addEventListener('pointermove', e => { if (on) set(e); });
+  const end = () => { on = false; CV.quietUntil = Date.now() + 1500; };
+  cnv.addEventListener('pointerup', end); cnv.addEventListener('pointercancel', end);
+}
+// Feedback: tap the graph to put a fixed notch there
+function fmtHz(f) { return f >= 1000 ? (f / 1000).toFixed(2) + ' kHz' : Math.round(f) + ' Hz'; }
+function cvNotchTap(cnv) {
+  cnv.addEventListener('click', async e => {
+    const r = cnv.getBoundingClientRect(), f = Math.round(20 * Math.pow(1000, (e.clientX - r.left) / r.width));
+    if (!confirm('Add a fixed notch at ' + fmtHz(f) + ' (−6 dB)? You can change it in the list below.')) return;
+    const res = await api('/api/voice/notch', { channel: CV.ch, cmd: 'addFixed', freq: f, depth: -6 });
+    if (!res.ok) toast(res.error || 'Could not add the notch');
+  });
 }
 async function cvSpec() {
   if (CV.ch < 0 || document.hidden || !SPEC_MODS.includes(CV.sel)) return;
@@ -3107,7 +3379,7 @@ async function cvSpec() {
   CV.spec = s; cvDraw();
 }
 // RTA + curve: x is log frequency (20 Hz .. 20 kHz); RTA -90..0 dBFS; curve in its own range
-function cvRange(id) { return id === 'eq' ? [-18, 18] : id === 'hpf' ? [-48, 6] : [-30, 6]; }
+function cvRange(id) { return id === 'eq' || id === 'peq' ? [-18, 18] : id === 'hpf' ? [-48, 6] : [-30, 6]; }
 function cvDraw() {
   const cnv = document.querySelector('#cvPanel canvas'); if (!cnv || !CV.spec) return;
   const dpr = window.devicePixelRatio || 1, W = cnv.clientWidth, H = cnv.clientHeight;
@@ -3129,6 +3401,10 @@ function cvDraw() {
     g.beginPath(); fr.forEach((f, i) => { const y = cy(cv[i]); i ? g.lineTo(fx(f), y) : g.moveTo(fx(f), y); });
     g.strokeStyle = color; g.lineWidth = 2.5; g.stroke();
   }
+  if (CV.sel === 'hpf') {
+    const f = (cvParam('hpfFreq') || {}).value;
+    if (f) { const x = fx(f), y = cy(-3); g.beginPath(); g.arc(x, y, 9, 0, Math.PI * 2); g.fillStyle = color; g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 2; g.stroke(); g.fillStyle = dim; g.font = '11px system-ui'; g.fillText(Math.round(f) + ' Hz', Math.min(W - 50, x + 12), y - 10); }
+  }
   if (CV.sel === 'feedback') for (const n of (CV.live && CV.live.notches) || []) {
     const x = fx(n.freq); g.strokeStyle = n.fixed ? '#ef4c4c' : color; g.lineWidth = 2; g.beginPath(); g.moveTo(x, cy(0)); g.lineTo(x, cy(n.depth)); g.stroke();
   }
@@ -3147,15 +3423,16 @@ function cvEqDrag(cnv) {
   const pos = e => { const r = cnv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top, r.width, r.height]; };
   cnv.addEventListener('pointerdown', e => {
     const [x, y, W, H] = pos(e), [c0, c1] = cvRange('eq');
-    let best = -1, bd = 30;
+    let best = -1, bd = 44;
     for (let b = 0; b < 6; b++) {
       const f = (cvParam('b' + (b + 1) + '_freq') || {}).value, gn = (cvParam('b' + (b + 1) + '_gain') || {}).value; if (f === undefined) continue;
       const bx = Math.log(f / 20) / Math.log(1000) * W, by = H - (gn - c0) / (c1 - c0) * H, d = Math.hypot(bx - x, by - y);
       if (d < bd) { bd = d; best = b; }
     }
     if (best < 0) return;
+    // grab the nearest dot and move it straight away; the panel switches to that band when you let go
     drag = best; cnv.setPointerCapture(e.pointerId); CV.quietUntil = Date.now() + 60000;
-    if (CV.band !== best) { CV.band = best; cvRender(); }
+    if (CV.band !== best) { CV.band = best; CV.bandChanged = true; cvDraw(); }
   });
   cnv.addEventListener('pointermove', e => {
     if (drag < 0) return;
@@ -3171,11 +3448,87 @@ function cvEqDrag(cnv) {
     }, 60);
     cvDraw();
   });
-  const end = () => { drag = -1; CV.quietUntil = Date.now() + 1500; };
+  const end = () => { drag = -1; CV.quietUntil = Date.now() + 1500; if (CV.bandChanged) { CV.bandChanged = false; cvRender(); } };
   cnv.addEventListener('pointerup', end); cnv.addEventListener('pointercancel', end);
 }
 window.addEventListener('resize', () => { if (CV.ch >= 0) cvDraw(); });
 
+
+/* ---------- setup assistant: first start, and Settings > Setup assistant ---------- */
+// Each step borrows the real settings card (so it works exactly like the setup pages) and puts it back after.
+const WZ = { i: 0, steps: [], home: [], dirty: {} };
+function wzBorrow(id) {
+  const c = $(id); if (!c) return null;
+  WZ.home.push([c, c.parentNode, c.nextSibling]);
+  return c;
+}
+function wzReturn() { while (WZ.home.length) { const [c, p, n] = WZ.home.pop(); p.insertBefore(c, n); } }
+function wzSteps() {
+  const mixer = isMixer();
+  return [
+    { id: 'welcome', title: 'Welcome to LivePi', note: 'A few questions to get the Pi ready. Every answer can be changed later under Setup.',
+      body: b => { b.append(el('p', '', 'LivePi runs your voice processing on this Pi and is controlled from this page, on any phone, tablet or computer on the same network.'),
+                           el('p', 'note', 'This takes about two minutes. Skip any step you don’t need.')); } },
+    { id: 'audio', title: 'Audio interface', note: 'Choose the sound card. For a Pisound: tap Use Pisound (48 kHz, 64 samples).',
+      body: async b => { const c = wzBorrow('audCard'); if (c) { b.append(c); c.querySelectorAll('select').forEach(x => x.addEventListener('change', () => WZ.dirty.audio = true, { once: true })); } try { await loadDevices(); } catch (e) {} },
+      next: async () => { if (WZ.dirty.audio) { WZ.dirty.audio = false; $('devApply').click(); await new Promise(r => setTimeout(r, 1200)); } } },
+    { id: 'channels', title: 'Channels', note: 'How many microphones go into the Pi? One channel per input.',
+      body: b => { const c = wzBorrow('chCard'); if (c) { b.append(c); $('chCount').addEventListener('input', () => WZ.dirty.ch = true, { once: true }); } },
+      next: async () => { if (WZ.dirty.ch) { WZ.dirty.ch = false; $('chApply').click(); await new Promise(r => setTimeout(r, 800)); } } },
+    { id: 'mode', title: 'How do you want to process the voice?', note: 'VST rack: your own plugins on each channel. Mixer: the LiveVoice modules built in, zero latency, in any order.',
+      body: b => { const c = wzBorrow('modeCard'); if (c) b.append(c); } },
+    { id: 'mics', title: 'Microphones', note: 'Mixer mode: pick the starting sound for each channel. Lapel = a clip-on (lavalier) mic.', skip: () => !isMixer(),
+      body: async b => {
+        const chs = (S && S.chains) || [];
+        for (let i = 0; i < chs.length; i++) {
+          const v = await api('/api/voice?channel=' + i, undefined, true); if (!v || !v.presets) continue;
+          const row = el('div', 'set'), l = el('div', 'sl'), c = el('div', 'sc'), sel = el('select');
+          l.append(el('b', '', chs[i].name), el('span', '', 'Now: ' + (v.preset || 'Default')));
+          const k = el('option', '', 'Keep as it is'); k.value = ''; sel.append(k);
+          v.presets.forEach((n, j) => { const o = el('option', '', n); o.value = j; sel.append(o); });
+          sel.onchange = async () => { if (sel.value === '') return; const r = await api('/api/voice/preset', { channel: i, index: +sel.value }); if (r.ok) { l.querySelector('span').textContent = 'Now: ' + v.presets[+sel.value]; toast(chs[i].name + ': ' + v.presets[+sel.value]); } };
+          c.append(sel); row.append(l, c); b.append(row);
+        }
+        if (!chs.length) b.append(el('p', 'note', 'No channels yet.'));
+      } },
+    { id: 'network', title: 'Network', note: 'Automatic (DHCP) suits most networks. Give the Pi a fixed (static) address if you want it to stay the same.',
+      body: b => { const c = wzBorrow('netCard'); if (c) b.append(c); netLoad && netLoad(true); } },
+    { id: 'password', title: 'Password', note: 'Optional: a password stops others on the network from changing your sound.',
+      body: b => { const c = wzBorrow('pwCard'); if (c) b.append(c); } },
+    { id: 'done', title: 'All set', note: '',
+      body: b => { b.append(el('p', '', 'LivePi is ready. ' + (isMixer() ? 'Tap Open channel on a channel to shape its sound.' : 'Add your plugins to each channel in the rack.')),
+                           el('p', 'note', 'Run this again any time: Setup → Settings → Setup assistant.')); } },
+  ];
+}
+async function wzShow() {
+  wzReturn();
+  const all = wzSteps(), st = all[WZ.i];
+  if (st.skip && st.skip()) { WZ.i += WZ.dir || 1; return wzShow(); }
+  $('wzTitle').textContent = st.title; $('wzStep').textContent = st.note;
+  const dots = $('wzDots'); dots.innerHTML = ''; all.forEach((x, k) => dots.append(el('i', k === WZ.i ? 'on' : k < WZ.i ? 'done' : '')));
+  const b = $('wzBody'); b.innerHTML = '';
+  await st.body(b);
+  $('wzBack').classList.toggle('hide', WZ.i === 0);
+  $('wzSkip').classList.toggle('hide', WZ.i === 0 || WZ.i === all.length - 1);
+  $('wzNext').textContent = WZ.i === 0 ? 'Start' : WZ.i === all.length - 1 ? 'Finish' : 'Next';
+}
+function wzOpen() { WZ.i = 0; WZ.dir = 1; WZ.dirty = {}; $('wz').classList.remove('hide'); wzShow(); }
+async function wzClose(done) {
+  wzReturn(); $('wz').classList.add('hide');
+  if (done) { await api('/api/setup/done', { done: true }); if (S) S.setupDone = true; }
+  structKey = ''; refresh();
+}
+$('wzNext').onclick = async () => {
+  const all = wzSteps(), st = all[WZ.i];
+  $('wzNext').disabled = true;
+  try { if (st.next) await st.next(); } finally { $('wzNext').disabled = false; }
+  if (WZ.i === all.length - 1) return wzClose(true);
+  WZ.dir = 1; WZ.i++; await refresh(); wzShow();
+};
+$('wzSkip').onclick = async () => { WZ.dir = 1; WZ.i++; await refresh(); wzShow(); };
+$('wzBack').onclick = async () => { WZ.dir = -1; WZ.i = Math.max(0, WZ.i - 1); wzShow(); };
+$('wzX').onclick = () => { if (confirm('Close the setup assistant? You can run it again from Setup → Settings.')) wzClose(true); };
+$('wzRun').onclick = wzOpen;
 /* ---------- mode switch (Settings > Mode) ---------- */
 function modeSync() {
   const m = isMixer() ? 'mixer' : 'vst';
@@ -3240,7 +3593,7 @@ async function loadDevices() {
   $('devNow').textContent = 'Running: ' + cur.type + ' · ' + kh(cur.sampleRate) + ' · ' + cur.bufferSize + ' samples';
 }
 function refreshDeviceLists() {
-  const t = devices.types.find(t => t.type === $('devType').value);
+  const t = devices && devices.types && devices.types.find(t => t.type === $('devType').value);
   if (!t) return;
   fill($('devIn'), t.inputs); fill($('devOut'), t.outputs);
 }
@@ -3543,6 +3896,7 @@ async function refresh() {
   monOutsRender(st);
   paflSync();
   modeSync();
+  if (st.setupDone === false && !WZ.shown && $('login').classList.contains('hide')) { WZ.shown = true; wzOpen(); }
   syncMix(st);
 }
 

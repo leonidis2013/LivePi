@@ -782,6 +782,17 @@ void WebServer::setupRoutes()
     });
 
     // ---- Mixer mode: the built-in LiveVoice channels
+    // The first-run setup assistant: shown until it has been finished (or skipped) once on this Pi
+    svr.Post ("/api/setup/done", [] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto f = HostEngine::dataDir().getChildFile ("setup-done");
+        const bool done = (bool) body (req).getProperty ("done", true);
+        const bool ok = done ? f.replaceWithText (Time::getCurrentTime().toISO8601 (true)) : (f.deleteFile() || ! f.exists());
+        auto* o = new DynamicObject();
+        o->setProperty ("ok", true);
+        reply (res, ok ? var (o) : errVar ("Could not save"));
+    });
+
     svr.Post ("/api/mode", [this] (const httplib::Request& req, httplib::Response& res)
     {
         auto b = body (req);
@@ -825,7 +836,8 @@ void WebServer::setupRoutes()
     svr.Post ("/api/voice/notch", [this] (const httplib::Request& req, httplib::Response& res)
     {
         auto b = body (req);
-        reply (res, onMT ([this, b] { return engine.voiceNotch ((int) b["channel"], b["cmd"].toString(), (int) b.getProperty ("slot", -1)); }));
+        reply (res, onMT ([this, b] { return engine.voiceNotch ((int) b["channel"], b["cmd"].toString(), (int) b.getProperty ("slot", -1),
+                                                               (double) b.getProperty ("freq", 0.0), (double) b.getProperty ("depth", -6.0)); }));
     });
 
     svr.Post ("/api/voice/copy", [this] (const httplib::Request& req, httplib::Response& res)

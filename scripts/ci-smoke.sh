@@ -102,12 +102,19 @@ run_case() {
   check "$label: voice preset loads" "post /api/voice/preset '{\"channel\":0,\"index\":1}' | jq -e .ok >/dev/null"
   check "$label: channel settings copy" "post /api/voice/copy '{\"from\":0,\"to\":1}' | jq -e .ok >/dev/null && api '/api/voice?channel=1&live=1' | jq -e '.order[0]==\"comp\"' >/dev/null"
   check "$label: plugins refused in mixer mode" "post /api/chain/add '{\"channel\":0,\"id\":\"x\"}' | jq -e '.error | test(\"mixer mode\")' >/dev/null"
+  check "$label: mixer has the Input module and the parametric EQ" "api '/api/voice?channel=0' | jq -e '.modules.input.fixed==true and (.modules.peq.params|length)==39 and .modules.peq.inFlow==false' >/dev/null"
+  check "$label: modules can be taken out and added" "post /api/voice/order '{\"channel\":0,\"order\":[\"comp\",\"peq\",\"hpf\",\"pse\"]}' | jq -e .ok >/dev/null && api '/api/voice?channel=0&live=1' | jq -e '(.order|length)==4 and .order[1]==\"peq\"' >/dev/null"
+  check "$label: parametric EQ curve" "post /api/voice/param '{\"channel\":0,\"id\":\"peq3_gain\",\"value\":6}' | jq -e .ok==null >/dev/null; api '/api/voice/spectrum?channel=0&module=peq&out=1' | jq -e '([.curve[]]|max) > 4' >/dev/null"
+  check "$label: a notch set by hand" "post /api/voice/notch '{\"channel\":0,\"cmd\":\"addFixed\",\"freq\":1250,\"depth\":-9}' | jq -e .ok >/dev/null && sleep 1 && api '/api/voice?channel=0&live=1' | jq -e '[.live.notches[] | select(.fixed and (.freq > 1200) and (.freq < 1300))] | length == 1' >/dev/null"
+  check "$label: a hand-set notch out of range is refused" "post /api/voice/notch '{\"channel\":0,\"cmd\":\"addFixed\",\"freq\":5}' | jq -e .error >/dev/null"
+  check "$label: lapel voice preset" "api '/api/voice?channel=0' | jq -e '.presets | map(test(\"Lapel\")) | any' >/dev/null"
   post /api/mode '{"mode":"vst"}' >/dev/null; sleep 1
   check "$label: back to VST mode" "api /api/state | jq -e '.mode==\"vst\" and (.chains[0].voice==null)' >/dev/null"
   post /api/mode '{"mode":"mixer"}' >/dev/null; sleep 1
   check "$label: mixer settings kept across a mode switch" "api '/api/voice?channel=0&live=1' | jq -e '.order[0]==\"comp\"' >/dev/null"
   post /api/mode '{"mode":"vst"}' >/dev/null
   post /api/channels '{"count":1}' >/dev/null
+  check "$label: setup assistant shows until done" "post /api/setup/done '{\"done\":false}' >/dev/null && api /api/state | jq -e '.setupDone==false' >/dev/null && post /api/setup/done '{\"done\":true}' | jq -e .ok >/dev/null && api /api/state | jq -e '.setupDone==true' >/dev/null"
   check "$label: update status endpoint" "api /api/update/status | jq -e .state >/dev/null"
   check "$label: OS status endpoint" "api /api/os/status | jq -e .state >/dev/null"
   check "$label: still running" "kill -0 \$(cat /tmp/lh.pid)"

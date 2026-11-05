@@ -6,6 +6,9 @@
 // from its repository at build time), in an order the user can change. Every module is zero latency
 // (no lookahead, no oversampling, no FFT in the audio path), so any order adds no latency.
 // Parameters, ids, ranges and factory presets are LiveVoice's, so the sound and settings match the plugin.
+// LivePi adds: a 6-band static parametric EQ module ("peq", LiveVoice's zero-latency SVF filters with
+// every band free to be any type) and input polarity. Modules can be taken out of the flow and put back;
+// a module out of the flow is not processed at all. The input gain is always first.
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <array>
@@ -26,7 +29,8 @@
 class VoiceChannel : public juce::AudioProcessor
 {
 public:
-    enum Module { hpf = 0, pse, feedback, eq, deess, prox, leveler, warmth, comp, numModules };
+    enum Module { hpf = 0, pse, feedback, eq, deess, prox, leveler, warmth, comp, peq, numModules };
+    static constexpr int numDefaultModules = 9;      // a new channel: LiveVoice's nine, in LiveVoice's order
     static const char* moduleId (int m);           // "hpf", "pse", ...
     static int moduleFromId (const juce::String& id);
     static juce::String moduleName (int m);
@@ -37,17 +41,20 @@ public:
     ~VoiceChannel() override;
 
     // ---- order (message thread writes, audio thread reads) ----
-    std::array<int, numModules> getOrder() const noexcept;
-    bool setOrder (const std::array<int, numModules>& order);   // must be a permutation
+    std::vector<int> getOrder() const;
+    bool setOrder (const std::vector<int>& order);   // 1..numModules different modules (the ones in the flow)
+    bool inFlow (int m) const noexcept { return (flowMask.load() >> m) & 1u; }
 
     // ---- for the page ----
     juce::var getView (bool full = true);                        // full: values + order; always: live meters, notches
     juce::var getSpectrum (bool output, int module);             // RTA bins + module curve (dB)
     juce::var setParam (const juce::String& id, double value);   // real (not normalised) value
     juce::var setParamNorm (const juce::String& id, double norm); // 0..1 (from a knob)
-    juce::var notchCommand (const juce::String& cmd, int slot);  // clearFloating, clearAll, removeSlot, makeFixed
+    // clearFloating, clearAll, removeSlot, makeFixed; addFixed (freq, depth): a notch you set by hand;
+    // setNotch (slot, freq, depth): move or deepen a notch (it becomes fixed)
+    juce::var notchCommand (const juce::String& cmd, int slot, double freq = 0.0, double depthDb = -6.0);
     juce::var loadFactoryPreset (int index);
-    juce::StringArray factoryPresetNames() const { return presets.getFactoryNames(); }
+    juce::StringArray factoryPresetNames() const;   // LiveVoice's, then LivePi's own (Lapel)
     juce::String getPresetName() const { return presets.getCurrentName(); }
     bool isModuleOn (int m) const;
 
@@ -97,6 +104,8 @@ private:
     };
 
     void updateSettings() noexcept;
+    ::dsp::DynamicEq::BandSettings staticBand (int b) const noexcept;
+    static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
     void resetChain() noexcept;
     float getNotchQ() const noexcept;
     void sendNotch (const dsp::FeedbackSuppressor::Command& c);
@@ -112,16 +121,19 @@ private:
     dsp::VocalCompressor compFx;
     dsp::ProximityComp proximity;
     dsp::AutoLeveler levelerFx;
+    dsp::DynamicEq staticEq;                   // the "peq" module: every band static
     dsp::Warmth warmthFx;
 
     ScopeTap inputTap, outputTap;
     std::atomic<float> inputPeakDb { -100.0f }, outputPeakDb { -100.0f };
     std::atomic<juce::uint64> packedOrder;
     std::atomic<double> sr { 48000.0 };
-    juce::SmoothedValue<float> inGainSmooth, outGainSmooth;
+    juce::SmoothedValue<float> inGainSmooth, outGainSmooth, peqOutSmooth;
+    std::atomic<juce::uint32> flowMask { 0 };
+    juce::uint32 lastMask = 0;                  // audio thread: modules put back into the flow start clean
     juce::AudioBuffer<float> rawBuf;
     float bypassMix = 0.0f;
-    bool fullyBypassed = false, eqWasOn = true;
+    bool fullyBypassed = false, eqWasOn = true, peqWasOn = true;
     int lastDetectCount = 0;
     juce::SpinLock uiCommandLock;
     juce::CriticalSection fftLock;
@@ -137,8 +149,11 @@ private:
             *dsShOn, *dsShFreq, *dsShQ, *dsShThr, *dsShRelThr, *dsShRange,
             *pseOn, *pseThr, *pseRange, *pseAttack, *pseHold, *pseRelease, *pseScHp, *pseScLp,
             *compOn, *compThr, *compRatio, *compKnee, *compAttack, *compRelease, *compAuto, *compMakeup, *compMix, *compScHp, *compAutoGain,
-            *lvlOn, *lvlTarget, *lvlRange, *lvlSpeed, *proxOn, *proxAmount, *warmth;
+            *lvlOn, *lvlTarget, *lvlRange, *lvlSpeed, *proxOn, *proxAmount, *warmth,
+            *polarity, *peqOn, *peqPropQ, *peqOut;
         std::array<Band, params::numEqBands> bands;
+        struct PBand { std::atomic<float> *on, *type, *freq, *gain, *q, *slope; };
+        std::array<PBand, 6> pbands;
     } p;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VoiceChannel)

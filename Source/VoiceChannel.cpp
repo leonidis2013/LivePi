@@ -10,7 +10,7 @@ using namespace juce;
 
 const char* VoiceChannel::moduleId (int m)
 {
-    static const char* ids[numModules] { "hpf", "pse", "feedback", "eq", "deess", "prox", "leveler", "warmth", "comp" };
+    static const char* ids[numModules] { "hpf", "pse", "feedback", "eq", "deess", "prox", "leveler", "warmth", "comp", "peq" };
     return isPositiveAndBelow (m, (int) numModules) ? ids[m] : "";
 }
 
@@ -23,7 +23,7 @@ int VoiceChannel::moduleFromId (const String& id)
 
 String VoiceChannel::moduleName (int m)
 {
-    static const char* names[numModules] { "High-pass", "PSE", "Feedback", "Dynamic EQ", "De-esser", "Proximity", "Leveler", "Warmth", "Compressor" };
+    static const char* names[numModules] { "High-pass", "PSE", "Feedback", "Dynamic EQ", "De-esser", "Proximity", "Leveler", "Warmth", "Compressor", "Parametric EQ" };
     return isPositiveAndBelow (m, (int) numModules) ? names[m] : "";
 }
 
@@ -39,6 +39,7 @@ String VoiceChannel::moduleOnParam (int m)
         case prox:     return params::proxOn;
         case leveler:  return params::lvlOn;
         case comp:     return params::compOn;
+        case peq:      return "peqOn";
         default:       return {};
     }
 }
@@ -68,22 +69,65 @@ StringArray VoiceChannel::moduleParams (int m)
         case leveler:  return { lvlOn, lvlTarget, lvlRange, lvlSpeed };
         case warmth:   return { params::warmth };
         case comp:     return { compOn, compThr, compRatio, compKnee, compAttack, compRelease, compAuto, compMakeup, compMix, compScHp, compAutoGain };
+        case peq:
+        {
+            StringArray a { "peqOn", "peqPropQ", "peqOut" };
+            for (int b = 1; b <= 6; ++b)
+                for (auto* k : { "on", "type", "freq", "gain", "q", "slope" }) a.add ("peq" + String (b) + "_" + k);
+            return a;
+        }
         default:       return {};
     }
 }
 
-static juce::uint64 packOrder (const std::array<int, VoiceChannel::numModules>& o)
+// The flow in one atomic word: 4 bits per module (up to 12), the count in the top 4 bits
+static juce::uint64 packOrder (const std::vector<int>& o)
 {
-    juce::uint64 v = 0;
-    for (int i = 0; i < VoiceChannel::numModules; ++i) v |= ((juce::uint64) (o[(size_t) i] & 15)) << (4 * i);
+    juce::uint64 v = (juce::uint64) o.size() << 60;
+    for (size_t i = 0; i < o.size(); ++i) v |= ((juce::uint64) (o[i] & 15)) << (4 * i);
     return v;
 }
 
-static std::array<int, VoiceChannel::numModules> unpackOrder (juce::uint64 v)
+struct Flow { int n = 0; int m[VoiceChannel::numModules] {}; };
+static Flow unpackOrder (juce::uint64 v) noexcept
 {
-    std::array<int, VoiceChannel::numModules> o {};
-    for (int i = 0; i < VoiceChannel::numModules; ++i) o[(size_t) i] = (int) ((v >> (4 * i)) & 15);
-    return o;
+    Flow f;
+    f.n = juce::jmin ((int) VoiceChannel::numModules, (int) (v >> 60));
+    for (int i = 0; i < f.n; ++i) f.m[i] = (int) ((v >> (4 * i)) & 15);
+    return f;
+}
+
+// ---- LivePi's own parameters, added to LiveVoice's
+juce::AudioProcessorValueTreeState::ParameterLayout VoiceChannel::createLayout()
+{
+    auto layout = params::createLayout();
+    auto dbA = AudioParameterFloatAttributes().withLabel ("dB")
+                   .withStringFromValueFunction ([] (float v, int) { return (v > 0.05f ? "+" : "") + String (v, 1) + " dB"; });
+    auto hzA = AudioParameterFloatAttributes().withLabel ("Hz")
+                   .withStringFromValueFunction ([] (float v, int) { return v >= 1000.0f ? String (v / 1000.0f, v >= 10000.0f ? 1 : 2) + " kHz" : String (roundToInt (v)) + " Hz"; });
+    auto qA = AudioParameterFloatAttributes().withStringFromValueFunction ([] (float v, int) { return String (v, v < 10.0f ? 2 : 1); });
+    NormalisableRange<float> fr (20.0f, 20000.0f); fr.setSkewForCentre (1000.0f);
+    NormalisableRange<float> qr (0.1f, 18.0f); qr.setSkewForCentre (1.0f);
+    using P = AudioParameterFloat;
+    layout.add (std::make_unique<AudioParameterBool> (ParameterID { "inPolarity", 1 }, "Polarity invert", false));
+    layout.add (std::make_unique<AudioParameterBool> (ParameterID { "peqOn", 1 }, "EQ On", true));
+    layout.add (std::make_unique<AudioParameterBool> (ParameterID { "peqPropQ", 1 }, "Proportional Q", false));
+    layout.add (std::make_unique<P> (ParameterID { "peqOut", 1 }, "EQ Output", NormalisableRange<float> (-12.0f, 12.0f, 0.1f), 0.0f, dbA));
+    static const float freqs[6] { 100.0f, 250.0f, 700.0f, 2000.0f, 5000.0f, 10000.0f };
+    static const int types[6] { 1, 0, 0, 0, 0, 2 };   // low shelf, 4 bells, high shelf
+    for (int b = 1; b <= 6; ++b)
+    {
+        const auto n = "peq" + String (b) + "_", nm = "Band " + String (b) + " ";
+        layout.add (std::make_unique<AudioParameterBool> (ParameterID { n + "on", 1 }, nm + "On", true));
+        layout.add (std::make_unique<AudioParameterChoice> (ParameterID { n + "type", 1 }, nm + "Type",
+                    StringArray { "Bell", "Low Shelf", "High Shelf", "Low Cut", "High Cut", "Notch" }, types[b - 1]));
+        layout.add (std::make_unique<P> (ParameterID { n + "freq", 1 }, nm + "Freq", fr, freqs[b - 1], hzA));
+        layout.add (std::make_unique<P> (ParameterID { n + "gain", 1 }, nm + "Gain", NormalisableRange<float> (-18.0f, 18.0f, 0.1f), 0.0f, dbA));
+        layout.add (std::make_unique<P> (ParameterID { n + "q", 1 }, nm + "Q", qr, b == 1 || b == 6 ? 0.71f : 1.0f, qA));
+        layout.add (std::make_unique<AudioParameterChoice> (ParameterID { n + "slope", 1 }, nm + "Slope",
+                    StringArray { "6 dB/oct", "12 dB/oct", "18 dB/oct", "24 dB/oct", "36 dB/oct", "48 dB/oct" }, 3));
+    }
+    return layout;
 }
 
 // ------------------------------------------------------------------------------------- setup
@@ -91,11 +135,11 @@ static std::array<int, VoiceChannel::numModules> unpackOrder (juce::uint64 v)
 VoiceChannel::VoiceChannel()
     : AudioProcessor (BusesProperties().withInput ("In", AudioChannelSet::mono(), true)
                                        .withOutput ("Out", AudioChannelSet::mono(), true)),
-      apvts (*this, nullptr, "LiveVoice", params::createLayout())
+      apvts (*this, nullptr, "LiveVoice", createLayout())
 {
-    std::array<int, numModules> def {};
-    for (int i = 0; i < numModules; ++i) def[(size_t) i] = i;   // LiveVoice's own order
-    packedOrder = packOrder (def);
+    std::vector<int> def;
+    for (int i = 0; i < numDefaultModules; ++i) def.push_back (i);   // LiveVoice's own order
+    setOrder (def);
 
     auto r = [this] (const String& id) { auto* a = apvts.getRawParameterValue (id); jassert (a != nullptr); return a; };
     using namespace params;
@@ -114,6 +158,13 @@ VoiceChannel::VoiceChannel()
     p.compScHp = r (compScHp); p.compAutoGain = r (compAutoGain);
     p.lvlOn = r (lvlOn); p.lvlTarget = r (lvlTarget); p.lvlRange = r (lvlRange); p.lvlSpeed = r (lvlSpeed);
     p.proxOn = r (proxOn); p.proxAmount = r (proxAmount); p.warmth = r (params::warmth);
+    p.polarity = r ("inPolarity"); p.peqOn = r ("peqOn"); p.peqPropQ = r ("peqPropQ"); p.peqOut = r ("peqOut");
+    for (int b = 0; b < 6; ++b)
+    {
+        const auto n = "peq" + String (b + 1) + "_";
+        auto& d = p.pbands[(size_t) b];
+        d.on = r (n + "on"); d.type = r (n + "type"); d.freq = r (n + "freq"); d.gain = r (n + "gain"); d.q = r (n + "q"); d.slope = r (n + "slope");
+    }
     for (int b = 0; b < numEqBands; ++b)
     {
         auto& d = p.bands[(size_t) b];
@@ -128,16 +179,22 @@ VoiceChannel::~VoiceChannel()
     detector.release();
 }
 
-std::array<int, VoiceChannel::numModules> VoiceChannel::getOrder() const noexcept { return unpackOrder (packedOrder.load()); }
-
-bool VoiceChannel::setOrder (const std::array<int, numModules>& order)
+std::vector<int> VoiceChannel::getOrder() const
 {
-    std::array<bool, numModules> seen {};
+    const auto f = unpackOrder (packedOrder.load());
+    return std::vector<int> (f.m, f.m + f.n);
+}
+
+bool VoiceChannel::setOrder (const std::vector<int>& order)
+{
+    if (order.empty() || order.size() > (size_t) numModules) return false;
+    juce::uint32 mask = 0;
     for (int m : order)
     {
-        if (! isPositiveAndBelow (m, (int) numModules) || seen[(size_t) m]) return false;
-        seen[(size_t) m] = true;
+        if (! isPositiveAndBelow (m, (int) numModules) || ((mask >> m) & 1u)) return false;
+        mask |= 1u << m;
     }
+    flowMask = mask;
     packedOrder = packOrder (order);
     return true;
 }
@@ -164,15 +221,39 @@ void VoiceChannel::prepareToPlay (double sampleRate, int samplesPerBlock)
     highPass.prepare (sampleRate, nCh);
     levelerFx.prepare (sampleRate, nCh);
     warmthFx.prepare (sampleRate, nCh);
+    staticEq.prepare (sampleRate, nCh);
+    peqOutSmooth.reset (sampleRate, 0.02);
+    peqOutSmooth.setCurrentAndTargetValue (::dsp::dbToGain (p.peqOut->load()));
+    lastMask = flowMask.load();
     detector.prepare (sampleRate);
     rawBuf.setSize (1, std::max (8192, 2 * samplesPerBlock));
     bypassMix = p.bypass->load() > 0.5f ? 1.0f : 0.0f;
     fullyBypassed = bypassMix >= 1.0f;
     inGainSmooth.reset (sampleRate, 0.02);
     outGainSmooth.reset (sampleRate, 0.02);
-    inGainSmooth.setCurrentAndTargetValue (::dsp::dbToGain (p.inGain->load()));
+    inGainSmooth.setCurrentAndTargetValue (::dsp::dbToGain (p.inGain->load()) * (p.polarity->load() > 0.5f ? -1.0f : 1.0f));
     outGainSmooth.setCurrentAndTargetValue (::dsp::dbToGain (p.outGain->load()));
     updateSettings();
+}
+
+// A static EQ band: any type on any band; proportional Q (console style) narrows a bell as its gain grows
+::dsp::DynamicEq::BandSettings VoiceChannel::staticBand (int b) const noexcept
+{
+    using BT = params::BandType;
+    const auto& d = p.pbands[(size_t) b];
+    ::dsp::DynamicEq::BandSettings s;
+    const int t = jlimit (0, 5, (int) d.type->load());
+    s.on = d.on->load() > 0.5f;
+    s.type = t == 1 ? BT::lowShelf : t == 2 ? BT::highShelf : t == 3 ? BT::highPass : t == 4 ? BT::lowPass : BT::bell;
+    s.slope = params::slopeDbPerOct[jlimit (0, 5, (int) d.slope->load())];
+    s.freq = d.freq->load();
+    s.gainDb = d.gain->load();
+    s.q = d.q->load();
+    if (t == 5) { s.gainDb = -30.0f; s.q = jmax (s.q, 2.0f); }   // notch: a deep, narrow cut
+    else if (t == 0 && p.peqPropQ->load() > 0.5f) s.q *= std::pow (10.0f, std::abs (s.gainDb) / 40.0f);
+    s.q = jlimit (0.1f, 40.0f, s.q);
+    s.dynamic = false;
+    return s;
 }
 
 void VoiceChannel::releaseResources()
@@ -200,7 +281,7 @@ void VoiceChannel::updateSettings() noexcept
     fbSup.setSettings (fs);
 
     ::dsp::FeedbackDetector::Settings ds;
-    ds.enabled = fs.on && p.bypass->load() < 0.5f;
+    ds.enabled = fs.on && p.bypass->load() < 0.5f && inFlow (feedback);
     ds.learn = p.fbLearn->load() > 0.5f;
     ds.freeze = fs.freeze;
     ds.mode = (int) p.fbMode->load();
@@ -255,12 +336,13 @@ void VoiceChannel::updateSettings() noexcept
     ls.speed = jlimit (0, 2, (int) p.lvlSpeed->load());
     levelerFx.setSettings (ls);
     warmthFx.setAmount (p.warmth->load());
+    for (int b = 0; b < 6; ++b) staticEq.setBand (b, staticBand (b));
 }
 
 void VoiceChannel::resetChain() noexcept
 {
-    highPass.reset(); pseFx.reset(); fbSup.reset(); dynEq.reset(); deEsser.reset(); warmthFx.reset();
-    inGainSmooth.setCurrentAndTargetValue (::dsp::dbToGain (p.inGain->load()));
+    highPass.reset(); pseFx.reset(); fbSup.reset(); dynEq.reset(); deEsser.reset(); warmthFx.reset(); staticEq.reset();
+    inGainSmooth.setCurrentAndTargetValue (::dsp::dbToGain (p.inGain->load()) * (p.polarity->load() > 0.5f ? -1.0f : 1.0f));
     outGainSmooth.setCurrentAndTargetValue (::dsp::dbToGain (p.outGain->load()));
 }
 
@@ -302,16 +384,34 @@ void VoiceChannel::processBlock (AudioBuffer<float>& buffer, MidiBuffer&)
         if (fullyBypassed) { resetChain(); fullyBypassed = false; }
 
         // ---- input trim ----
-        inGainSmooth.setTargetValue (::dsp::dbToGain (p.inGain->load()));
+        // polarity flips through the 20 ms gain ramp, so it never clicks
+        inGainSmooth.setTargetValue (::dsp::dbToGain (p.inGain->load()) * (p.polarity->load() > 0.5f ? -1.0f : 1.0f));
         if (inGainSmooth.isSmoothing()) for (int i = 0; i < n; ++i) ptr[i] *= inGainSmooth.getNextValue();
         else main.applyGain (0, 0, n, inGainSmooth.getTargetValue());
         peak (inputPeakDb, ptr, n);
         inputTap.push (ptr, n);
 
         // ---- the modules, in the chosen order (all zero latency) ----
-        const auto order = unpackOrder (packedOrder.load (std::memory_order_acquire));
-        for (int m : order)
+        const auto flow = unpackOrder (packedOrder.load (std::memory_order_acquire));
+        // a module put back into the flow starts from silence, not from where it was when taken out
+        const juce::uint32 mask = flowMask.load (std::memory_order_acquire), added = mask & ~lastMask;
+        if (added != 0)
         {
+            if (added & (1u << hpf)) highPass.reset();
+            if (added & (1u << pse)) pseFx.reset();
+            if (added & (1u << feedback)) fbSup.reset();
+            if (added & (1u << eq)) dynEq.reset();
+            if (added & (1u << deess)) deEsser.reset();
+            if (added & (1u << prox)) proximity.reset();
+            if (added & (1u << leveler)) levelerFx.reset();
+            if (added & (1u << warmth)) warmthFx.reset();
+            if (added & (1u << comp)) compFx.reset();
+            if (added & (1u << peq)) staticEq.reset();
+        }
+        lastMask = mask;
+        for (int fi = 0; fi < flow.n; ++fi)
+        {
+            const int m = flow.m[fi];
             switch (m)
             {
                 case hpf:      highPass.process (main, n); break;
@@ -337,6 +437,17 @@ void VoiceChannel::processBlock (AudioBuffer<float>& buffer, MidiBuffer&)
                     break;
                 case warmth:   warmthFx.process (main, n); break;
                 case comp:     compFx.process (main, n); break;
+                case peq:
+                {
+                    const bool on = p.peqOn->load() > 0.5f;
+                    if (on && ! peqWasOn) staticEq.reset();
+                    peqWasOn = on;
+                    peqOutSmooth.setTargetValue (on ? ::dsp::dbToGain (p.peqOut->load()) : 1.0f);
+                    if (on) staticEq.process (main, n);
+                    if (peqOutSmooth.isSmoothing()) for (int i = 0; i < n; ++i) ptr[i] *= peqOutSmooth.getNextValue();
+                    else if (! approximatelyEqual (peqOutSmooth.getTargetValue(), 1.0f)) main.applyGain (0, 0, n, peqOutSmooth.getTargetValue());
+                    break;
+                }
                 default: break;
             }
         }
@@ -410,12 +521,9 @@ void VoiceChannel::setStateInformation (const void* data, int sizeInBytes)
     if (auto* lp = xml->getChildByName ("LivePi"))
     {
         auto ids = StringArray::fromTokens (lp->getStringAttribute ("order"), ",", "");
-        if (ids.size() == numModules)
-        {
-            std::array<int, numModules> o {};
-            for (int i = 0; i < numModules; ++i) o[(size_t) i] = moduleFromId (ids[i].trim());
-            setOrder (o);   // ignored when not a valid permutation
-        }
+        std::vector<int> o;
+        for (auto& id : ids) o.push_back (moduleFromId (id.trim()));
+        setOrder (o);   // ignored when not valid
         presets.setCurrentName (lp->getStringAttribute ("preset", "Default"));
     }
 
@@ -481,7 +589,7 @@ var VoiceChannel::getView (bool full)
     for (int m : getOrder()) ord.add (String (moduleId (m)));
     o->setProperty ("order", ord);
     o->setProperty ("preset", presets.getCurrentName());
-    Array<var> names; for (auto& n : presets.getFactoryNames()) names.add (n);
+    Array<var> names; for (auto& n : factoryPresetNames()) names.add (n);
     o->setProperty ("presets", names);
     o->setProperty ("latency", getLatencySamples());
 
@@ -492,6 +600,7 @@ var VoiceChannel::getView (bool full)
         mo->setProperty ("name", moduleName (m));
         mo->setProperty ("on", isModuleOn (m));
         mo->setProperty ("onParam", moduleOnParam (m));
+        mo->setProperty ("inFlow", inFlow (m));
         if (full)
         {
             Array<var> ps;
@@ -500,6 +609,21 @@ var VoiceChannel::getView (bool full)
             mo->setProperty ("params", ps);
         }
         mods->setProperty (moduleId (m), var (mo));
+    }
+    // the input stage: always first in the flow, can't be removed
+    {
+        auto* mo = new DynamicObject();
+        mo->setProperty ("name", "Input");
+        mo->setProperty ("on", true);
+        mo->setProperty ("onParam", "");
+        mo->setProperty ("fixed", true);
+        if (full)
+        {
+            Array<var> ps;
+            for (auto* id : { "inGain", "inPolarity" }) if (auto* rp = apvts.getParameter (id)) ps.add (paramVar (rp));
+            mo->setProperty ("params", ps);
+        }
+        mods->setProperty ("input", var (mo));
     }
     o->setProperty ("modules", var (mods));
     for (auto* id : { "inGain", "outGain", "bypass" })
@@ -516,6 +640,7 @@ var VoiceChannel::getView (bool full)
         l->setProperty ("compGr", compFx.getGainReductionDb());
         l->setProperty ("compIn", compFx.getInputLevelDb());
         l->setProperty ("compMakeup", compFx.getMakeupDb());
+        l->setProperty ("compOut", compFx.getInputLevelDb() - compFx.getGainReductionDb() + compFx.getMakeupDb());
         l->setProperty ("lvlGain", levelerFx.getGainDb());
         l->setProperty ("lvlLevel", levelerFx.getLevelDb());
         l->setProperty ("lvlHold", levelerFx.isHoldingBoost());
@@ -567,10 +692,24 @@ var VoiceChannel::setParamNorm (const String& id, double norm)
     return setParam (id, rp->convertFrom0to1 ((float) jlimit (0.0, 1.0, norm)));
 }
 
-var VoiceChannel::notchCommand (const String& cmd, int slot)
+var VoiceChannel::notchCommand (const String& cmd, int slot, double freq, double depthDb)
 {
     using C = ::dsp::FeedbackSuppressor::Command;
     C c;
+    if (cmd == "addFixed" || cmd == "setNotch")
+    {
+        if (! std::isfinite (freq) || freq < 20.0 || freq > 20000.0 || ! std::isfinite (depthDb)) return var (false);
+        if (cmd == "setNotch")
+        {
+            if (! isPositiveAndBelow (slot, (int) ::dsp::FeedbackSuppressor::maxSlots)) return var (false);
+            C r; r.type = C::Type::removeSlot; r.slot = slot; sendNotch (r);
+        }
+        c.type = C::Type::setFixed;
+        c.freq = (float) freq;
+        c.depthDb = (float) jlimit (-40.0, -1.0, depthDb);
+        sendNotch (c);
+        return var (true);
+    }
     if (cmd == "clearFloating") c.type = C::Type::clearFloating;
     else if (cmd == "clearAll") c.type = C::Type::clearAll;
     else if (cmd == "removeSlot") { c.type = C::Type::removeSlot; c.slot = slot; }
@@ -580,9 +719,55 @@ var VoiceChannel::notchCommand (const String& cmd, int slot)
     return var (true);
 }
 
+// ---- LivePi's own voice presets, after LiveVoice's
+static const char* const livePiPresets[] { "Lapel / Lavalier Mic (Speech)" };
+
+StringArray VoiceChannel::factoryPresetNames() const
+{
+    auto n = presets.getFactoryNames();
+    for (auto* x : livePiPresets) n.add (x);
+    return n;
+}
+
 var VoiceChannel::loadFactoryPreset (int index)
 {
-    return var (presets.loadFactory (index));
+    const int lv = presets.getFactoryNames().size();
+    if (index >= lv && index < lv + (int) std::size (livePiPresets))
+    {
+        // Lapel: worn on the chest, well below and off to the side of the mouth. So: more gain before
+        // feedback is needed, no proximity boom, a chest resonance around 700-800 Hz, too little
+        // presence (the mouth fires over it), clothing rustle and thumps down low, and the level moves
+        // as the head turns. Start from the speech preset and adjust.
+        if (! (bool) loadFactoryPreset (0)) return var (false);
+        using namespace params;
+        const std::pair<String, double> v[] {
+            { fbMode, 0 }, { fbSens, 65 },
+            { hpfOn, 1 }, { hpfFreq, 130 }, { hpfSlope, 3 },
+            { bOn (1), 1 }, { bFreq (1), 200 }, { bGain (1), -1 }, { bDyn (1), 1 },
+            { bOn (2), 1 }, { bFreq (2), 750 }, { bGain (2), -3 }, { bQ (2), 1.2 }, { bDyn (2), 0 },
+            { bOn (3), 1 }, { bFreq (3), 1200 }, { bGain (3), 0 },
+            { bOn (4), 1 }, { bFreq (4), 4000 }, { bGain (4), 3.5 }, { bQ (4), 0.9 }, { bDyn (4), 0 },
+            { bOn (5), 1 }, { bFreq (5), 10000 }, { bGain (5), 2 },
+            { proxOn, 0 }, { lvlOn, 1 }, { lvlTarget, -26 },
+            { pseOn, 1 }, { pseThr, -50 }, { pseRange, 6 },
+            { compOn, 1 }, { compThr, -26 }, { compRatio, 2.5 },
+        };
+        for (auto& [id, val] : v)
+            if (auto* rp = apvts.getParameter (id))
+                rp->setValueNotifyingHost (rp->convertTo0to1 ((float) jlimit ((double) rp->getNormalisableRange().start, (double) rp->getNormalisableRange().end, val)));
+        presets.setCurrentName (livePiPresets[index - lv]);
+        return var (true);
+    }
+
+    // LiveVoice's voice presets don't know LivePi's parametric EQ or polarity: keep those as they are
+    std::vector<std::pair<RangedAudioParameter*, float>> keep;
+    for (auto* ap : getParameters())
+        if (auto* rp = dynamic_cast<RangedAudioParameter*> (ap))
+            if (rp->getParameterID().startsWith ("peq") || rp->getParameterID() == "inPolarity")
+                keep.emplace_back (rp, rp->getValue());
+    const bool ok = presets.loadFactory (index);
+    for (auto& [rp, v] : keep) rp->setValueNotifyingHost (v);
+    return var (ok);
 }
 
 // RTA of the channel's input or output (1/12 octave, 20 Hz .. 20 kHz) plus the selected module's curve
@@ -626,7 +811,7 @@ var VoiceChannel::getSpectrum (bool output, int module)
     }
 
     Array<var> curve;
-    if (module == hpf || module == eq || module == feedback || module == deess)
+    if (module == hpf || module == eq || module == feedback || module == deess || module == peq)
     {
         ::dsp::HighPass::Settings hs { p.hpfOn->load() > 0.5f, p.hpfFreq->load(), jlimit (0, 5, (int) p.hpfSlope->load()) };
         ::dsp::FeedbackSuppressor::NotchInfo nts[::dsp::FeedbackSuppressor::maxSlots];
@@ -649,6 +834,22 @@ var VoiceChannel::getSpectrum (bool output, int module)
             if (module == hpf) db = ::dsp::HighPass::responseDb (hs, f, fs);
             else if (module == feedback) db = ::dsp::FeedbackSuppressor::responseDb (nts, nn, q, f, fs);
             else if (module == deess) db = ::dsp::DeEsser::reductionResponseDb (de, gr, bf, f, fs);
+            else if (module == peq)
+            {
+                if (p.peqOn->load() > 0.5f)
+                {
+                    db = p.peqOut->load();
+                    for (int b = 0; b < 6; ++b)
+                    {
+                        const auto sb = staticBand (b);
+                        if (! sb.on) continue;
+                        ::dsp::SvfCoeffs c[::dsp::DynamicEq::maxStages];
+                        int ns = 0;
+                        ::dsp::DynamicEq::designBand (sb, sb.freq, sb.q, sb.gainDb, fs, c, ns);
+                        for (int i = 0; i < ns; ++i) db += c[i].magnitudeDb (f, fs);
+                    }
+                }
+            }
             else if (p.eqOn->load() > 0.5f)
             {
                 for (int b = 0; b < params::numEqBands; ++b)

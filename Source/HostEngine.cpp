@@ -396,9 +396,9 @@ var HostEngine::voiceOrder (int channel, const var& order)
 {
     auto* vc = voiceOf (channel);
     auto* a = order.getArray();
-    if (vc == nullptr || a == nullptr || a->size() != VoiceChannel::numModules) return err ("bad order");
-    std::array<int, VoiceChannel::numModules> o {};
-    for (int i = 0; i < VoiceChannel::numModules; ++i) o[(size_t) i] = VoiceChannel::moduleFromId ((*a)[i].toString());
+    if (vc == nullptr || a == nullptr || a->isEmpty() || a->size() > VoiceChannel::numModules) return err ("bad order");
+    std::vector<int> o;
+    for (auto& x : *a) o.push_back (VoiceChannel::moduleFromId (x.toString()));
     if (! vc->setOrder (o)) return err ("bad order");
     markDirty();
     return ok();
@@ -413,11 +413,11 @@ var HostEngine::voicePreset (int channel, int index)
     return ok();
 }
 
-var HostEngine::voiceNotch (int channel, const String& cmd, int slot)
+var HostEngine::voiceNotch (int channel, const String& cmd, int slot, double freq, double depthDb)
 {
     auto* vc = voiceOf (channel);
     if (vc == nullptr) return err ("not a mixer channel");
-    if (! (bool) vc->notchCommand (cmd, slot)) return err ("unknown command");
+    if (! (bool) vc->notchCommand (cmd, slot, freq, depthDb)) return err (cmd == "addFixed" || cmd == "setNotch" ? "Frequency 20 Hz to 20 kHz" : "unknown command");
     markDirty();
     return ok();
 }
@@ -1905,6 +1905,7 @@ var HostEngine::getState()
         o->setProperty ("deviceName", "none");
     }
 
+    o->setProperty ("setupDone", dataDir().getChildFile ("setup-done").existsAsFile());
     o->setProperty ("safeMode", safeMode);
     o->setProperty ("mode", mixerMode ? "mixer" : "vst");
     o->setProperty ("dryChannels", dryChannels && mixerMode);
