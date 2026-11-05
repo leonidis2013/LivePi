@@ -1,6 +1,8 @@
 # LivePi User Manual
 
-**LivePi v0.17.0** · Copyright © Jerod Ulicki
+<img src="images/logo.svg" width="72" alt="LivePi logo">
+
+**LivePi v0.18.0** · Copyright © Jerod Ulicki
 
 LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Audio goes in through the Pi's sound card, through your plugins (for example LiveVoice), and back out with very little delay. You control everything from a web page on a phone, tablet or computer. The Pi needs no screen, keyboard or mouse.
 
@@ -272,6 +274,7 @@ If no sound card is found at start-up, LivePi falls back to the virtual card for
 | **Version** | The installed LivePi version, for example *v0.8.0*. |
 | **Update from: Online / File** | Online checks GitHub; File installs a downloaded update. |
 | **Check / Install update** | Install is grayed out until a newer version is found, or until a file has been chosen. |
+| **Choose a version** | Pick any released version from the list, newer or older, and press **Upgrade**, **Downgrade** or **Reinstall**. Older versions don't have the features added since then; presets, plugins and settings are kept, and you can upgrade again at any time. |
 | **Restart LivePi** | Restarts the program. Audio stops for a few seconds. |
 | **Reliability** | A checklist of everything that protects the audio: real-time priority, the reserved CPU core, memory lock, power supply, temperature, CPU speed, automatic OS updates, the watchdog and crash protection. See [Reliability and latency](#11-reliability-and-latency). |
 | **Operating system** | Checks for and installs Raspberry Pi OS updates. Needs internet. Don't run it right before a service: it can cause dropouts and may need a reboot. |
@@ -338,7 +341,7 @@ LivePi uses **major.minor.patch** versions (for example 0.8.0):
 
 A new version appears on the [Releases page](https://github.com/leonidis2013/LivePi/releases) as "LivePi vX.Y.Z".
 
-- **Online:** ⚙ → System → **Update from: Online** → **Check** → **Install update**.
+- **Online:** ⚙ → System → **Update from: Online** → **Check** → **Install update** (the latest), or pick any version under **Choose a version**.
 - **Offline:** download `livepi-build-N.zip` from the Releases page, then use ⚙ → System → **Update from: File** → **Choose…** → **Install update**.
 
 Presets, plugins, password and settings are kept. If a new version fails to start three times in a row, LivePi puts the previous version back by itself and shows a notice. Some releases need the newer installer; the update tells you if so. In that case run the installer again (section 2.2).

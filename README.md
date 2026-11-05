@@ -1,3 +1,5 @@
+<img src="docs/images/logo.svg" width="96" alt="LivePi logo">
+
 # LivePi
 
 Headless VST3 host for live voice on a Raspberry Pi, run entirely from a web page on your phone, tablet or computer. Built with JUCE. It runs your own Linux ARM64 VST3 plugins, with one chain per channel.

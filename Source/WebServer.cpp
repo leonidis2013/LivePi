@@ -1074,11 +1074,12 @@ void WebServer::setupRoutes()
         res.set_content ("{\"ok\":true}", "application/json");
     });
 
-    svr.Post ("/api/system/update/install", [this] (const httplib::Request&, httplib::Response& res)
+    svr.Post ("/api/system/update/install", [this] (const httplib::Request& req, httplib::Response& res)
     {
         if (! internet->isOnline())
             return reply (res, errVar ("No internet access"));
-        ghUpdate->requestInstall();
+        // optional {"build": N}: install that exact version from the list (upgrade or downgrade)
+        ghUpdate->requestInstall (jmax (0, (int) body (req).getProperty ("build", 0)));
         res.set_content ("{\"ok\":true}", "application/json");
     });
 

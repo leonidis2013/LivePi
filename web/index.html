@@ -9,7 +9,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-180.png">
-<link rel="icon" href="icon-192.png">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48">
 <title>LivePi</title>
 <style>
   :root { --bg:#0d1015; --card:#151a21; --card2:#1b2129; --line:#252c36; --fg:#d8dee6; --dim:#7c8794; --faint:#4c5561; --acc:#4c8dff; --teal:#2ec4b6; --bad:#ef4c4c; --ok:#3ecf6e; --warn:#f2c94c; --inset:#0b0e12; --ctl:#1b2129; --knob:#d8dee6; --onacc:#0d1015; --shadow:var(--shadow); }
@@ -21,6 +22,10 @@
   .hide { display:none !important; }
   header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; padding:10px 14px; margin-bottom:14px; background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:10; }
   h1 { font-size:15px; margin:0; letter-spacing:.12em; text-transform:uppercase; font-weight:800; }
+  h1.brand { display:flex; align-items:center; gap:9px; }
+  h1.brand .mark { width:30px; height:30px; border-radius:7px; flex:0 0 30px; }
+  h1 .ver { font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:none; color:var(--dim); background:var(--card2); border:1px solid var(--line); padding:2px 7px; border-radius:999px; font-variant-numeric:tabular-nums; align-self:center; }
+  h1 .ver:empty { display:none; }
   h1 small { display:block; font-size:10px; letter-spacing:.04em; color:var(--dim); font-weight:400; text-transform:none; }
   h2 { font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--dim); margin:0 0 10px; font-weight:700; }
   h2::before { content:""; display:inline-block; width:3px; height:11px; background:var(--acc); border-radius:2px; margin-right:7px; vertical-align:-1px; }
@@ -252,6 +257,7 @@
     select, input, button { min-height:42px; font-size:16px; }
     header { position:sticky; padding:8px 14px; padding-top:calc(8px + env(safe-area-inset-top)); gap:8px; }
     header h1 { font-size:14px; }
+    h1.brand .mark { width:24px; height:24px; flex-basis:24px; }
     header h1 small { display:none; }
     #status { order:0; flex:1; flex-basis:auto; min-width:0; }
     nav.seg { position:fixed; left:12px; right:12px; bottom:calc(10px + env(safe-area-inset-bottom)); z-index:25; padding:4px; border-radius:16px;
@@ -337,7 +343,8 @@
 
   .login { position:fixed; inset:0; z-index:50; background:var(--bg); display:flex; align-items:center; justify-content:center; padding:20px; }
   .loginbox { width:min(360px,100%); display:flex; flex-direction:column; gap:12px; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:24px; }
-  .loginlogo { font-weight:800; letter-spacing:.14em; font-size:20px; }
+  .loginlogo { font-weight:800; letter-spacing:.14em; font-size:20px; display:flex; align-items:center; gap:10px; }
+  .loginlogo img { width:34px; height:34px; border-radius:8px; }
   .loginbox input, .loginbox button { width:100%; min-height:44px; font-size:16px; }
   #loginMsg { font-variant-numeric:tabular-nums; min-height:1.4em; }
   .pwform { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
@@ -507,7 +514,7 @@
 <body>
 
 <header>
-  <h1>LivePi<small>live voice host</small></h1>
+  <h1 class="brand"><img src="favicon.svg" alt="" class="mark"><span>LivePi<small>live voice host</small></span><b id="hdrVer" class="ver"></b></h1>
   <div id="status">…</div>
   <button id="fsBtn" class="gear fsb" title="Full screen" aria-label="Full screen"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
   <button id="gear" class="gear" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Done</span></button>
@@ -604,6 +611,7 @@
     <div id="updOnline">
     <div class="set"><div class="sl"><b>Check for updates</b><span id="ghMsg">Checking internet connection…</span></div><div class="sc"><button id="ghCheck" disabled>Check</button></div></div>
     <div class="set"><div class="sl"><b>Install</b><span>Grayed out until a newer version is found</span></div><div class="sc"><button id="ghInstall" class="on" disabled>Install update</button></div></div>
+    <div class="set"><div class="sl"><b>Choose a version</b><span id="verNote">Upgrade, or go back to an earlier version</span></div><div class="sc"><select id="verPick" disabled><option>Check for updates first</option></select><button id="verGo" disabled>Install</button></div></div>
     </div>
     <div id="updOffline" class="hide">
     <div class="set"><div class="sl"><b>Update file</b><span id="updName">livepi-build-N.zip from GitHub Releases</span></div><div class="sc"><input id="updFile" type="file" accept=".zip" class="hide"><button id="updPick">Choose…</button></div></div>
@@ -706,7 +714,7 @@
 
 <div id="login" class="login hide">
   <form id="loginForm" class="loginbox" autocomplete="on">
-    <div class="loginlogo">LIVEPI</div>
+    <div class="loginlogo"><img src="favicon.svg" alt="">LIVEPI</div>
     <div class="note">Enter the password to continue.</div>
     <input type="text" name="username" value="livepi" autocomplete="username" class="hide" tabindex="-1" aria-hidden="true">
     <input id="loginPw" type="password" placeholder="Password" autocomplete="current-password" required>
@@ -717,7 +725,7 @@
 </div>
 <div id="busy" class="login hide">
   <div class="loginbox">
-    <div class="loginlogo">LIVEPI</div>
+    <div class="loginlogo"><img src="favicon.svg" alt="">LIVEPI</div>
     <div id="busyMsg"></div>
     <div class="note">Only one device can control LivePi at a time.</div>
     <button id="busyTake" class="on">Take over</button>
@@ -2454,7 +2462,46 @@ async function updRefresh() {
   inst.title = u.available ? '' : 'Grayed out until a newer version is found';
   if (u.known && !updModeChosen) setUpdMode(u.online ? 'online' : 'offline', false);
   if (u.state === 'ok' && !ghRestarted) { ghRestarted = true; waitForRestart(); }
+  verRender(u, busy);
 }
+let verKey = '', VERS = [], VERCUR = '';
+function verRender(u, busy) {
+  const list = u.releases || [];
+  VERCUR = u.current || '';
+  const key = JSON.stringify(list.map(r => [r.build, r.version]));
+  const sel = $('verPick');
+  if (key !== verKey && list.length) {
+    verKey = key; VERS = list;
+    const keep = sel.value;
+    sel.innerHTML = '';
+    list.forEach((r, i) => {
+      const o = el('option', '', r.version + (i === 0 ? ' (latest)' : '') + (r.installed ? ' (installed)' : '') + (r.date ? ' · ' + r.date : ''));
+      o.value = r.build; sel.append(o);
+    });
+    const inst = list.find(r => r.installed);
+    sel.value = keep && list.some(r => String(r.build) === keep) ? keep : String((inst || list[0]).build);
+  }
+  sel.disabled = !list.length || busy || !u.online;
+  verButton(busy || !u.online || !list.length);
+}
+function verButton(off) {
+  const b = $('verGo'), r = VERS.find(x => String(x.build) === $('verPick').value);
+  if (!r) { b.disabled = true; return; }
+  const cur = parseInt(VERCUR, 10);
+  b.textContent = !isNaN(cur) && r.build < cur ? 'Downgrade' : !isNaN(cur) && r.build === cur ? 'Reinstall' : 'Upgrade';
+  b.classList.toggle('danger', !isNaN(cur) && r.build < cur);
+  b.disabled = !!off;
+}
+$('verPick').addEventListener('change', () => verButton(false));
+$('verGo').onclick = async () => {
+  const r = VERS.find(x => String(x.build) === $('verPick').value); if (!r) return;
+  const cur = parseInt(VERCUR, 10), down = !isNaN(cur) && r.build < cur;
+  const msg = down
+    ? 'Go back to ' + r.version + '?\n\nOlder versions don\'t have the features added since then. Your presets, plugins and settings are kept. You can upgrade again from this page at any time.\n\nLivePi restarts and the audio stops for a few seconds.'
+    : 'Install ' + r.version + '?\n\nLivePi restarts and the audio stops for a few seconds.';
+  if (!confirm(msg)) return;
+  await api('/api/system/update/install', { build: r.build }); updRefresh();
+};
 let updModeChosen = false;
 function setUpdMode(m, remember) {
   if (remember) { updModeChosen = true; try { localStorage.setItem('lh.upd', m); } catch (e) {} }
@@ -2562,6 +2609,7 @@ async function refresh() {
   const info = await api('/api/info');
   applySession(sess);
   $('ver').textContent = info.version || 'unknown';
+  $('hdrVer').textContent = (info.version || '').replace(' (development)', '-dev');
   $('rolled').classList.toggle('hide', !info.rolledBack);
   loadInstalled();
   osRefresh();

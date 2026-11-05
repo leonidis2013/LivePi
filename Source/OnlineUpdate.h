@@ -2,9 +2,12 @@
 #include <juce_core/juce_core.h>
 #include <functional>
 #include <mutex>
+#include <vector>
+#include <algorithm>
 #include "Updater.h"
 
-// Checks GitHub Releases for a newer LivePi build and installs it.
+// Checks GitHub Releases for LivePi builds and installs the latest one, or any version picked from
+// the list (upgrade or downgrade).
 // Uses the system `curl` for HTTPS so LivePi itself needs no TLS library.
 class OnlineUpdate : private juce::Thread
 {
@@ -35,7 +38,8 @@ public:
     }
 
     void requestCheck()   { post (Job::check); }
-    void requestInstall() { post (Job::install); }
+    // build 0 = the latest release; otherwise that exact build from the list (older or newer)
+    void requestInstall (int build = 0) { { std::lock_guard<std::mutex> l (m); wantedBuild = build; } post (Job::install); }
 
     juce::var status()
     {
@@ -60,6 +64,17 @@ public:
         o->setProperty ("available", available);
         o->setProperty ("lastChecked", (juce::int64) (lastChecked / 1000));
         o->setProperty ("repo", cfg.repo);
+        juce::Array<juce::var> list;
+        for (auto& r : releases)
+        {
+            auto* ro = new juce::DynamicObject();
+            ro->setProperty ("build", r.build);
+            ro->setProperty ("version", r.version);
+            ro->setProperty ("date", r.date);
+            ro->setProperty ("installed", juce::String (r.build) == cfg.currentBuild);
+            list.add (juce::var (ro));
+        }
+        o->setProperty ("releases", list);
         return juce::var (o);
     }
 
@@ -153,7 +168,7 @@ private:
         const int code = runCurl ({ "-fsSL", "--connect-timeout", "10", "--max-time", "30",
                                     "-H", "Accept: application/vnd.github+json", "-H", "User-Agent: LivePi",
                                     "-o", json.getFullPathName(),
-                                    cfg.apiBase + "/repos/" + cfg.repo + "/releases/latest" }, 45);
+                                    cfg.apiBase + "/repos/" + cfg.repo + "/releases?per_page=60" }, 45);
         if (code != 0)
         {
             err = curlProblem (code);
@@ -162,49 +177,57 @@ private:
 
         auto v = juce::JSON::parse (json);
         json.deleteFile();
-
-        const auto tag = v.getProperty ("tag_name", {}).toString();
-        if (! tag.startsWith ("build-") || ! tag.substring (6).containsOnly ("0123456789"))
+        auto* arr = v.getArray();
+        if (arr == nullptr)
         {
-            err = "The latest GitHub release has an unexpected name (" + tag + ").";
+            err = "GitHub sent an unexpected answer. Try again later.";
             return false;
         }
-        const int latest = tag.substring (6).getIntValue();
 
-        juce::String url;
-        juce::int64 size = 0;
-        const juce::String wanted = "livepi-build-" + juce::String (latest) + ".zip";
-        if (auto* assets = v.getProperty ("assets", {}).getArray())
-            for (auto& a : *assets)
-                if (a.getProperty ("name", {}).toString() == wanted)
-                {
-                    url = a.getProperty ("browser_download_url", {}).toString();
-                    size = (juce::int64) a.getProperty ("size", 0);
-                }
-
-        // Only ever download from this project's own releases
-        if (! url.startsWith ("https://github.com/" + cfg.repo + "/releases/download/"))
+        std::vector<Release> list;
+        for (auto& rel : *arr)
         {
-            err = "The latest release has no " + wanted + " to download.";
+            if ((bool) rel.getProperty ("draft", false))
+                continue;
+            const auto tag = rel.getProperty ("tag_name", {}).toString();
+            if (! tag.startsWith ("build-") || ! tag.substring (6).containsOnly ("0123456789") || tag.length() < 7)
+                continue;
+            Release r;
+            r.build = tag.substring (6).getIntValue();
+            const juce::String wanted = "livepi-build-" + juce::String (r.build) + ".zip";
+            if (auto* assets = rel.getProperty ("assets", {}).getArray())
+                for (auto& a : *assets)
+                    if (a.getProperty ("name", {}).toString() == wanted)
+                    {
+                        r.url = a.getProperty ("browser_download_url", {}).toString();
+                        r.size = (juce::int64) a.getProperty ("size", 0);
+                    }
+            // Only ever download from this project's own releases
+            if (! r.url.startsWith ("https://github.com/" + cfg.repo + "/releases/download/"))
+                continue;
+            // the release title carries the version people see: "LivePi v0.5.1"
+            const auto name = rel.getProperty ("name", {}).toString();
+            for (int k = name.length(); --k >= 0;)
+                if (name[k] == 'v' && k + 1 < name.length() && juce::CharacterFunctions::isDigit (name[k + 1])) { r.version = name.substring (k).upToFirstOccurrenceOf (" ", false, false); break; }
+            if (r.version.isEmpty()) r.version = "build " + juce::String (r.build);
+            r.date = rel.getProperty ("published_at", {}).toString().substring (0, 10);
+            list.push_back (r);
+        }
+        std::sort (list.begin(), list.end(), [] (const Release& x, const Release& y) { return x.build > y.build; });
+        if (list.empty())
+        {
+            err = "GitHub has no LivePi release to download yet.";
             return false;
         }
 
         const bool numeric = cfg.currentBuild.isNotEmpty() && cfg.currentBuild.containsOnly ("0123456789");
-        // the release title carries the version people see: "LivePi v0.5.1"
-        juce::String shown;
-        {
-            const auto name = v.getProperty ("name", {}).toString();
-            const int i = name.indexOfChar ('v');
-            for (int k = name.length(); --k >= 0;)
-                if (name[k] == 'v' && k + 1 < name.length() && juce::CharacterFunctions::isDigit (name[k + 1])) { shown = name.substring (k).upToFirstOccurrenceOf (" ", false, false); break; }
-            juce::ignoreUnused (i);
-        }
         std::lock_guard<std::mutex> l (m);
-        latestBuild = latest;
-        latestVersion = shown.isNotEmpty() ? shown : "build " + juce::String (latest);
-        assetUrl = url;
-        assetSize = size;
-        available = numeric && latest > cfg.currentBuild.getIntValue();
+        releases = list;
+        latestBuild = list.front().build;
+        latestVersion = list.front().version;
+        assetUrl = list.front().url;
+        assetSize = list.front().size;
+        available = numeric && latestBuild > cfg.currentBuild.getIntValue();
         lastChecked = juce::Time::currentTimeMillis();
         if (! numeric)
             message = "This is a development version, so it will not update itself.";
@@ -213,19 +236,35 @@ private:
 
     bool install (juce::String& err)
     {
-        juce::String url;
+        juce::String url, shownVersion;
         juce::int64 size;
-        int latest;
         {
             std::lock_guard<std::mutex> l (m);
-            if (! available)
+            if (wantedBuild == 0)
             {
-                err = "Already up to date.";
-                return false;
+                if (! available)
+                {
+                    err = "Already up to date.";
+                    return false;
+                }
+                url = assetUrl;
+                size = assetSize;
+                shownVersion = latestVersion;
             }
-            url = assetUrl;
-            size = assetSize;
-            latest = latestBuild;
+            else
+            {
+                const Release* pick = nullptr;
+                for (auto& r : releases)
+                    if (r.build == wantedBuild) pick = &r;
+                if (pick == nullptr)
+                {
+                    err = "That version is not in the list from GitHub. Check for updates and try again.";
+                    return false;
+                }
+                url = pick->url;
+                size = pick->size;
+                shownVersion = pick->version;
+            }
         }
 
         auto staging = cfg.dataDir.getChildFile ("staging").getChildFile (juce::Uuid().toString());
@@ -261,15 +300,19 @@ private:
         {
             std::lock_guard<std::mutex> l (m);
             state = "ok";
-            message = "Installed " + (version.isNotEmpty() ? version : latestVersion) + ". Restarting…";
+            message = "Installed " + (version.isNotEmpty() ? version : shownVersion) + ". Restarting…";
         }
         if (cfg.onInstalled)
             cfg.onInstalled();
         return true;
     }
 
+    struct Release { int build = 0; juce::String version, date, url; juce::int64 size = 0; };
+
     Config cfg;
     std::mutex m;
+    std::vector<Release> releases;                // newest first
+    int wantedBuild = 0;
     Job pending = Job::none;
     juce::String state = "idle", message, assetUrl;
     int latestBuild = 0;
