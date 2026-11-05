@@ -2,7 +2,7 @@
 
 <img src="images/logo.svg" width="72" alt="LivePi logo">
 
-**LivePi v0.23.2** · Copyright © Jerod Ulicki
+**LivePi v0.23.3** · Copyright © Jerod Ulicki
 
 LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Audio goes in through the Pi's sound card, through your plugins (for example LiveVoice), and back out with very little delay. You control everything from a web page on a phone, tablet or computer. The Pi needs no screen, keyboard or mouse.
 
@@ -482,6 +482,7 @@ The boot settings take effect after a reboot. To see them, run `sudo /opt/livepi
 
 | Problem | What to try |
 |---|---|
+| **The page looks like an older version after an update** | LivePi now reloads it by itself. On older versions, reload the page (Safari: the ↻ button; Home Screen app: close it and open it again). The version next to the LivePi name shows what is running. |
 | **The page doesn't open** | Use the Pi's IP address instead of `livepi.local` (run `hostname -I` on the Pi, or check your router). Check the service: `sudo systemctl status livepi`. |
 | **LivePi doesn't start after a reboot** | ⚙ → System → Reliability shows **Starts at boot**: tap it to fix it. From the Pi: `sudo systemctl enable --now livepi`, then `systemctl status livepi` and `sudo journalctl -u livepi -b -n 50` show why it stopped. |
 | **"Connection to LivePi lost"** | The Pi is rebooting, restarting, or off the network. The page reconnects by itself. |

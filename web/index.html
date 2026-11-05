@@ -4088,6 +4088,14 @@ async function refresh() {
   applySession(sess);
   $('ver').textContent = info.version || 'unknown';
   $('hdrVer').textContent = (info.version || '').replace(' (development)', '-dev');
+  // A page left over in the browser's cache from before an update: load the current one (once)
+  {
+    const pageVer = '__PAGE_VERSION__', piVer = String(info.version || '').split(' ')[0];
+    if (/^v\d/.test(pageVer) && /^v\d/.test(piVer) && pageVer !== piVer) {
+      let tried = false; try { tried = sessionStorage.getItem('lh.reloaded') === piVer; sessionStorage.setItem('lh.reloaded', piVer); } catch (e) {}
+      if (!tried) { const q = new URLSearchParams(location.search); q.set('v', piVer); location.replace(location.pathname + '?' + q + location.hash); return; }
+    }
+  }
   $('rolled').classList.toggle('hide', !info.rolledBack);
   loadInstalled();
   osRefresh();

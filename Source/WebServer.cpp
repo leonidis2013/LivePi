@@ -447,6 +447,12 @@ void WebServer::setupRoutes()
     auto webDir = File::getSpecialLocation (File::currentExecutableFile)
                       .getParentDirectory().getChildFile ("web");
     svr.set_mount_point ("/", webDir.getFullPathName().toStdString());
+    // The page must never come from the browser's cache after an update: always check with the Pi
+    // (a 304 when unchanged, so it costs next to nothing)
+    svr.set_file_request_handler ([] (const httplib::Request&, httplib::Response& res)
+    {
+        res.set_header ("Cache-Control", "no-cache, must-revalidate");
+    });
 
     svr.set_payload_max_length ((size_t) 400 * 1024 * 1024);   // plugin zips
     svr.set_read_timeout (30, 0);
