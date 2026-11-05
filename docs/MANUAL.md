@@ -2,7 +2,7 @@
 
 <img src="images/logo.svg" width="72" alt="LivePi logo">
 
-**LivePi v0.18.0** · Copyright © Jerod Ulicki
+**LivePi v0.19.0** · Copyright © Jerod Ulicki
 
 LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Audio goes in through the Pi's sound card, through your plugins (for example LiveVoice), and back out with very little delay. You control everything from a web page on a phone, tablet or computer. The Pi needs no screen, keyboard or mouse.
 
@@ -19,6 +19,7 @@ LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Aud
 5. [The mixer](#5-the-mixer)
 6. [Monitoring (PAFL)](#6-monitoring-pafl)
 7. [Working with plugins](#7-working-with-plugins)
+   - [Mixer mode](#mixer-mode-built-in-livevoice-channels)
 8. [Setup pages](#8-setup-pages)
 9. [Password, login and trusted access](#9-password-login-and-trusted-access)
 10. [Updating](#10-updating)
@@ -228,6 +229,53 @@ The plugin keeps its wide shape on a portrait phone, so start from **Fit** and z
 
 ---
 
+### Mixer mode (built-in LiveVoice channels)
+
+LivePi has two modes, set for the whole Pi in **⚙ → Settings → Mode**:
+
+- **VST rack:** each channel runs the VST plugins you load (everything above).
+- **Mixer:** each channel has the **LiveVoice modules built in**: the same processing code as the LiveVoice plugin, without loading a plugin. All modules are **zero latency**, in any order, so the chain adds no delay.
+
+Switching keeps everything: your VST chains wait untouched while you're in mixer mode, and your mixer settings wait while you're in VST mode. The audio stops for a moment when you switch.
+
+![Mixer mode](images/mixer-mode.png)
+
+On the mixer, each channel shows its voice preset and its modules in flow order (lit = on). Tap **Open channel**:
+
+![Channel screen](images/mixer-channel.png)
+
+| Area | What it does |
+|---|---|
+| **Left: Input** | Input **gain** (before the modules), the IN meter, the channel **fader**, **Mute** and **PAFL**. Always on the left. |
+| **Flow** | The modules in signal order, top to bottom (side by side on a phone). Each shows a status (gain reduction, notch count, open/closed) and its **power** button. **Tap a module** to open its controls on the right. **Drag the ⋮⋮ grip** to move it; the ◀ ▶ buttons in the panel also move it one place. |
+| **Panel** | The selected module, large: its graph or meters, and all its controls as big touch knobs, switches and lists. Double-tap a knob for its default. |
+| **Right: Output** | Output **trim** and the channel's OUT meter, after the fader. Always on the right. |
+| **Top bar** | **Voice**: load one of LiveVoice's voice presets (Pastor, Spoken Word, Male, Female, Worship Leader); it replaces the module settings, not the gains. **Copy to…** copies this channel's settings and order to another channel. **Bypass** switches every module off at once. |
+
+**The modules**
+
+| Module | On the panel |
+|---|---|
+| **High-pass** | RTA with the filter curve; frequency and slope. |
+| **PSE** | Primary source expander: voice level against the threshold, open/closed, and how much it turns down; threshold, range, attack, hold, release, sidechain filters. |
+| **Feedback** | RTA with the notches; **Ring-out learn** and **Freeze notches**; the list of notches with **Make fixed** and **Remove**; **Clear floating** and **Clear all**; mode, sensitivity, depth, width, limits. |
+| **Dynamic EQ** | RTA with the EQ curve and the six band dots: **drag a dot** to change its frequency (left/right) and gain (up/down). Band buttons pick the band whose controls are shown, including its dynamic settings. |
+| **De-esser** | RTA with the live cut, gain reduction; S and SH bands, mode, threshold, range, follow, relative detection. |
+| **Proximity** | How much low end it takes out when the singer gets close; maximum cut. |
+| **Leveler** | Level against the target and the gain it applies (it holds while feedback is being caught). |
+| **Warmth** | Amount (off at 0 %). |
+| **Compressor** | Input level against the threshold, gain reduction and makeup; threshold, ratio, knee, attack, release, auto release, makeup, mix, sidechain HP, auto gain. |
+
+**RTA in / RTA out** shows the channel's input or output spectrum behind the curve.
+
+On a phone, the flow scrolls sideways above the panel, with input on the left and output on the right:
+
+<img src="images/mixer-channel-phone.png" width="300" alt="Channel screen on a phone">
+
+**Presets:** LivePi's presets (Presets on the mixer) save mixer channels too, including module order and the learned fixed notches. Safe mode (see section 11) runs mixer channels unprocessed, so the voice always passes.
+
+**CPU:** one channel with every module on uses about 1 % of one core on the ARM64 build machine (more on a Pi, still small), so many channels fit.
+
 ## 8. Setup pages
 
 Press **⚙** (top right). The pages are on the left, as a column of icons on a phone. **Done** returns to the mixer.
@@ -287,6 +335,7 @@ If no sound card is found at start-up, LivePi falls back to the virtual card for
 | Setting | Meaning |
 |---|---|
 | **Theme** | Auto (follows the device), Dark or Light. Saved on this device only. |
+| **Mode** | **VST rack** or **Mixer** for the whole Pi (see [Mixer mode](#mixer-mode-built-in-livevoice-channels)). |
 | **Keep screen awake** | On: the screen doesn't dim or lock while LivePi is open, handy for an iPad on the desk. Saved on this device only. If it says *tap anywhere to start it*, tap the page once. Keep the iPad on power. |
 | **Plugins open in** | What tapping a plugin name opens: Controls or Plugin. Saved on this device only. |
 | **PAFL mode** | PFL, AFL or Input, for all channels. Saved in presets. |

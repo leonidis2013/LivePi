@@ -79,6 +79,27 @@ run_case() {
   check "$label: preset saved" "api /api/state | jq -e '.presets | index(\"Smoke test\")' >/dev/null"
   check "$label: preset deleted" "post /api/presets/delete '{\"name\":\"Smoke test\"}' | jq -e .ok >/dev/null && api /api/state | jq -e '(.presets | index(\"Smoke test\")) == null' >/dev/null"
   check "$label: deleting a missing preset is refused" "post /api/presets/delete '{\"name\":\"../last\"}' | jq -e .error >/dev/null"
+  # ---- mixer mode: built-in LiveVoice channels
+  post /api/channels '{"count":2}' >/dev/null
+  post /api/mode '{"mode":"mixer"}' >/dev/null; sleep 2
+  check "$label: mixer mode switches on" "api /api/state | jq -e '.mode==\"mixer\" and (.chains[0].voice.modules|length)==9' >/dev/null"
+  V=$(api '/api/voice?channel=0')
+  check "$label: mixer channel has 9 modules and zero latency" "echo '$V' | jq -e '(.order|length)==9 and .latency==0 and (.modules.eq.params|length) > 50' >/dev/null"
+  check "$label: mixer setting changes" "post /api/voice/param '{\"channel\":0,\"id\":\"compThr\",\"value\":-31}' | jq -e '.value < -30.9 and .value > -31.1' >/dev/null"
+  check "$label: mixer modules reorder" "post /api/voice/order '{\"channel\":0,\"order\":[\"comp\",\"hpf\",\"pse\",\"feedback\",\"eq\",\"deess\",\"prox\",\"leveler\",\"warmth\"]}' | jq -e .ok >/dev/null && api '/api/voice?channel=0&live=1' | jq -e '.order[0]==\"comp\"' >/dev/null"
+  check "$label: a bad order is refused" "post /api/voice/order '{\"channel\":0,\"order\":[\"comp\",\"comp\"]}' | jq -e .error >/dev/null"
+  sleep 2
+  check "$label: audio flows through the mixer channel" "api /api/meters | jq -e '.out[0] > -60' >/dev/null && api '/api/voice?channel=0&live=1' | jq -e '.live.outPeak > -60 or .live.inPeak > -60' >/dev/null"
+  check "$label: mixer RTA and EQ curve" "api '/api/voice/spectrum?channel=0&module=eq&out=1' | jq -e '(.rta|length)==120 and (.curve|length)==120' >/dev/null"
+  check "$label: voice preset loads" "post /api/voice/preset '{\"channel\":0,\"index\":1}' | jq -e .ok >/dev/null"
+  check "$label: channel settings copy" "post /api/voice/copy '{\"from\":0,\"to\":1}' | jq -e .ok >/dev/null && api '/api/voice?channel=1&live=1' | jq -e '.order[0]==\"comp\"' >/dev/null"
+  check "$label: plugins refused in mixer mode" "post /api/chain/add '{\"channel\":0,\"id\":\"x\"}' | jq -e '.error | test(\"mixer mode\")' >/dev/null"
+  post /api/mode '{"mode":"vst"}' >/dev/null; sleep 1
+  check "$label: back to VST mode" "api /api/state | jq -e '.mode==\"vst\" and (.chains[0].voice==null)' >/dev/null"
+  post /api/mode '{"mode":"mixer"}' >/dev/null; sleep 1
+  check "$label: mixer settings kept across a mode switch" "api '/api/voice?channel=0&live=1' | jq -e '.order[0]==\"comp\"' >/dev/null"
+  post /api/mode '{"mode":"vst"}' >/dev/null
+  post /api/channels '{"count":1}' >/dev/null
   check "$label: update status endpoint" "api /api/update/status | jq -e .state >/dev/null"
   check "$label: OS status endpoint" "api /api/os/status | jq -e .state >/dev/null"
   check "$label: still running" "kill -0 \$(cat /tmp/lh.pid)"

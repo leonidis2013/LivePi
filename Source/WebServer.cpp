@@ -791,7 +791,8 @@ void WebServer::setupRoutes()
     svr.Get ("/api/voice", [this] (const httplib::Request& req, httplib::Response& res)
     {
         const int ch = qs (req, "channel").getIntValue();
-        reply (res, onMT ([this, ch] { return engine.voiceView (ch); }));
+        const bool full = qs (req, "live") != "1";
+        reply (res, onMT ([this, ch, full] { return engine.voiceView (ch, full); }));
     });
 
     svr.Get ("/api/voice/spectrum", [this] (const httplib::Request& req, httplib::Response& res)
@@ -805,7 +806,8 @@ void WebServer::setupRoutes()
     svr.Post ("/api/voice/param", [this] (const httplib::Request& req, httplib::Response& res)
     {
         auto b = body (req);
-        reply (res, onMT ([this, b] { return engine.voiceParam ((int) b["channel"], b["id"].toString(), (double) b["value"]); }));
+        const bool norm = b.hasProperty ("norm");
+        reply (res, onMT ([this, b, norm] { return engine.voiceParam ((int) b["channel"], b["id"].toString(), (double) (norm ? b["norm"] : b["value"]), norm); }));
     });
 
     svr.Post ("/api/voice/order", [this] (const httplib::Request& req, httplib::Response& res)

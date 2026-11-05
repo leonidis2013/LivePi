@@ -509,6 +509,100 @@
   .netinfo b { color:var(--fg); font-weight:600; }
   .neterr { color:var(--bad); font-size:12px; }
   @media (max-width:720px) { .sc input.ipf { width:150px; font-size:15px; } .set.stack { flex-wrap:wrap; } .set.stack .sl { flex-basis:100%; } .set.stack .sc { flex:1 1 100%; justify-content:flex-start; } }
+  /* ---------- mixer mode: channel screen ---------- */
+  .chview { position:fixed; inset:0; z-index:30; background:var(--bg); display:flex; flex-direction:column; }
+  .cvbar { display:flex; align-items:center; gap:8px; padding:10px 14px; padding-top:calc(10px + env(safe-area-inset-top)); background:var(--card); border-bottom:1px solid var(--line); }
+  .cvbar b { font-size:15px; letter-spacing:.1em; text-transform:uppercase; }
+  .cvpre { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--dim); }
+  .cvpre select { max-width:240px; }
+  #cvBypass.on { background:var(--warn); border-color:var(--warn); color:#1a1300; }
+  .cvbody { flex:1; min-height:0; display:flex; gap:12px; padding:12px; padding-bottom:calc(12px + env(safe-area-inset-bottom)); }
+  .cvside { flex:0 0 132px; display:flex; flex-direction:column; align-items:center; gap:10px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 8px; }
+  .cvside h4 { margin:0; font-size:11px; letter-spacing:.12em; color:var(--dim); text-transform:uppercase; }
+  .cvside .ctl { width:auto; }
+  .cvside .fm { flex:1; min-height:120px; }
+  .cvside .db { font-size:12px; font-variant-numeric:tabular-nums; }
+  .cvside .keys { flex-direction:column; width:100%; }
+  .cvside .keys button { width:100%; }
+  .cvmain { flex:1; min-width:0; display:flex; gap:12px; }
+  .cvflow { flex:0 0 220px; display:flex; flex-direction:column; gap:6px; overflow:auto; }
+  .fb { display:flex; align-items:center; gap:8px; padding:10px 10px; border-radius:10px; border:1px solid var(--line); background:var(--card); cursor:pointer; user-select:none; -webkit-user-select:none; touch-action:pan-y; position:relative; min-height:48px; }
+  .fb.sel { border-color:var(--acc); box-shadow:inset 3px 0 0 var(--acc); background:var(--card2); }
+  .fb.off .fbn { color:var(--dim); }
+  .fb .grip { width:22px; height:30px; display:grid; place-items:center; color:var(--faint); cursor:grab; touch-action:none; flex:0 0 22px; }
+  .fb .fbn { flex:1; min-width:0; font-weight:700; font-size:13px; letter-spacing:.04em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .fb .fbm { font-size:11px; color:var(--dim); font-variant-numeric:tabular-nums; min-width:44px; text-align:right; }
+  .fb .pwr { width:30px; height:30px; min-height:0; padding:0; border-radius:8px; display:grid; place-items:center; }
+  .fb .pwr svg { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2.2; stroke-linecap:round; }
+  .fb .pwr.on { background:var(--acc); border-color:var(--acc); color:var(--onacc); }
+  .fb .dot { width:8px; height:8px; border-radius:50%; flex:0 0 8px; background:var(--faint); }
+  .fb .dot.on { background:var(--mc, var(--acc)); box-shadow:0 0 6px var(--mc, var(--acc)); }
+  .fb.dragging { opacity:.85; z-index:2; box-shadow:0 10px 26px var(--shadow); }
+  .fbflowhint { font-size:11px; color:var(--dim); padding:4px 2px; }
+  .cvpanel { flex:1; min-width:0; overflow:auto; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:12px; }
+  .cvpanel > * { flex-shrink:0; }
+  .cvph { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .cvph h3 { margin:0; font-size:16px; flex:1; }
+  .cvph h3 small { font-size:11px; font-weight:600; color:var(--dim); margin-left:8px; letter-spacing:.04em; }
+  .cvph .seg button { padding:6px 10px; }
+  .cvviz { position:relative; height:230px; border-radius:10px; background:var(--inset); overflow:hidden; touch-action:none; }
+  .cvviz canvas { width:100%; height:100%; display:block; }
+  .cvbands { display:flex; gap:6px; flex-wrap:wrap; }
+  .cvbands button { min-width:56px; border-left:4px solid var(--bc); }
+  .cvbands button.on { background:var(--card2); color:var(--fg); border-color:var(--bc); box-shadow:inset 0 0 0 1px var(--bc); }
+  .cvctls { display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:14px 8px; }
+  .cvctls .ctl.wide { grid-column:span 2; }
+  .cvmeters { display:grid; gap:10px; }
+  .hm { display:grid; grid-template-columns:110px 1fr 70px; gap:10px; align-items:center; font-size:12px; color:var(--dim); }
+  .hm .bar { position:relative; height:14px; border-radius:7px; background:var(--inset); overflow:hidden; }
+  .hm .bar i { position:absolute; top:0; bottom:0; left:0; width:0; background:var(--ok); border-radius:7px; }
+  .hm .bar i.gr { left:auto; right:0; background:var(--warn); }
+  .hm .bar b { position:absolute; top:-2px; bottom:-2px; width:2px; background:var(--fg); }
+  .hm span:last-child { text-align:right; color:var(--fg); font-variant-numeric:tabular-nums; }
+  .ntable { display:grid; gap:4px; font-size:12px; }
+  .ntable .nrow { display:grid; grid-template-columns:1fr 80px 70px auto; gap:8px; align-items:center; padding:6px 8px; border-radius:8px; background:var(--inset); }
+  .ntable .nrow button { min-height:30px; padding:4px 10px; font-size:12px; }
+  .cvrow { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .cvrow .tog.big { min-width:120px; }
+  /* mixer mode strip: the flow instead of a plugin chain */
+  .flowmini { display:flex; flex-wrap:wrap; gap:4px; }
+  .flowmini span { font-size:10px; font-weight:700; letter-spacing:.04em; padding:3px 6px; border-radius:6px; background:var(--inset); color:var(--faint); }
+  .flowmini span.on { color:var(--fg); background:color-mix(in srgb, var(--mc, var(--acc)) 22%, var(--inset)); }
+  .opench { width:100%; margin-top:6px; }
+  .vpre { font-size:11px; color:var(--dim); text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  @media (max-width:900px) {
+    .cvmain { flex-direction:column; gap:10px; }
+    .cvflow { flex:0 0 auto; flex-direction:row; overflow-x:auto; overflow-y:hidden; padding-bottom:2px; }
+    .fb { flex:0 0 auto; min-width:0; padding:6px 8px; gap:6px; min-height:40px; touch-action:pan-x; }
+    .fb .fbm { display:none; }
+    .fb .fbn { font-size:12px; }
+    .fb .pwr { width:26px; height:26px; }
+    .fb .grip { width:16px; flex-basis:16px; }
+    .fbflowhint { display:none; }
+  }
+  @media (max-width:720px) {
+    .cvbar { flex-wrap:wrap; padding:8px 10px; padding-top:calc(8px + env(safe-area-inset-top)); }
+    .cvpre span { display:none; }
+    .cvpre select { max-width:150px; }
+    #cvCopy { max-width:110px; }
+    .cvbody { gap:6px; padding:6px; }
+    .cvside { flex:0 0 64px; padding:8px 4px; gap:6px; }
+    .cvside .ctl .cl { font-size:9px; }
+    .cvside .rk { width:46px; height:46px; }
+    .cvside .keys button { font-size:11px; padding:4px; }
+    .cvside .monbtn { width:44px; height:44px; }
+    .cvpanel { padding:10px; }
+    .cvph { gap:6px; }
+    .cvph h3 { flex-basis:100%; font-size:15px; }
+    .cvph .seg button, .cvph button { min-height:34px; padding:4px 10px; font-size:13px; }
+    .cvbands button { min-width:0; flex:1 1 30%; padding:6px 4px; font-size:13px; }
+    .cvviz { height:180px; }
+    .cvctls { grid-template-columns:repeat(3,1fr); gap:12px 4px; }
+    .hm { grid-template-columns:80px 1fr 52px; }
+  }
+
+  .cvside.strip { width:auto; min-width:0; flex:0 0 132px; margin:0; }
+  @media (max-width:720px) { .cvside.strip { flex:0 0 64px; } }
 </style>
 </head>
 <body>
@@ -639,6 +733,10 @@
   </div>
   <div data-pane="settings" class="hide">
   <div class="card">
+    <h2>Mode</h2>
+    <div class="set"><div class="sl"><b>LivePi mode</b><span id="modeNote"></span></div><div class="sc"><div class="seg" id="modeSeg"><button data-v="vst">VST rack</button><button data-v="mixer">Mixer</button></div></div></div>
+  </div>
+  <div class="card">
     <h2>Appearance</h2>
     <div class="set"><div class="sl"><b>Theme</b><span>Auto follows this device</span></div><div class="sc"><div class="seg" id="themeSeg"><button data-theme="auto">Auto</button><button data-theme="dark">Dark</button><button data-theme="light">Light</button></div></div></div>
     <div class="set"><div class="sl"><b>Keep screen awake</b><span id="awakeNote">Off: the screen dims as set on this device</span></div><div class="sc"><div class="seg" id="awakeSeg"><button data-v="on">On</button><button data-v="off">Off</button></div></div></div>
@@ -685,6 +783,23 @@
  </div>
 </section>
 
+</div>
+<div id="cv" class="chview hide">
+  <div class="cvbar">
+    <b id="cvTitle" class="grow"></b>
+    <label class="cvpre"><span>Voice</span><select id="cvPreset"></select></label>
+    <select id="cvCopy" title="Copy this channel's settings to another channel"></select>
+    <button id="cvBypass" title="Bypass every module of this channel">Bypass</button>
+    <button id="cvClose" class="ico" title="Close">✕</button>
+  </div>
+  <div class="cvbody">
+    <div class="cvside cvin" id="cvIn"></div>
+    <div class="cvmain">
+      <div class="cvflow" id="cvFlow"></div>
+      <div class="cvpanel" id="cvPanel"></div>
+    </div>
+    <div class="cvside cvout" id="cvOut"></div>
+  </div>
 </div>
 <div id="pv" class="pv hide">
   <div class="pvbar">
@@ -1158,6 +1273,18 @@ function buildStrip(c, ch) {
   });
   const sum = c.slots.filter(p => p.cpuAvg !== undefined && !p.bypassed).reduce((a, p) => a + p.cpuAvg, 0);
   if (isBus) return s;   // the monitor mix carries no plugins
+  if (isMixer()) {
+    const box = el('div', 'vbox');
+    if (c.voice) {
+      box.append(el('div', 'vpre', c.voice.bypass ? 'Bypassed' : (c.voice.preset || 'Default')));
+      const fl = el('div', 'flowmini');
+      c.voice.modules.forEach(m => { const t = el('span', m.on ? 'on' : '', m.name); t.style.setProperty('--mc', MOD_COLOR[m.id]); fl.append(t); });
+      box.append(fl);
+      const ob = el('button', 'on opench', 'Open channel'); ob.onclick = () => cvOpen(ch); box.append(ob);
+    } else box.append(el('div', 'note', S.dryChannels ? 'Safe mode: unprocessed' : 'No processing'));
+    s.append(box);
+    return s;
+  }
   // On a phone the chain folds into one line ("2 plugins · LiveVoice, …"); tap to open it
   const box = el('div', 'fold' + (openFolds.has('c' + ch) ? '' : ' closed'));
   const names = c.slots.map(p => p.name).join(', ');
@@ -1182,7 +1309,7 @@ function buildStrip(c, ch) {
 }
 
 function renderStrips(st) {
-  const key = JSON.stringify(st.chains.map(c => [c.name, c.slots, c.sendDb > -60])) + JSON.stringify([st.monitorBus, st.outputNames]) + '|' + plugins.length + '|' + !!st.editorAvailable + '|' + (st.paflMode || 0);
+  const key = JSON.stringify(st.chains.map(c => [c.name, c.slots, c.sendDb > -60])) + JSON.stringify([st.monitorBus, st.outputNames]) + '|' + plugins.length + '|' + !!st.editorAvailable + '|' + (st.paflMode || 0) + '|' + (st.mode || '') + JSON.stringify(st.chains.map(c => c.voice ? [c.voice.preset, c.voice.bypass, c.voice.modules.map(m => m.id + (m.on ? 1 : 0)).join()] : 0));
   if (key === structKey) return;
   const a = document.activeElement;
   if (a && a.tagName === 'INPUT' && a.closest('#strips')) return;   // don't rebuild while renaming
@@ -1206,6 +1333,7 @@ function syncMix(st) {
 
 /* ---------- meters ---------- */
 function setMeter(ch, kind, db) {
+  if (ch === CV.ch && kind === 'out' && typeof cvSetMeter === 'function') { cvSetMeter('vout', db); const o = document.querySelector('#cv .cvoutdb'); if (o) o.textContent = db <= -99 ? '-inf' : db.toFixed(1) + ' dB'; }
   const key = ch + kind;
   const d = Math.max(db, (disp[key] ?? -100) - 2.5);
   disp[key] = d;
@@ -1290,15 +1418,16 @@ function arcPath(v0, v1) {
   const [x0, y0] = pt(v0), [x1, y1] = pt(v1);
   return `M${x0} ${y0} A${r} ${r} 0 ${(v1 - v0) * 270 > 180 ? 1 : 0} 1 ${x1} ${y1}`;
 }
-function sendParam(p, v, ctl) {
+window.sendParam = function sendParam(p, v, ctl) {
   p.value = v;
   throttled(`p${PV.ch}.${PV.slot}.${p.index}`, async () => {
     const r = await api('/api/param', { channel: PV.ch, slot: PV.slot, index: p.index, value: p.value });
     if (r && r.text !== undefined && ctl) ctl._text(r.text);
   }, 50);
-}
-function buildCtl(p, label) {
+};
+function buildCtl(p, label, send) {
   label = label || p.name;
+  const sendParam = send || window.sendParam;
   const c = el('div', 'ctl'); c.dataset.name = p.name.toLowerCase();
   if (p.type === 'bool') {
     const b = el('button', 'tog');
@@ -2270,6 +2399,431 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) awak
 for (const ev of ['pointerdown', 'touchend', 'keydown']) document.addEventListener(ev, () => { if (awakeWanted() && !AWAKE.on) awakeStart(); }, { passive: true });
 awakeStart();
 
+/* ---------- mixer mode: the built-in LiveVoice channel ----------
+   Left: input gain + fader (+ mute, PAFL). Middle: the flow of modules (tap one, drag the grip to
+   reorder) and the big panel of the selected module. Right: output trim + output meter. */
+const MOD_COLOR = { hpf: '#7ea9cc', pse: '#8bd450', feedback: '#ff8a3d', eq: '#2ec4b6', deess: '#a78bfa', prox: '#4cc9f0', leveler: '#80ed99', warmth: '#f4978e', comp: '#f6c453' };
+const BAND_COLOR = ['#2ec4b6', '#4cc9f0', '#7bdff2', '#80ed99', '#f7d070', '#f4978e'];
+const SPEC_MODS = ['hpf', 'eq', 'feedback', 'deess'];
+const CV = { ch: -1, view: null, live: null, spec: null, sel: 'eq', band: 0, out: true, timers: [], key: '', ctls: {}, hold: null, warmthLast: 30, quietUntil: 0 };
+function isMixer() { return !!(S && S.mode === 'mixer'); }
+function cvLabel(name) {
+  return name.replace(/^(PSE|Comp|Leveler|De-Ess|HPF|Feedback|Proximity Comp|Proximity|Dynamic EQ|Band \d)\s+/i, '').replace(/^SH /, 'SH ');
+}
+async function cvOpen(ch) {
+  CV.ch = ch; CV.key = ''; CV.hold = null;
+  try { CV.sel = localStorage.getItem('lh.cvsel') || 'eq'; CV.out = localStorage.getItem('lh.cvout') !== 'in'; } catch (e) {}
+  $('cv').classList.remove('hide');
+  await cvLoad(true);
+  CV.timers.forEach(clearInterval);
+  CV.timers = [setInterval(cvLive, 110), setInterval(cvSpec, 150), setInterval(() => cvLoad(false), 2500)];
+}
+function cvClose() { $('cv').classList.add('hide'); CV.ch = -1; CV.timers.forEach(clearInterval); CV.timers = []; refresh(); }
+$('cvClose').onclick = cvClose;
+async function cvLoad(force) {
+  if (CV.ch < 0 || document.hidden) return;
+  if (!force && Date.now() < CV.quietUntil) return;          // the user is changing something right now
+  const v = await api('/api/voice?channel=' + CV.ch, undefined, true);
+  if (!v || !v.modules) { if (force) { cvClose(); toast(v && v.error ? v.error : 'This channel is not a mixer channel'); } return; }
+  CV.view = v; CV.live = v.live;
+  cvRender();
+}
+function cvParam(id) {
+  const v = CV.view; if (!v) return null;
+  if (v[id]) return v[id];
+  for (const m in v.modules) for (const p of v.modules[m].params || []) if (p.id === id) return p;
+  return null;
+}
+function cvSend(id, norm, ctl) {
+  CV.quietUntil = Date.now() + 1500;
+  const p = cvParam(id); if (p) p.norm = norm;
+  throttled('v' + CV.ch + id, async () => {
+    const r = await api('/api/voice/param', { channel: CV.ch, id, norm });
+    if (r && r.text !== undefined) {
+      if (ctl && ctl._text) ctl._text(r.text);
+      const q = cvParam(id); if (q) Object.assign(q, r);
+      if (id === (CV.view.modules[CV.sel] || {}).onParam) cvFlowSync();
+    }
+  }, 50);
+}
+function cvCtl(p, label) {
+  const q = { name: p.name, value: p.norm, default: p.def, text: p.text, type: p.type, choices: p.choices, id: p.id };
+  const c = buildCtl(q, label || cvLabel(p.name), (pp, v, ctl) => { pp.value = v; cvSend(p.id, v, ctl); });
+  CV.ctls[p.id] = { c, q };
+  return c;
+}
+function cvSyncCtls() {
+  for (const id in CV.ctls) {
+    const { c, q } = CV.ctls[id]; const p = cvParam(id); if (!p || c._drag) continue;
+    if (Math.abs(q.value - p.norm) > 1e-4) { q.value = p.norm; c._set(p.norm); }
+    if (c._text) c._text(p.text);
+  }
+}
+function cvRender() {
+  const v = CV.view, ch = CV.ch;
+  if (!v.modules[CV.sel]) CV.sel = v.order[0];
+  const key = [ch, CV.sel, CV.band, v.order.join(','), (v.presets || []).join('|')].join('/');
+  const chain = S && S.chains ? S.chains[ch] : null;
+  $('cvTitle').textContent = chain ? chain.name : 'Channel ' + (ch + 1);
+  // voice presets (LiveVoice's factory presets)
+  const ps = $('cvPreset');
+  if (ps._k !== (v.presets || []).join('|') + v.preset) {
+    ps._k = (v.presets || []).join('|') + v.preset; ps.innerHTML = '';
+    const cur = el('option', '', v.preset || 'Default'); cur.value = ''; ps.append(cur);
+    (v.presets || []).forEach((n, i) => { const o = el('option', '', 'Load: ' + n); o.value = i; ps.append(o); });
+    ps.value = '';
+  }
+  const cp = $('cvCopy');
+  if (cp._k !== JSON.stringify((S.chains || []).map(c => c.name)) + ch) {
+    cp._k = JSON.stringify((S.chains || []).map(c => c.name)) + ch; cp.innerHTML = '';
+    const o0 = el('option', '', 'Copy to…'); o0.value = ''; cp.append(o0);
+    (S.chains || []).forEach((c, i) => { if (i !== ch) { const o = el('option', '', c.name); o.value = i; cp.append(o); } });
+    cp.classList.toggle('hide', (S.chains || []).length < 2);
+  }
+  $('cvBypass').classList.toggle('on', v.bypass && v.bypass.norm >= 0.5);
+  $('cvBypass').textContent = v.bypass && v.bypass.norm >= 0.5 ? 'Bypassed' : 'Bypass';
+  if (key === CV.key) { cvSyncCtls(); cvFlowSync(); return; }
+  CV.key = key; CV.ctls = {};
+  cvSides(); cvFlow(); cvPanel();
+}
+$('cvPreset').onchange = async () => {
+  const i = $('cvPreset').value; if (i === '') return;
+  const name = CV.view.presets[+i];
+  if (!confirm('Load the voice preset "' + name + '" on this channel? It replaces the module settings (not the input/output gain).')) { $('cvPreset').value = ''; return; }
+  await api('/api/voice/preset', { channel: CV.ch, index: +i }); CV.key = ''; $('cvPreset')._k = ''; await cvLoad(true); toast('Loaded ' + name);
+};
+$('cvCopy').onchange = async () => {
+  const to = $('cvCopy').value; if (to === '') return;
+  const name = S.chains[+to].name;
+  if (confirm('Copy all module settings and the order of this channel to ' + name + '?')) { const r = await api('/api/voice/copy', { from: CV.ch, to: +to }); if (r.ok) toast('Copied to ' + name); }
+  $('cvCopy').value = '';
+};
+$('cvBypass').onclick = () => { const on = !(CV.view.bypass && CV.view.bypass.norm >= 0.5); CV.view.bypass.norm = on ? 1 : 0; cvSend('bypass', on ? 1 : 0); cvRender(); };
+
+// ---- left: input gain + fader; right: output trim + output meter ----
+function cvMeter(kind, label) { const m = meterCol(kind, label, kind === 'vin' ? 'l' : 'r', ''); m.querySelector('.meter').dataset.k = kind; return m; }
+function cvSides() {
+  const v = CV.view, ch = CV.ch, chain = S.chains[ch] || {};
+  const L = $('cvIn'); L.innerHTML = ''; L.className = 'cvside cvin strip'; L.dataset.ch = ch;
+  L.append(el('h4', '', 'Input'));
+  if (v.inGain) L.append(cvCtl(v.inGain, 'Gain'));
+  const fm = el('div', 'fm');
+  const fader = makeFader(db => throttled('g' + ch, () => api('/api/mixer', { channel: ch, gainDb: db })));
+  fm.append(cvMeter('vin', 'IN'), fader);
+  L.append(fm, el('div', 'db', '0.0 dB'));
+  paintFader(fader, chain.gainDb || 0);
+  const keys = el('div', 'keys');
+  const mute = el('button', 'mute' + (chain.mute ? ' on' : ''), 'Mute');
+  mute.onclick = () => { const on = !mute.classList.contains('on'); mute.classList.toggle('on', on); api('/api/mixer', { channel: ch, mute: on }); };
+  const mb = el('button', 'monbtn' + (chain.sendDb > -60 ? ' on' : ''), 'PAFL'); mb.dataset.ch = ch;
+  mb.onclick = () => setMonitorSource(mb.classList.contains('on') ? -1 : ch);
+  keys.append(mute, mb); L.append(keys);
+  const R = $('cvOut'); R.innerHTML = '';
+  R.append(el('h4', '', 'Output'));
+  if (v.outGain) R.append(cvCtl(v.outGain, 'Trim'));
+  const fo = el('div', 'fm'); fo.append(cvMeter('vout', 'OUT')); R.append(fo, el('div', 'db cvoutdb', ''));
+}
+function cvSetMeter(kind, db) {
+  const k = 'cv' + kind;
+  const d = Math.max(db, (disp[k] ?? -100) - 2.5); disp[k] = d;
+  const i = document.querySelector(`#cv .meter[data-k="${kind}"] i`); if (i) i.style.clipPath = `inset(${100 - meterPct(d)}% 0 0 0)`;
+}
+
+// ---- the flow ----
+function cvFlow() {
+  const v = CV.view, F = $('cvFlow'); F.innerHTML = '';
+  v.order.forEach((id, i) => {
+    const m = v.modules[id];
+    const b = el('div', 'fb' + (id === CV.sel ? ' sel' : '') + (m.on ? '' : ' off')); b.dataset.id = id; b.style.setProperty('--mc', MOD_COLOR[id]);
+    const grip = el('div', 'grip'); grip.innerHTML = '<svg viewBox="0 0 10 16" width="10" height="16"><g fill="currentColor"><circle cx="2" cy="2" r="1.4"/><circle cx="8" cy="2" r="1.4"/><circle cx="2" cy="8" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="2" cy="14" r="1.4"/><circle cx="8" cy="14" r="1.4"/></g></svg>';
+    grip.title = 'Drag to move this module';
+    const pw = el('button', 'pwr' + (m.on ? ' on' : '')); pw.title = m.on ? 'On: tap to switch off' : 'Off: tap to switch on';
+    pw.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg>';
+    pw.onclick = e => { e.stopPropagation(); cvToggle(id); };
+    b.append(grip, el('span', 'dot' + (m.on ? ' on' : '')), el('span', 'fbn', m.name), el('span', 'fbm', ''), pw);
+    b.onclick = () => { CV.sel = id; try { localStorage.setItem('lh.cvsel', id); } catch (e) {} cvRender(); };
+    cvDrag(grip, b);
+    F.append(b);
+  });
+  F.append(el('div', 'fbflowhint', 'Top to bottom is the signal flow. Drag ⋮⋮ to change the order.'));
+  cvFlowSync();
+  const selB = F.querySelector('.fb.sel'); if (selB && getComputedStyle(F).flexDirection === 'row') selB.scrollIntoView({ inline: 'center', block: 'nearest' });
+}
+function cvToggle(id) {
+  const m = CV.view.modules[id];
+  if (id === 'warmth') {
+    const p = cvParam('warmth'); if (!p) return;
+    if (p.value > 0.5) { CV.warmthLast = p.value; cvSendReal('warmth', 0); } else cvSendReal('warmth', CV.warmthLast || 30);
+    return;
+  }
+  const p = cvParam(m.onParam); if (!p) return;
+  const on = !(p.norm >= 0.5); p.norm = on ? 1 : 0; m.on = on;
+  cvSend(m.onParam, on ? 1 : 0); cvFlowSync(); if (CV.ctls[m.onParam]) CV.ctls[m.onParam].c._set(on ? 1 : 0);
+  const pb = document.querySelector('#cvPanel .cvpower'); if (pb && CV.sel === id) { pb.classList.toggle('on', on); pb.textContent = on ? 'ON' : 'OFF'; }
+}
+async function cvSendReal(id, value) {
+  CV.quietUntil = Date.now() + 1500;
+  const r = await api('/api/voice/param', { channel: CV.ch, id, value });
+  if (r && r.text !== undefined) { const q = cvParam(id); if (q) Object.assign(q, r); CV.view.modules.warmth.on = (cvParam('warmth') || {}).value > 0.5; cvFlowSync(); cvSyncCtls(); }
+}
+function cvFlowSync() {
+  const v = CV.view, L = CV.live || {};
+  document.querySelectorAll('#cvFlow .fb').forEach(b => {
+    const id = b.dataset.id, m = v.modules[id]; if (!m) return;
+    const onp = id === 'warmth' ? ((cvParam('warmth') || {}).value > 0.5) : ((cvParam(m.onParam) || {}).norm >= 0.5);
+    m.on = onp;
+    b.classList.toggle('off', !onp); b.querySelector('.dot').classList.toggle('on', onp);
+    b.querySelector('.pwr').classList.toggle('on', onp);
+    const f = x => (x > -0.05 ? '0' : x.toFixed(1)) + ' dB';
+    const t = !onp ? 'off' : id === 'comp' ? f(-L.compGr || 0) : id === 'pse' ? (L.pseOpen ? 'open' : 'closed') : id === 'deess' ? f(-L.dsGr || 0)
+      : id === 'leveler' ? ((L.lvlGain || 0) >= 0 ? '+' : '') + (L.lvlGain || 0).toFixed(1) + ' dB' : id === 'prox' ? f(-L.proxCut || 0)
+      : id === 'feedback' ? (L.notches ? L.notches.length : 0) + ' notch' + ((L.notches || []).length === 1 ? '' : 'es') : '';
+    b.querySelector('.fbm').textContent = t;
+  });
+}
+// Drag the grip along the flow (vertical on a computer, sideways on a phone); drop = new order
+function cvDrag(grip, block) {
+  let start = null;
+  grip.addEventListener('pointerdown', e => {
+    e.preventDefault(); e.stopPropagation(); grip.setPointerCapture(e.pointerId);
+    const F = $('cvFlow'), row = getComputedStyle(F).flexDirection === 'row';
+    start = { x: e.clientX, y: e.clientY, row, items: [...F.querySelectorAll('.fb')], idx: [...F.querySelectorAll('.fb')].indexOf(block) };
+    block.classList.add('dragging'); CV.quietUntil = Date.now() + 60000;
+  });
+  grip.addEventListener('pointermove', e => {
+    if (!start) return;
+    const d = start.row ? e.clientX - start.x : e.clientY - start.y;
+    block.style.transform = start.row ? `translateX(${d}px)` : `translateY(${d}px)`;
+  });
+  const end = async e => {
+    if (!start) return;
+    const s = start; start = null; block.classList.remove('dragging'); block.style.transform = '';
+    const p = s.row ? e.clientX : e.clientY;
+    let to = 0;
+    s.items.forEach((it, i) => { if (it === block) return; const r = it.getBoundingClientRect(); const mid = s.row ? r.left + r.width / 2 : r.top + r.height / 2; if (p > mid) to = i + (i < s.idx ? 1 : 0); });
+    to = Math.max(0, Math.min(s.items.length - 1, to));
+    CV.quietUntil = Date.now() + 1500;
+    if (to === s.idx) return;
+    const order = CV.view.order.slice(); const [id] = order.splice(s.idx, 1); order.splice(to, 0, id);
+    await cvSetOrder(order);
+  };
+  grip.addEventListener('pointerup', end); grip.addEventListener('pointercancel', end);
+}
+async function cvSetOrder(order) {
+  const r = await api('/api/voice/order', { channel: CV.ch, order });
+  if (r.ok) { CV.view.order = order; CV.key = ''; cvRender(); } else toast(r.error || 'Could not change the order');
+}
+
+// ---- the panel of the selected module ----
+function cvPanel() {
+  const v = CV.view, id = CV.sel, m = v.modules[id], P = $('cvPanel'); P.innerHTML = '';
+  P.style.setProperty('--mc', MOD_COLOR[id]);
+  const pos = v.order.indexOf(id);
+  const h = el('div', 'cvph');
+  const t = el('h3', '', m.name); t.append(el('small', '', `${pos + 1} of ${v.order.length} in the flow`)); h.append(t);
+  if (SPEC_MODS.includes(id)) {
+    const seg = el('div', 'seg');
+    for (const [k, lab] of [[false, 'RTA in'], [true, 'RTA out']]) { const b = el('button', CV.out === k ? 'on' : '', lab); b.onclick = () => { CV.out = k; try { localStorage.setItem('lh.cvout', k ? 'out' : 'in'); } catch (e) {} CV.hold = null; seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); }; seg.append(b); }
+    h.append(seg);
+  }
+  const up = el('button', 'ico', pos > 0 ? '◀' : '◀'); up.title = 'Move earlier in the flow'; up.disabled = pos === 0;
+  const dn = el('button', 'ico', '▶'); dn.title = 'Move later in the flow'; dn.disabled = pos === v.order.length - 1;
+  up.onclick = () => { const o = v.order.slice(); [o[pos - 1], o[pos]] = [o[pos], o[pos - 1]]; cvSetOrder(o); };
+  dn.onclick = () => { const o = v.order.slice(); [o[pos + 1], o[pos]] = [o[pos], o[pos + 1]]; cvSetOrder(o); };
+  const pwr = el('button', 'tog cvpower' + (m.on ? ' on' : ''), m.on ? 'ON' : 'OFF'); pwr.onclick = () => cvToggle(id);
+  h.append(up, dn, pwr); P.append(h);
+
+  if (SPEC_MODS.includes(id)) {
+    const viz = el('div', 'cvviz'); const cnv = el('canvas'); viz.append(cnv); P.append(viz);
+    if (id === 'eq') cvEqDrag(cnv);
+  }
+  if (id === 'eq') {
+    const bs = el('div', 'cvbands');
+    for (let b = 0; b < 6; b++) {
+      const on = (cvParam('b' + (b + 1) + '_on') || {}).norm >= 0.5;
+      const btn = el('button', b === CV.band ? 'on' : '', 'Band ' + (b + 1) + (on ? '' : ' (off)')); btn.style.setProperty('--bc', BAND_COLOR[b]);
+      btn.onclick = () => { CV.band = b; cvRender(); }; bs.append(btn);
+    }
+    P.append(bs);
+  }
+  const meters = el('div', 'cvmeters'); meters.id = 'cvMeters'; P.append(meters);
+  if (id === 'feedback') {
+    const row = el('div', 'cvrow');
+    for (const [pid, lab] of [['fbLearn', 'Ring-out learn'], ['fbFreeze', 'Freeze notches']]) {
+      const p = cvParam(pid); if (!p) continue;
+      const b = el('button', 'tog big' + (p.norm >= 0.5 ? ' on' : ''), lab);
+      b.onclick = () => { const on = !(p.norm >= 0.5); p.norm = on ? 1 : 0; b.classList.toggle('on', on); cvSend(pid, on ? 1 : 0); };
+      row.append(b);
+    }
+    const cf = el('button', '', 'Clear floating'); cf.onclick = () => api('/api/voice/notch', { channel: CV.ch, cmd: 'clearFloating' });
+    const ca = el('button', 'danger', 'Clear all'); ca.onclick = () => { if (confirm('Remove every notch, including the fixed ones learned during the ring-out?')) api('/api/voice/notch', { channel: CV.ch, cmd: 'clearAll' }); };
+    row.append(cf, ca); P.append(row);
+    const nt = el('div', 'ntable'); nt.id = 'cvNotches'; P.append(nt);
+  }
+  const grid = el('div', 'cvctls');
+  let ids = (m.params || []).map(p => p.id).filter(x => x !== m.onParam && x !== 'fbLearn' && x !== 'fbFreeze');
+  if (id === 'eq') ids = ids.filter(x => x.startsWith('b' + (CV.band + 1) + '_'));
+  for (const pid of ids) { const p = cvParam(pid); if (p) grid.append(cvCtl(p, id === 'eq' ? cvLabel(p.name).replace(/^On$/, 'Band on') : cvLabel(p.name))); }
+  P.append(grid);
+  cvMeters();
+}
+function hmRow(label, frac, text, opts = {}) {
+  const r = el('div', 'hm'), bar = el('div', 'bar'), i = el('i'); if (opts.gr) i.className = 'gr';
+  i.style.width = Math.max(0, Math.min(100, frac * 100)) + '%'; if (opts.color) i.style.background = opts.color; bar.append(i);
+  if (opts.mark !== undefined) { const b = el('b'); b.style.left = `calc(${Math.max(0, Math.min(100, opts.mark * 100))}% - 1px)`; bar.append(b); }
+  r.append(el('span', '', label), bar, el('span', '', text)); return r;
+}
+function cvMeters() {
+  const box = $('cvMeters'); if (!box) return;
+  const L = CV.live || {}, id = CV.sel, rows = [];
+  const pv = x => (cvParam(x) || {}).value;
+  if (id === 'comp') {
+    rows.push(hmRow('Input level', ((L.compIn ?? -100) + 60) / 60, (L.compIn ?? -100) <= -99 ? '-inf' : (L.compIn).toFixed(1) + ' dB', { mark: (pv('compThr') + 60) / 60 }));
+    rows.push(hmRow('Gain reduction', (L.compGr || 0) / 20, '-' + (L.compGr || 0).toFixed(1) + ' dB', { gr: true }));
+    rows.push(hmRow('Makeup', (L.compMakeup || 0) / 24, '+' + (L.compMakeup || 0).toFixed(1) + ' dB', { color: MOD_COLOR.comp }));
+  } else if (id === 'pse') {
+    rows.push(hmRow('Voice level', ((L.pseKey ?? -100) + 80) / 80, (L.pseKey ?? -100) <= -99 ? '-inf' : L.pseKey.toFixed(1) + ' dB', { mark: (pv('pseThr') + 80) / 80, color: L.pseOpen ? 'var(--ok)' : 'var(--faint)' }));
+    rows.push(hmRow(L.pseOpen ? 'Open' : 'Closed', (L.pseGr || 0) / 40, '-' + (L.pseGr || 0).toFixed(1) + ' dB', { gr: true }));
+  } else if (id === 'deess') {
+    rows.push(hmRow('Gain reduction', (L.dsGr || 0) / 24, '-' + (L.dsGr || 0).toFixed(1) + ' dB', { gr: true }));
+  } else if (id === 'leveler') {
+    const rg = pv('lvlRange') || 6;
+    rows.push(hmRow('Level', ((L.lvlLevel ?? -100) + 60) / 60, (L.lvlLevel ?? -100) <= -99 ? '-inf' : L.lvlLevel.toFixed(1) + ' dB', { mark: (pv('lvlTarget') + 60) / 60 }));
+    rows.push(hmRow(L.lvlHold ? 'Gain (holding)' : 'Gain', ((L.lvlGain || 0) + rg) / (2 * rg), ((L.lvlGain || 0) >= 0 ? '+' : '') + (L.lvlGain || 0).toFixed(1) + ' dB', { mark: 0.5, color: MOD_COLOR.leveler }));
+  } else if (id === 'prox') {
+    rows.push(hmRow('Low-end cut', (L.proxCut || 0) / 12, '-' + (L.proxCut || 0).toFixed(1) + ' dB', { gr: true }));
+  } else if (id === 'eq') {
+    const b = CV.band;
+    if ((cvParam('b' + (b + 1) + '_dyn') || {}).norm >= 0.5)
+      rows.push(hmRow('Dynamic gain', ((L.eqDyn ? L.eqDyn[b] : 0) + 18) / 36, ((L.eqDyn ? L.eqDyn[b] : 0) >= 0 ? '+' : '') + (L.eqDyn ? L.eqDyn[b] : 0).toFixed(1) + ' dB', { mark: 0.5, color: BAND_COLOR[b] }));
+  }
+  box.replaceChildren(...rows);
+  const nt = $('cvNotches');
+  if (nt) {
+    const list = (L.notches || []).slice().sort((a, b) => a.freq - b.freq);
+    const k = JSON.stringify(list.map(n => [n.slot, Math.round(n.freq), Math.round(n.target), n.fixed]));
+    if (nt._k !== k) {
+      nt._k = k; nt.innerHTML = '';
+      if (!list.length) nt.append(el('div', 'note', 'No notches. Feedback is caught as it starts; use Ring-out learn during the soundcheck to set fixed notches.'));
+      list.forEach(n => {
+        const r = el('div', 'nrow');
+        r.append(el('span', '', (n.freq >= 1000 ? (n.freq / 1000).toFixed(2) + ' kHz' : Math.round(n.freq) + ' Hz')), el('span', '', n.target.toFixed(1) + ' dB'), el('span', '', n.fixed ? 'fixed' : 'floating'));
+        const act = el('div', 'cvrow');
+        if (!n.fixed) { const f = el('button', '', 'Make fixed'); f.onclick = () => api('/api/voice/notch', { channel: CV.ch, cmd: 'makeFixed', slot: n.slot }); act.append(f); }
+        const x = el('button', '', 'Remove'); x.onclick = () => api('/api/voice/notch', { channel: CV.ch, cmd: 'removeSlot', slot: n.slot }); act.append(x);
+        r.append(act); nt.append(r);
+      });
+    }
+  }
+}
+async function cvLive() {
+  if (CV.ch < 0 || document.hidden || !CV.view) return;
+  const v = await api('/api/voice?channel=' + CV.ch + '&live=1', undefined, true);
+  if (!v || !v.live) return;
+  CV.live = v.live;
+  cvSetMeter('vin', v.live.inPeak);
+  if (v.order && v.order.join(',') !== CV.view.order.join(',') && Date.now() > CV.quietUntil) { CV.view.order = v.order; CV.key = ''; cvRender(); }
+  if (v.preset !== undefined) CV.view.preset = v.preset;
+  cvFlowSync(); cvMeters();
+}
+async function cvSpec() {
+  if (CV.ch < 0 || document.hidden || !SPEC_MODS.includes(CV.sel)) return;
+  const s = await api(`/api/voice/spectrum?channel=${CV.ch}&module=${CV.sel}&out=${CV.out ? 1 : 0}`, undefined, true);
+  if (!s || !s.rta) return;
+  if (!CV.hold || CV.hold.length !== s.rta.length) CV.hold = s.rta.slice();
+  for (let i = 0; i < s.rta.length; i++) CV.hold[i] = Math.max(s.rta[i], CV.hold[i] - 1.5);
+  CV.spec = s; cvDraw();
+}
+// RTA + curve: x is log frequency (20 Hz .. 20 kHz); RTA -90..0 dBFS; curve in its own range
+function cvRange(id) { return id === 'eq' ? [-18, 18] : id === 'hpf' ? [-48, 6] : [-30, 6]; }
+function cvDraw() {
+  const cnv = document.querySelector('#cvPanel canvas'); if (!cnv || !CV.spec) return;
+  const dpr = window.devicePixelRatio || 1, W = cnv.clientWidth, H = cnv.clientHeight;
+  if (cnv.width !== Math.round(W * dpr)) { cnv.width = Math.round(W * dpr); cnv.height = Math.round(H * dpr); }
+  const g = cnv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  const css = getComputedStyle(document.documentElement);
+  const line = css.getPropertyValue('--line').trim(), dim = css.getPropertyValue('--dim').trim();
+  const fx = f => Math.log(f / 20) / Math.log(1000) * W;
+  const [c0, c1] = cvRange(CV.sel), cy = db => H - (db - c0) / (c1 - c0) * H, ry = db => H - (db + 90) / 90 * H;
+  g.font = '10px system-ui, sans-serif'; g.fillStyle = dim; g.strokeStyle = line; g.lineWidth = 1;
+  for (const f of [50, 100, 200, 500, 1000, 2000, 5000, 10000]) { const x = Math.round(fx(f)) + 0.5; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); g.fillText(f >= 1000 ? f / 1000 + 'k' : f, x + 3, H - 4); }
+  const zy = Math.round(cy(0)) + 0.5; g.beginPath(); g.moveTo(0, zy); g.lineTo(W, zy); g.stroke();
+  const fr = CV.spec.freqs, rt = CV.hold, color = MOD_COLOR[CV.sel];
+  g.beginPath(); g.moveTo(0, H);
+  fr.forEach((f, i) => g.lineTo(fx(f), ry(rt[i])));
+  g.lineTo(W, H); g.closePath(); g.fillStyle = 'rgba(124,135,148,0.28)'; g.fill();
+  const cv = CV.spec.curve || [];
+  if (cv.length) {
+    g.beginPath(); fr.forEach((f, i) => { const y = cy(cv[i]); i ? g.lineTo(fx(f), y) : g.moveTo(fx(f), y); });
+    g.strokeStyle = color; g.lineWidth = 2.5; g.stroke();
+  }
+  if (CV.sel === 'feedback') for (const n of (CV.live && CV.live.notches) || []) {
+    const x = fx(n.freq); g.strokeStyle = n.fixed ? '#ef4c4c' : color; g.lineWidth = 2; g.beginPath(); g.moveTo(x, cy(0)); g.lineTo(x, cy(n.depth)); g.stroke();
+  }
+  if (CV.sel === 'eq') for (let b = 0; b < 6; b++) {
+    const on = (cvParam('b' + (b + 1) + '_on') || {}).norm >= 0.5, f = (cvParam('b' + (b + 1) + '_freq') || {}).value, gn = (cvParam('b' + (b + 1) + '_gain') || {}).value;
+    if (f === undefined) continue;
+    const x = fx(f), y = cy(gn); g.beginPath(); g.arc(x, y, b === CV.band ? 9 : 7, 0, Math.PI * 2);
+    g.fillStyle = on ? BAND_COLOR[b] : 'rgba(124,135,148,0.6)'; g.fill();
+    if (b === CV.band) { g.strokeStyle = '#fff'; g.lineWidth = 2; g.stroke(); }
+    g.fillStyle = '#0d1015'; g.font = 'bold 9px system-ui'; g.fillText(String(b + 1), x - 2.5, y + 3);
+  }
+}
+// EQ: drag a band's dot on the graph (left/right = frequency, up/down = gain)
+function cvEqDrag(cnv) {
+  let drag = -1;
+  const pos = e => { const r = cnv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top, r.width, r.height]; };
+  cnv.addEventListener('pointerdown', e => {
+    const [x, y, W, H] = pos(e), [c0, c1] = cvRange('eq');
+    let best = -1, bd = 30;
+    for (let b = 0; b < 6; b++) {
+      const f = (cvParam('b' + (b + 1) + '_freq') || {}).value, gn = (cvParam('b' + (b + 1) + '_gain') || {}).value; if (f === undefined) continue;
+      const bx = Math.log(f / 20) / Math.log(1000) * W, by = H - (gn - c0) / (c1 - c0) * H, d = Math.hypot(bx - x, by - y);
+      if (d < bd) { bd = d; best = b; }
+    }
+    if (best < 0) return;
+    drag = best; cnv.setPointerCapture(e.pointerId); CV.quietUntil = Date.now() + 60000;
+    if (CV.band !== best) { CV.band = best; cvRender(); }
+  });
+  cnv.addEventListener('pointermove', e => {
+    if (drag < 0) return;
+    const [x, y, W, H] = pos(e), [c0, c1] = cvRange('eq');
+    const f = Math.max(20, Math.min(20000, 20 * Math.pow(1000, x / W))), gn = Math.max(-18, Math.min(18, c0 + (H - y) / H * (c1 - c0)));
+    const pf = cvParam('b' + (drag + 1) + '_freq'), pg = cvParam('b' + (drag + 1) + '_gain');
+    pf.value = f; pg.value = Math.round(gn * 10) / 10;
+    throttled('eqd', async () => {
+      const id = 'b' + (drag + 1);
+      const [r1, r2] = await Promise.all([api('/api/voice/param', { channel: CV.ch, id: id + '_freq', value: pf.value }), api('/api/voice/param', { channel: CV.ch, id: id + '_gain', value: pg.value })]);
+      if (r1 && r1.text) Object.assign(cvParam(id + '_freq'), r1); if (r2 && r2.text) Object.assign(cvParam(id + '_gain'), r2);
+      cvSyncCtls();
+    }, 60);
+    cvDraw();
+  });
+  const end = () => { drag = -1; CV.quietUntil = Date.now() + 1500; };
+  cnv.addEventListener('pointerup', end); cnv.addEventListener('pointercancel', end);
+}
+window.addEventListener('resize', () => { if (CV.ch >= 0) cvDraw(); });
+
+/* ---------- mode switch (Settings > Mode) ---------- */
+function modeSync() {
+  const m = isMixer() ? 'mixer' : 'vst';
+  document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === m));
+  $('modeNote').textContent = m === 'mixer' ? 'Mixer: every channel has the LiveVoice modules built in, in any order. Zero latency.'
+                                            : 'VST rack: every channel runs the VST plugins you load.';
+}
+document.querySelectorAll('#modeSeg button').forEach(b => b.onclick = async () => {
+  const to = b.dataset.v; if ((to === 'mixer') === isMixer()) return;
+  const msg = to === 'mixer'
+    ? 'Switch to Mixer mode?\n\nEvery channel gets the LiveVoice modules built in (High-pass, PSE, Feedback, Dynamic EQ, De-esser, Proximity, Leveler, Warmth, Compressor). Your VST plugins are kept and come back when you switch back.\n\nThe audio stops for a moment.'
+    : 'Switch to VST mode?\n\nEvery channel runs its VST plugins again. Your mixer settings are kept and come back when you switch back.\n\nThe audio stops for a moment.';
+  if (!confirm(msg)) return;
+  b.disabled = true;
+  const r = await api('/api/mode', { mode: to });
+  b.disabled = false;
+  if (r.ok === false && r.error) toast(r.error); else toast(to === 'mixer' ? 'Mixer mode' : 'VST mode');
+  structKey = ''; await refresh(); modeSync();
+});
+
 /* ---------- presets ---------- */
 $('presetLoad').onclick = async () => { const n = $('presetList').value; if (!n) return; const r = await api('/api/presets/load', { name: n }); if (r.ok) toast('Loaded ' + n); structKey = ''; refresh(); };
 $('presetDel').onclick = async () => {
@@ -2598,6 +3152,7 @@ async function refresh() {
   renderStrips(st);
   monOutsRender(st);
   paflSync();
+  modeSync();
   syncMix(st);
 }
 

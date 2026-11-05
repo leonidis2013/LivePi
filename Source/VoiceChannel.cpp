@@ -474,7 +474,7 @@ static var paramVar (RangedAudioParameter* rp)
     return var (o);
 }
 
-var VoiceChannel::getView()
+var VoiceChannel::getView (bool full)
 {
     auto* o = new DynamicObject();
     Array<var> ord;
@@ -492,15 +492,19 @@ var VoiceChannel::getView()
         mo->setProperty ("name", moduleName (m));
         mo->setProperty ("on", isModuleOn (m));
         mo->setProperty ("onParam", moduleOnParam (m));
-        Array<var> ps;
-        for (auto& id : moduleParams (m))
-            if (auto* rp = apvts.getParameter (id)) ps.add (paramVar (rp));
-        mo->setProperty ("params", ps);
+        if (full)
+        {
+            Array<var> ps;
+            for (auto& id : moduleParams (m))
+                if (auto* rp = apvts.getParameter (id)) ps.add (paramVar (rp));
+            mo->setProperty ("params", ps);
+        }
         mods->setProperty (moduleId (m), var (mo));
     }
     o->setProperty ("modules", var (mods));
     for (auto* id : { "inGain", "outGain", "bypass" })
         if (auto* rp = apvts.getParameter (id)) o->setProperty (id, paramVar (rp));
+
     o->setProperty ("live", [this]
     {
         auto* l = new DynamicObject();
@@ -554,6 +558,13 @@ var VoiceChannel::setParam (const String& id, double value)
     if (PresetManager::isPresetParameter (id) && ! presets.getCurrentName().endsWith (" (edited)"))
         presets.setCurrentName (presets.getCurrentName() + " (edited)");
     return paramVar (rp);
+}
+
+var VoiceChannel::setParamNorm (const String& id, double norm)
+{
+    auto* rp = apvts.getParameter (id);
+    if (rp == nullptr || ! std::isfinite (norm)) return var();
+    return setParam (id, rp->convertFrom0to1 ((float) jlimit (0.0, 1.0, norm)));
 }
 
 var VoiceChannel::notchCommand (const String& cmd, int slot)

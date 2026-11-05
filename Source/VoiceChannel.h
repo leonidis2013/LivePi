@@ -41,9 +41,10 @@ public:
     bool setOrder (const std::array<int, numModules>& order);   // must be a permutation
 
     // ---- for the page ----
-    juce::var getView();                                         // values, order, meters, notches
+    juce::var getView (bool full = true);                        // full: values + order; always: live meters, notches
     juce::var getSpectrum (bool output, int module);             // RTA bins + module curve (dB)
     juce::var setParam (const juce::String& id, double value);   // real (not normalised) value
+    juce::var setParamNorm (const juce::String& id, double norm); // 0..1 (from a knob)
     juce::var notchCommand (const juce::String& cmd, int slot);  // clearFloating, clearAll, removeSlot, makeFixed
     juce::var loadFactoryPreset (int index);
     juce::StringArray factoryPresetNames() const { return presets.getFactoryNames(); }

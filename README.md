@@ -2,7 +2,7 @@
 
 # LivePi
 
-Headless VST3 host for live voice on a Raspberry Pi, run entirely from a web page on your phone, tablet or computer. Built with JUCE. It runs your own Linux ARM64 VST3 plugins, with one chain per channel.
+Headless live-voice processor for a Raspberry Pi, run entirely from a web page on your phone, tablet or computer. Built with JUCE. Two modes: a **VST rack** that runs your own Linux ARM64 VST3 plugins, one chain per channel, or a **mixer** whose channels have the [LiveVoice](https://github.com/leonidis2013/LiveVoice) modules built in (zero latency, in any order).
 
 📖 **[Read the LivePi User Manual](docs/MANUAL.md)**: installing, the mixer, PAFL monitoring, plugin views, setup pages, password and trusted access, updating, latency tips and troubleshooting.
 
@@ -47,3 +47,7 @@ Pis can also update online from ⚙ → System. If a new version fails to start 
 - Uploaded plugins are native code that runs on the Pi, so only upload plugins you trust.
 - LivePi uses plain HTTP. Keep the Pi on a network you control and never expose it to the internet.
 - Zip uploads are checked for path tricks and symbolic links before unpacking.
+
+## Licence
+
+AGPL-3.0 (see `LICENSE`), like LiveVoice, whose DSP code mixer mode uses. Copyright © Jerod Ulicki.

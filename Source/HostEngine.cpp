@@ -354,11 +354,11 @@ var HostEngine::setMode (const String& mode)
     return r;
 }
 
-var HostEngine::voiceView (int channel)
+var HostEngine::voiceView (int channel, bool full)
 {
     auto* vc = voiceOf (channel);
     if (vc == nullptr) return err ("not a mixer channel");
-    return vc->getView();
+    return vc->getView (full);
 }
 
 var HostEngine::voiceSpectrum (int channel, bool output, const String& module)
@@ -368,11 +368,11 @@ var HostEngine::voiceSpectrum (int channel, bool output, const String& module)
     return vc->getSpectrum (output, VoiceChannel::moduleFromId (module));
 }
 
-var HostEngine::voiceParam (int channel, const String& id, double value)
+var HostEngine::voiceParam (int channel, const String& id, double value, bool normalised)
 {
     auto* vc = voiceOf (channel);
     if (vc == nullptr) return err ("not a mixer channel");
-    auto r = vc->setParam (id, value);
+    auto r = normalised ? vc->setParamNorm (id, value) : vc->setParam (id, value);
     if (r.isVoid()) return err ("unknown setting");
     markDirty();
     return r;

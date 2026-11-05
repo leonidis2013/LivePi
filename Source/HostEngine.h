@@ -33,9 +33,9 @@ public:
     // ---- mixer mode (built-in LiveVoice channels) ----
     bool isMixerMode() const { return mixerMode; }
     juce::var setMode (const juce::String& mode);   // "vst" or "mixer"
-    juce::var voiceView (int channel);
+    juce::var voiceView (int channel, bool full = true);
     juce::var voiceSpectrum (int channel, bool output, const juce::String& module);
-    juce::var voiceParam (int channel, const juce::String& id, double value);
+    juce::var voiceParam (int channel, const juce::String& id, double value, bool normalised = false);
     juce::var voiceOrder (int channel, const juce::var& order);
     juce::var voicePreset (int channel, int index);
     juce::var voiceNotch (int channel, const juce::String& cmd, int slot);
