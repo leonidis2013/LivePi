@@ -1,6 +1,6 @@
 # LivePi User Manual
 
-**LivePi v0.16.1** · Copyright © Jerod Ulicki
+**LivePi v0.17.0** · Copyright © Jerod Ulicki
 
 LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Audio goes in through the Pi's sound card, through your plugins (for example LiveVoice), and back out with very little delay. You control everything from a web page on a phone, tablet or computer. The Pi needs no screen, keyboard or mouse.
 
@@ -284,6 +284,7 @@ If no sound card is found at start-up, LivePi falls back to the virtual card for
 | Setting | Meaning |
 |---|---|
 | **Theme** | Auto (follows the device), Dark or Light. Saved on this device only. |
+| **Keep screen awake** | On: the screen doesn't dim or lock while LivePi is open, handy for an iPad on the desk. Saved on this device only. If it says *tap anywhere to start it*, tap the page once. Keep the iPad on power. |
 | **Plugins open in** | What tapping a plugin name opens: Controls or Plugin. Saved on this device only. |
 | **PAFL mode** | PFL, AFL or Input, for all channels. Saved in presets. |
 | **Listen delay** | Lowest, Low or Safe, for *Listen here* on this device. |

@@ -633,6 +633,7 @@
   <div class="card">
     <h2>Appearance</h2>
     <div class="set"><div class="sl"><b>Theme</b><span>Auto follows this device</span></div><div class="sc"><div class="seg" id="themeSeg"><button data-theme="auto">Auto</button><button data-theme="dark">Dark</button><button data-theme="light">Light</button></div></div></div>
+    <div class="set"><div class="sl"><b>Keep screen awake</b><span id="awakeNote">Off: the screen dims as set on this device</span></div><div class="sc"><div class="seg" id="awakeSeg"><button data-v="on">On</button><button data-v="off">Off</button></div></div></div>
   </div>
   <div class="card">
     <h2>Mixer</h2>
@@ -2209,6 +2210,57 @@ let NET_FOLLOWING = false;
     .then(r => r.json()).then(j => toast(j.ok ? 'New network settings kept.' : 'Could not confirm the network change: ' + (j.error || ''))).catch(() => {});
 })();
 setInterval(() => netLoad(false), 5000);
+
+/* ---------- keep the screen awake (this device only) ----------
+   Uses the browser's Screen Wake Lock where it is allowed (HTTPS pages only). LivePi runs on plain
+   HTTP, so Safari on an iPad gets the well-known fallback instead: a tiny silent, invisible video
+   playing in a loop, which iPadOS counts as "in use" and so does not dim or lock the screen. */
+const AWAKE = { lock: null, video: null, on: false };
+const AWAKE_MP4 = 'data:video/mp4;base64,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';
+const AWAKE_WEBM = 'data:video/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAAOyEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHYTbuMU6uEElTDZ1OsggEeTbuMU6uEHFO7a1OsggOc7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmsirXsYMPQkBNgI1MYXZmNjAuMTYuMTAwV0GNTGF2ZjYwLjE2LjEwMESJiECfQAAAAAAAFlSua8GuAQAAAAAAADjXgQFzxYgSkfSojKMlB5yBACK1nIN1bmSIgQCGhVZfVlA4g4EBI+ODhAX14QDgibCBQLqBQJqBAhJUw2f8c3OgY8CAZ8iaRaOHRU5DT0RFUkSHjUxhdmY2MC4xNi4xMDBzc9ZjwItjxYgSkfSojKMlB2fIoUWjh0VOQ09ERVJEh5RMYXZjNjAuMzEuMTAyIGxpYnZweGfIoUWjiERVUkFUSU9ORIeTMDA6MDA6MDIuMDAwMDAwMDAwAB9DtnVB9+eBAKOqgQAAgPACAJ0BKkAAQAAARwiFhYiFhIgCAgAGcDxCYAqyIPcwAP7/q1CAo5aBAGQA0QEAARAQABgAGFgv9AAIjoAAo5aBAMgA0QEAARAQABgAGFgv9AAIjoAAo5aBASwA0QEAARAQABgAGFgv9AAIjoAAo5aBAZAA0QEAARAQABgAGFgv9AAIjoAAo5aBAfQA0QEAARAQABgAGFgv9AAIjoAAo5aBAlgA0QEAARAQABgAGFgv9AAIjoAAo5aBArwA0QEAARAQFGAAYWC/0AAiOgAAo5aBAyAA0QEAARAQABgAGFgv9AAIjoAAo5aBA4QA0QEAARAQABgAGFgv9AAIjoAAo5aBA+gA0QEAARAQABgAGFgv9AAIjoAAo5aBBEwA0QEAARAQABgAGFgv9AAIjoAAo5aBBLAA0QEAARAQABgAGFgv9AAIjoAAo5aBBRQA0QEAARAQABgAGFgv9AAIjoAAo5aBBXgA0QEAARAQABgAGFgv9AAIjoAAo5aBBdwA0QEAARAQABgAGFgv9AAIjoAAo5aBBkAA0QEAARAQABgAGFgv9AAIjoAAo5aBBqQA0QEAARAQABgAGFgv9AAIjoAAo5aBBwgA0QEAARAQFGAAYWC/0AAiOgAAo5aBB2wA0QEAARAQABgAGFgv9AAIjoAAHFO7a5G7j7OBALeK94EB8YIBn/CBAw==';
+function awakeWanted() { try { return localStorage.getItem('lh.awake') === 'on'; } catch (e) { return false; } }
+async function awakeStart() {
+  if (!awakeWanted() || document.hidden) return awakeSync();
+  if ('wakeLock' in navigator && window.isSecureContext) {
+    try {
+      if (!AWAKE.lock) {
+        AWAKE.lock = await navigator.wakeLock.request('screen');
+        AWAKE.lock.addEventListener('release', () => { AWAKE.lock = null; AWAKE.on = false; awakeSync(); });
+      }
+      AWAKE.on = true; return awakeSync();
+    } catch (e) {}
+  }
+  if (!AWAKE.video) {
+    const v = document.createElement('video');
+    v.setAttribute('playsinline', ''); v.setAttribute('webkit-playsinline', ''); v.setAttribute('muted', '');
+    v.muted = true; v.loop = true; v.setAttribute('aria-hidden', 'true');
+    v.style.cssText = 'position:fixed;left:0;bottom:0;width:1px;height:1px;opacity:0.01;pointer-events:none;z-index:-1';
+    for (const [src, type] of [[AWAKE_MP4, 'video/mp4'], [AWAKE_WEBM, 'video/webm']]) { const so = document.createElement('source'); so.src = src; so.type = type; v.append(so); }
+    // keep it "moving" even where looping alone is not enough (older iPadOS)
+    v.addEventListener('timeupdate', () => { if (v.currentTime > 1.5) v.currentTime = 0.1; });
+    document.body.append(v); AWAKE.video = v;
+  }
+  try { await AWAKE.video.play(); AWAKE.on = true; } catch (e) { AWAKE.on = false; }   // some browsers need a tap first
+  awakeSync();
+}
+function awakeStop() {
+  if (AWAKE.lock) { AWAKE.lock.release().catch(() => {}); AWAKE.lock = null; }
+  if (AWAKE.video) AWAKE.video.pause();
+  AWAKE.on = false; awakeSync();
+}
+function awakeSync() {
+  const want = awakeWanted();
+  document.querySelectorAll('#awakeSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === (want ? 'on' : 'off')));
+  $('awakeNote').textContent = !want ? 'Off: the screen dims as set on this device'
+    : AWAKE.on ? 'On: the screen stays on while LivePi is open (this device)' : 'On: tap anywhere on the page to start it';
+}
+document.querySelectorAll('#awakeSeg button').forEach(b => b.onclick = () => {
+  try { localStorage.setItem('lh.awake', b.dataset.v); } catch (e) {}
+  if (b.dataset.v === 'on') awakeStart(); else awakeStop();          // inside the tap, so playback is allowed
+});
+document.addEventListener('visibilitychange', () => { if (!document.hidden) awakeStart(); });
+for (const ev of ['pointerdown', 'touchend', 'keydown']) document.addEventListener(ev, () => { if (awakeWanted() && !AWAKE.on) awakeStart(); }, { passive: true });
+awakeStart();
 
 /* ---------- presets ---------- */
 $('presetLoad').onclick = async () => { const n = $('presetList').value; if (!n) return; const r = await api('/api/presets/load', { name: n }); if (r.ok) toast('Loaded ' + n); structKey = ''; refresh(); };
