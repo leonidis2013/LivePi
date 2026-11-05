@@ -2,7 +2,7 @@
 
 <img src="images/logo.svg" width="72" alt="LivePi logo">
 
-**LivePi v0.22.0** · Copyright © Jerod Ulicki
+**LivePi v0.23.0** · Copyright © Jerod Ulicki
 
 LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Audio goes in through the Pi's sound card, through your plugins (for example LiveVoice), and back out with very little delay. You control everything from a web page on a phone, tablet or computer. The Pi needs no screen, keyboard or mouse.
 
@@ -95,7 +95,7 @@ You can answer some of these up front:
 
 ### The setup assistant
 
-The first time LivePi is opened, a short **setup assistant** walks through the audio interface, the number of channels, VST rack or Mixer mode, the starting sound for each microphone (mixer mode, including **Lapel**), the network (automatic or a fixed IP address) and the password. Skip any step. Run it again any time: **⚙ → Settings → Setup assistant → Run setup**, handy when something isn't working.
+The first time LivePi is opened, a short **setup assistant** walks through the audio interface, the number of channels, VST rack or Mixer mode, the starting sound for each microphone (mixer mode, including **Lapel**), the network (automatic or a fixed IP address) and the password. In the assistant, **Next** applies what you changed (the audio interface, the number of channels; a network change asks you to confirm first, because the connection can drop). The assistant remembers where it was, so it carries on at the next step on another device or at the Pi's new network address. Skip any step. Run it again any time: **⚙ → Settings → Setup assistant → Run setup**, handy when something isn't working.
 
 
 Open **`http://livepi.local:8080`** in any browser on the same network. If that name doesn't work, use the Pi's IP address instead, for example `http://192.168.1.50:8080`.
@@ -252,8 +252,7 @@ On the mixer, each channel shows its voice preset and its modules in flow order 
 
 | Area | What it does |
 |---|---|
-| **Left: In** | The IN meter: the level after the input gain. |
-| **Flow** | **Input** (gain and polarity) is always first and can't be removed. Then the modules, numbered in signal order: a list on a computer, a grid of tiles on a phone or tablet. Each shows a status (gain reduction, notch count, open/closed) and its **power** button. **Tap a module** to open its controls. **Drag the ⋮⋮ grip** to move it (computer); the **↑ ↓** buttons at the top of the panel move it one place (everywhere). **Remove** (top of the panel) takes a module out of the flow: it isn't processed at all, and its settings are kept. **+ Add module** puts one back, after the module that is open. |
+| **Flow** | **Input** (gain and polarity) is always first and can't be removed. Then the modules, numbered in signal order: a list on a computer, a grid of tiles on a phone or tablet. Each shows a status (gain reduction, notch count, open/closed) and its **power** button. **Tap a module** to open its controls. **Drag the ⋮⋮ grip** to move it (computer); the **↑ ↓** buttons at the top of the panel move it one place (everywhere). **Remove** (top of the panel) takes a module out of the flow: it isn't processed at all, and its settings are kept. **+ Add module** puts one back, after the module that is open, or adds **another one** of a kind already in the flow: up to 2 high-pass filters, 2 dynamic EQs, 3 compressors and 4 parametric EQs, each with its own settings ("Compressor 2"). The Input tile has a small level meter. |
 | **Panel** | The selected module, large: its graph or meters, and all its controls as big touch knobs (on a phone: wide sliders), switches and lists. Double-tap a knob or slider for its default. |
 | **Right: Output** | Output **trim**, the channel **fader** with the OUT meter (after the fader), **Mute** and **PAFL**. Always on the right. |
 | **Top bar** | **Voice**: load a voice preset (Pastor, Spoken Word, Male, Female, Worship Leader, and **Lapel / Lavalier Mic** for clip-on mics: more gain before feedback, the chest resonance around 750 Hz cut, presence and air added back, no proximity control, leveler on); it replaces the module settings, not the gains. **Copy to…** copies this channel's settings and order to another channel. **Bypass** switches every module off at once. |
@@ -262,19 +261,19 @@ On the mixer, each channel shows its voice preset and its modules in flow order 
 
 | Module | On the panel |
 |---|---|
-| **Input** | Input gain (before everything) and **Polarity invert**; the input level against −12 dB. |
+| **Input** | Input gain (before everything) and **Polarity invert**; the input level against −12 dB (also on the Input tile). |
 | **High-pass** | RTA with the filter curve: **drag sideways on the graph** to move the cut-off. Frequency and slope. |
-| **PSE** | Primary source expander: a history of the voice level (green while open) and how much it turned down; **drag up/down on it** for the threshold. Voice level against the threshold, open/closed, and how much it turns down; threshold, range, attack, hold, release, sidechain filters. |
+| **PSE** | Primary source expander: a history of the voice level (green while open, grey while closed), how far it turned down (orange line) and the range; **drag up/down on it** for the threshold. **Threshold** and **Range** are the two big sliders under the graph. Voice level against the threshold, open/closed, and how much it turns down; threshold, range, attack, hold, release, sidechain filters. |
 | **Feedback** | RTA with the notches; **Ring-out learn** and **Freeze notches**; **Set by hand**: type a frequency, pick a depth and **Add notch**, or tap the graph where you hear the ring; the list of notches, where you can change a notch's frequency and depth, **Make fixed** and **Remove**; **Clear floating** and **Clear all**; mode, sensitivity, depth, width, limits. |
 | **Dynamic EQ** | RTA with the EQ curve and the six band dots: **touch a dot and drag** to change its frequency (left/right) and gain (up/down); the panel switches to that band when you let go. Band buttons pick the band whose controls are shown, including its dynamic settings. |
 | **De-esser** | RTA with the live cut, gain reduction; S and SH bands, mode, threshold, range, follow, relative detection. |
 | **Proximity** | How much low end it takes out when the singer gets close; maximum cut. |
-| **Leveler** | Level against the target and the gain it applies (it holds while feedback is being caught). |
+| **Leveler** | A history of the level against the target and the gain it adds or takes away (drag up/down on it for the target); the **Target** slider; level and gain meters (it holds while feedback is being caught). |
 | **Warmth** | Amount (off at 0 %). |
-| **Parametric EQ** | Not in the flow at first: add it with **+ Add module**. A clean, zero-latency 6-band EQ in the style of a modern studio parametric: every band can be a **Bell**, **Low Shelf**, **High Shelf**, **Low Cut**, **High Cut** (6 to 48 dB/oct) or **Notch**, from 20 Hz to 20 kHz, ±18 dB, Q 0.1 to 18. **Proportional Q** narrows a bell as you boost or cut it more, like a console EQ. **EQ Output** trims its level. Drag the dots on the graph as with the Dynamic EQ. Voice presets leave it as it is. |
+| **Parametric EQ** | Not in the flow at first: add it with **+ Add module**. A clean, zero-latency 6-band EQ in the style of a modern studio parametric: every band can be a **Bell**, **Low Shelf**, **High Shelf**, **Low Cut**, **High Cut** (6 to 48 dB/oct) or **Notch**, from 20 Hz to 20 kHz, ±18 dB, Q 0.1 to 18. **Proportional Q** narrows a bell as you boost or cut it more, like a console EQ. **EQ Output** trims its level. Each band is a numbered dot on the graph: drag it as with the Dynamic EQ. Voice presets leave it as it is. |
 | **Compressor** | The **curve** (input across, output up, with a dot for the live level) and the **history** (input, output and gain reduction over the last 25 seconds). Drag sideways on the curve, or up and down on the history, to set the **threshold**. Input level against the threshold, gain reduction and makeup; threshold, ratio, knee, attack, release, auto release, makeup, mix, sidechain HP, auto gain. |
 
-The analyser behind the curves shows the channel's output, or its input: choose in **⚙ → Settings → Mode → RTA shows**.
+The high-pass filters in the flow are drawn faintly (dashed) behind the other modules' curves. The analyser behind the curves shows the channel's output, or its input: choose in **⚙ → Settings → Mode → RTA shows**.
 
 On a phone, all nine modules sit as tiles across the top, so every one is a single tap away. Below them: input on the left, the panel, output on the right. The controls are wide sliders: **drag sideways** (the page still scrolls up and down), tap **−** / **+** for fine steps, double-tap the slider for its default:
 

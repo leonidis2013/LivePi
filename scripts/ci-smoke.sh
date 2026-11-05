@@ -108,6 +108,9 @@ run_case() {
   post /api/voice/order '{"channel":0,"order":["comp","peq","hpf","pse","feedback"]}' >/dev/null   # notches need the feedback module in the flow
   check "$label: a notch set by hand" "post /api/voice/notch '{\"channel\":0,\"cmd\":\"addFixed\",\"freq\":1250,\"depth\":-9}' | jq -e .ok >/dev/null && sleep 1 && api '/api/voice?channel=0&live=1' | jq -e '[.live.notches[] | select(.fixed and (.freq > 1200) and (.freq < 1300))] | length == 1' >/dev/null"
   check "$label: a hand-set notch out of range is refused" "post /api/voice/notch '{\"channel\":0,\"cmd\":\"addFixed\",\"freq\":5}' | jq -e .error >/dev/null"
+  check "$label: more than one of a module (two compressors, two parametric EQs)" "post /api/voice/order '{\"channel\":0,\"order\":[\"comp\",\"peq\",\"hpf\",\"pse\",\"feedback\",\"comp2\",\"peq3\"]}' | jq -e .ok >/dev/null && api '/api/voice?channel=0' | jq -e '.modules.comp2.name==\"Compressor 2\" and .modules.comp2.instance==2 and (.modules.comp2.params|map(.id)|index(\"compThr_2\")) != null and (.live.comps|length)==3' >/dev/null"
+  check "$label: second compressor has its own threshold" "post /api/voice/param '{\"channel\":0,\"id\":\"compThr_2\",\"value\":-37}' | jq -e '.value < -36.9' >/dev/null && api '/api/voice?channel=0' | jq -e '([.modules.comp.params[]|select(.id==\"compThr\")][0].value) > -36' >/dev/null"
+  check "$label: HPF shown behind the other graphs" "api '/api/voice/spectrum?channel=0&module=peq3&out=1' | jq -e '(.hpf|length)==120' >/dev/null"
   check "$label: lapel voice preset" "api '/api/voice?channel=0' | jq -e '.presets | map(test(\"Lapel\")) | any' >/dev/null"
   post /api/mode '{"mode":"vst"}' >/dev/null; sleep 1
   check "$label: back to VST mode" "api /api/state | jq -e '.mode==\"vst\" and (.chains[0].voice==null)' >/dev/null"

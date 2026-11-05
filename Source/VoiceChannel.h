@@ -29,13 +29,20 @@
 class VoiceChannel : public juce::AudioProcessor
 {
 public:
-    enum Module { hpf = 0, pse, feedback, eq, deess, prox, leveler, warmth, comp, peq, numModules };
+    // Module types, and the modules: instance 1 of every type (same index as its type), then the extra
+    // instances a flow can hold (a second high-pass and dynamic EQ, three compressors, four parametric EQs).
+    enum Type { tHpf = 0, tPse, tFeedback, tEq, tDeess, tProx, tLeveler, tWarmth, tComp, tPeq, numTypes };
+    enum Module { hpf = 0, pse, feedback, eq, deess, prox, leveler, warmth, comp, peq,
+                  hpf2, eq2, comp2, comp3, peq2, peq3, peq4, numModules };
     static constexpr int numDefaultModules = 9;      // a new channel: LiveVoice's nine, in LiveVoice's order
-    static const char* moduleId (int m);           // "hpf", "pse", ...
+    static int typeOf (int m) noexcept;
+    static int instanceOf (int m) noexcept;          // 1, 2, ...
+    static juce::String moduleId (int m);            // "hpf", "comp2", ...
     static int moduleFromId (const juce::String& id);
-    static juce::String moduleName (int m);
-    static juce::StringArray moduleParams (int m); // the parameter ids shown on that module's panel
-    static juce::String moduleOnParam (int m);     // "" for warmth (on = amount above 0)
+    static juce::String moduleName (int m);          // "Compressor", "Compressor 2"
+    static juce::StringArray moduleParams (int m);   // the parameter ids shown on that module's panel
+    static juce::String moduleOnParam (int m);       // "" for warmth (on = amount above 0)
+    static juce::String paramFor (const juce::String& baseId, int instance);   // "compThr" -> "compThr_2"
 
     VoiceChannel();
     ~VoiceChannel() override;
@@ -103,57 +110,72 @@ private:
         std::atomic<int> writePos { 0 };
     };
 
+    using A = std::atomic<float>*;
+    struct HpfP { A on, freq, slope; };
+    struct Band { A on, type, freq, gain, q, dyn, thr, range, ratio, att, rel; };
+    struct EqP { A on; std::array<Band, params::numEqBands> bands; };
+    struct CompP { A on, thr, ratio, knee, attack, release, autoRel, makeup, mix, scHp, autoGain; };
+    struct PBand { A on, type, freq, gain, q, slope; };
+    struct PeqP { A on, propQ, out; std::array<PBand, 6> b; };
+    static constexpr int nHpf = 2, nEq = 2, nComp = 3, nPeq = 4;
+
     void updateSettings() noexcept;
-    ::dsp::DynamicEq::BandSettings staticBand (int b) const noexcept;
+    ::dsp::DynamicEq::BandSettings staticBand (const PeqP& q, int b) const noexcept;
+    ::dsp::DynamicEq::BandSettings dynBand (const EqP& e, int b) const noexcept;
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
     void resetChain() noexcept;
+    void resetModule (int m) noexcept;
     float getNotchQ() const noexcept;
     void sendNotch (const dsp::FeedbackSuppressor::Command& c);
 
     PresetManager presets { apvts };
 
-    dsp::HighPass highPass;
+    std::array<dsp::HighPass, nHpf> highPass;
     dsp::FeedbackSuppressor fbSup;
     dsp::FeedbackDetector detector { fbSup };
-    dsp::DynamicEq dynEq;
+    std::array<dsp::DynamicEq, nEq> dynEq;
     dsp::DeEsser deEsser;
     dsp::PrimarySourceExpander pseFx;
-    dsp::VocalCompressor compFx;
+    std::array<dsp::VocalCompressor, nComp> compFx;
     dsp::ProximityComp proximity;
     dsp::AutoLeveler levelerFx;
-    dsp::DynamicEq staticEq;                   // the "peq" module: every band static
+    std::array<dsp::DynamicEq, nPeq> staticEq;    // parametric EQs: every band static
     dsp::Warmth warmthFx;
 
     ScopeTap inputTap, outputTap;
     std::atomic<float> inputPeakDb { -100.0f }, outputPeakDb { -100.0f };
-    std::atomic<juce::uint64> packedOrder;
+    // The flow: written by the message thread with a sequence lock, copied by the audio thread each block
+    std::atomic<juce::uint32> flowSeq { 0 };
+    std::array<std::atomic<int>, numModules> flowSlots {};
+    std::atomic<int> flowCount { 0 };
+    int rtFlow[numModules] {}; int rtCount = 0;   // audio thread's copy
     std::atomic<double> sr { 48000.0 };
-    juce::SmoothedValue<float> inGainSmooth, outGainSmooth, peqOutSmooth;
+    juce::SmoothedValue<float> inGainSmooth, outGainSmooth;
+    std::array<juce::SmoothedValue<float>, nPeq> peqOutSmooth;
     std::atomic<juce::uint32> flowMask { 0 };
     juce::uint32 lastMask = 0;                  // audio thread: modules put back into the flow start clean
     juce::AudioBuffer<float> rawBuf;
     float bypassMix = 0.0f;
-    bool fullyBypassed = false, eqWasOn = true, peqWasOn = true;
+    bool fullyBypassed = false;
+    std::array<bool, nEq> eqWasOn {};
+    std::array<bool, nPeq> peqWasOn {};
     int lastDetectCount = 0;
     juce::SpinLock uiCommandLock;
     juce::CriticalSection fftLock;
 
     // Parameter values, looked up once (never by name on the audio thread)
-    struct Band { std::atomic<float> *on, *type, *freq, *gain, *q, *dyn, *thr, *range, *ratio, *att, *rel; };
     struct Cache
     {
-        std::atomic<float> *inGain, *outGain, *bypass,
-            *fbOn, *fbMode, *fbSens, *fbLearn, *fbFreeze, *fbMaxFixed, *fbMaxFloat, *fbMaxDepth, *fbWidth, *fbHold, *fbLo, *fbHi,
-            *hpfOn, *hpfFreq, *hpfSlope, *eqOn,
-            *dsOn, *dsFreq, *dsThr, *dsRange, *dsMode, *dsQ, *dsRel, *dsRelative, *dsRelThr, *dsFollow,
-            *dsShOn, *dsShFreq, *dsShQ, *dsShThr, *dsShRelThr, *dsShRange,
-            *pseOn, *pseThr, *pseRange, *pseAttack, *pseHold, *pseRelease, *pseScHp, *pseScLp,
-            *compOn, *compThr, *compRatio, *compKnee, *compAttack, *compRelease, *compAuto, *compMakeup, *compMix, *compScHp, *compAutoGain,
-            *lvlOn, *lvlTarget, *lvlRange, *lvlSpeed, *proxOn, *proxAmount, *warmth,
-            *polarity, *peqOn, *peqPropQ, *peqOut;
-        std::array<Band, params::numEqBands> bands;
-        struct PBand { std::atomic<float> *on, *type, *freq, *gain, *q, *slope; };
-        std::array<PBand, 6> pbands;
+        A inGain, outGain, bypass,
+          fbOn, fbMode, fbSens, fbLearn, fbFreeze, fbMaxFixed, fbMaxFloat, fbMaxDepth, fbWidth, fbHold, fbLo, fbHi,
+          dsOn, dsFreq, dsThr, dsRange, dsMode, dsQ, dsRel, dsRelative, dsRelThr, dsFollow,
+          dsShOn, dsShFreq, dsShQ, dsShThr, dsShRelThr, dsShRange,
+          pseOn, pseThr, pseRange, pseAttack, pseHold, pseRelease, pseScHp, pseScLp,
+          lvlOn, lvlTarget, lvlRange, lvlSpeed, proxOn, proxAmount, warmth, polarity;
+        std::array<HpfP, nHpf> hp;
+        std::array<EqP, nEq> eqs;
+        std::array<CompP, nComp> cp;
+        std::array<PeqP, nPeq> pq;
     } p;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VoiceChannel)

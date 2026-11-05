@@ -1906,6 +1906,7 @@ var HostEngine::getState()
     }
 
     o->setProperty ("setupDone", dataDir().getChildFile ("setup-done").existsAsFile());
+    o->setProperty ("setupStep", dataDir().getChildFile ("setup-step").loadFileAsString().trim().getIntValue());
     o->setProperty ("safeMode", safeMode);
     o->setProperty ("mode", mixerMode ? "mixer" : "vst");
     o->setProperty ("dryChannels", dryChannels && mixerMode);

@@ -14,8 +14,10 @@ static void check (bool ok, const char* what) { std::printf ("%s  %s\n", ok ? "P
 
 static void allOn (VoiceChannel& v)
 {
-    for (auto id : { "hpfOn", "pseOn", "fbOn", "eqOn", "dsOn", "proxOn", "lvlOn", "compOn", "peqOn" })
+    for (auto id : { "hpfOn", "pseOn", "fbOn", "eqOn", "dsOn", "proxOn", "lvlOn", "compOn", "peqOn",
+                     "hpfOn_2", "eqOn_2", "compOn_2", "compOn_3", "peqOn_2", "peqOn_3", "peqOn_4" })
         v.setParam (id, 1.0);
+    v.setParam ("compThr_3", -40.0);
     v.setParam ("warmth", 30.0);
     v.setParam ("b3_gain", -4.0);
     v.setParam ("b5_dyn", 1.0);
@@ -95,7 +97,7 @@ int main()
     // ---- state round trip keeps the order and the settings ----
     {
         VoiceChannel a, b;
-        std::vector<int> o { 9, 8, 6, 5, 4, 3, 1, 0 };   // two modules taken out
+        std::vector<int> o { 9, 8, 16, 12, 6, 5, 4, 3, 1, 0 };   // two taken out, two extra instances in
         a.setOrder (o);
         a.setParam ("compThr", -33.0);
         juce::MemoryBlock mb;
@@ -108,6 +110,9 @@ int main()
         b.setParam ("peq3_gain", 6.0);
         b.loadFactoryPreset (0);
         check (std::abs (b.apvts.getRawParameterValue ("peq3_gain")->load() - 6.0f) < 0.01f, "voice preset keeps the parametric EQ");
+        b.setParam ("compRatio_2", 7.0);
+        check (b.apvts.getParameter ("compRatio_2") != nullptr && std::abs (b.apvts.getRawParameterValue ("compRatio_2")->load() - 7.0f) < 0.05f, "second compressor has its own settings");
+        check (b.moduleFromId ("peq4") == VoiceChannel::peq4 && b.moduleName (VoiceChannel::comp3) == "Compressor 3", "extra instances are named");
     }
 
     std::printf ("%s\n", failures == 0 ? "ALL PASSED" : "SOME FAILED");

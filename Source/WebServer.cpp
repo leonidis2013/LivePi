@@ -786,7 +786,18 @@ void WebServer::setupRoutes()
     svr.Post ("/api/setup/done", [] (const httplib::Request& req, httplib::Response& res)
     {
         auto f = HostEngine::dataDir().getChildFile ("setup-done");
-        const bool done = (bool) body (req).getProperty ("done", true);
+        const auto b = body (req);
+        // progress: the step reached, so the assistant carries on there (another device, a new address)
+        if (b.hasProperty ("step") && ! b.hasProperty ("done"))
+        {
+            HostEngine::dataDir().getChildFile ("setup-step").replaceWithText (String (jlimit (0, 20, (int) b["step"])));
+            auto* o = new DynamicObject();
+            o->setProperty ("ok", true);
+            reply (res, var (o));
+            return;
+        }
+        const bool done = (bool) b.getProperty ("done", true);
+        HostEngine::dataDir().getChildFile ("setup-step").deleteFile();
         const bool ok = done ? f.replaceWithText (Time::getCurrentTime().toISO8601 (true)) : (f.deleteFile() || ! f.exists());
         auto* o = new DynamicObject();
         o->setProperty ("ok", true);

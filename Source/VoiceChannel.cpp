@@ -3,15 +3,40 @@
 #include "VoiceChannel.h"
 #include <juce_dsp/juce_dsp.h>
 #include <cmath>
+#include <set>
 
 using namespace juce;
 
 // ------------------------------------------------------------------------------------- modules
 
-const char* VoiceChannel::moduleId (int m)
+static const int typeTable[VoiceChannel::numModules]
+    { VoiceChannel::tHpf, VoiceChannel::tPse, VoiceChannel::tFeedback, VoiceChannel::tEq, VoiceChannel::tDeess,
+      VoiceChannel::tProx, VoiceChannel::tLeveler, VoiceChannel::tWarmth, VoiceChannel::tComp, VoiceChannel::tPeq,
+      VoiceChannel::tHpf, VoiceChannel::tEq, VoiceChannel::tComp, VoiceChannel::tComp,
+      VoiceChannel::tPeq, VoiceChannel::tPeq, VoiceChannel::tPeq };
+static const int instTable[VoiceChannel::numModules] { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 3, 2, 3, 4 };
+
+int VoiceChannel::typeOf (int m) noexcept     { return isPositiveAndBelow (m, (int) numModules) ? typeTable[m] : -1; }
+int VoiceChannel::instanceOf (int m) noexcept { return isPositiveAndBelow (m, (int) numModules) ? instTable[m] : 1; }
+
+static int moduleOf (int type, int inst)
 {
-    static const char* ids[numModules] { "hpf", "pse", "feedback", "eq", "deess", "prox", "leveler", "warmth", "comp", "peq" };
-    return isPositiveAndBelow (m, (int) numModules) ? ids[m] : "";
+    for (int m = 0; m < VoiceChannel::numModules; ++m)
+        if (typeTable[m] == type && instTable[m] == inst) return m;
+    return -1;
+}
+
+String VoiceChannel::paramFor (const String& baseId, int instance)
+{
+    return instance <= 1 ? baseId : baseId + "_" + String (instance);
+}
+
+String VoiceChannel::moduleId (int m)
+{
+    static const char* ids[numTypes] { "hpf", "pse", "feedback", "eq", "deess", "prox", "leveler", "warmth", "comp", "peq" };
+    const int t = typeOf (m);
+    if (t < 0) return {};
+    return String (ids[t]) + (instanceOf (m) > 1 ? String (instanceOf (m)) : String());
 }
 
 int VoiceChannel::moduleFromId (const String& id)
@@ -23,36 +48,21 @@ int VoiceChannel::moduleFromId (const String& id)
 
 String VoiceChannel::moduleName (int m)
 {
-    static const char* names[numModules] { "High-pass", "PSE", "Feedback", "Dynamic EQ", "De-esser", "Proximity", "Leveler", "Warmth", "Compressor", "Parametric EQ" };
-    return isPositiveAndBelow (m, (int) numModules) ? names[m] : "";
+    static const char* names[numTypes] { "High-pass", "PSE", "Feedback", "Dynamic EQ", "De-esser", "Proximity", "Leveler", "Warmth", "Compressor", "Parametric EQ" };
+    const int t = typeOf (m);
+    if (t < 0) return {};
+    return String (names[t]) + (instanceOf (m) > 1 ? " " + String (instanceOf (m)) : String());
 }
 
-String VoiceChannel::moduleOnParam (int m)
-{
-    switch (m)
-    {
-        case hpf:      return params::hpfOn;
-        case pse:      return params::pseOn;
-        case feedback: return params::fbOn;
-        case eq:       return params::eqOn;
-        case deess:    return params::dsOn;
-        case prox:     return params::proxOn;
-        case leveler:  return params::lvlOn;
-        case comp:     return params::compOn;
-        case peq:      return "peqOn";
-        default:       return {};
-    }
-}
-
-StringArray VoiceChannel::moduleParams (int m)
+static StringArray typeParams (int t)
 {
     using namespace params;
-    switch (m)
+    switch (t)
     {
-        case hpf:      return { hpfOn, hpfFreq, hpfSlope };
-        case pse:      return { pseOn, pseThr, pseRange, pseAttack, pseHold, pseRelease, pseScHp, pseScLp };
-        case feedback: return { fbOn, fbMode, fbSens, fbLearn, fbFreeze, fbMaxDepth, fbWidth, fbMaxFixed, fbMaxFloat, fbHold, fbLoFreq, fbHiFreq };
-        case eq:
+        case VoiceChannel::tHpf:      return { hpfOn, hpfFreq, hpfSlope };
+        case VoiceChannel::tPse:      return { pseOn, pseThr, pseRange, pseAttack, pseHold, pseRelease, pseScHp, pseScLp };
+        case VoiceChannel::tFeedback: return { fbOn, fbMode, fbSens, fbLearn, fbFreeze, fbMaxDepth, fbWidth, fbMaxFixed, fbMaxFloat, fbHold, fbLoFreq, fbHiFreq };
+        case VoiceChannel::tEq:
         {
             StringArray a { eqOn };
             for (int b = 0; b < numEqBands; ++b)
@@ -63,42 +73,53 @@ StringArray VoiceChannel::moduleParams (int m)
             }
             return a;
         }
-        case deess:    return { dsOn, dsMode, dsFreq, dsQ, dsThr, dsRange, dsRel, dsRelative, dsRelThr, dsFollow,
-                                dsShOn, dsShFreq, dsShQ, dsShThr, dsShRelThr, dsShRange };
-        case prox:     return { proxOn, proxAmount };
-        case leveler:  return { lvlOn, lvlTarget, lvlRange, lvlSpeed };
-        case warmth:   return { params::warmth };
-        case comp:     return { compOn, compThr, compRatio, compKnee, compAttack, compRelease, compAuto, compMakeup, compMix, compScHp, compAutoGain };
-        case peq:
+        case VoiceChannel::tDeess:    return { dsOn, dsMode, dsFreq, dsQ, dsThr, dsRange, dsRel, dsRelative, dsRelThr, dsFollow,
+                                               dsShOn, dsShFreq, dsShQ, dsShThr, dsShRelThr, dsShRange };
+        case VoiceChannel::tProx:     return { proxOn, proxAmount };
+        case VoiceChannel::tLeveler:  return { lvlOn, lvlTarget, lvlRange, lvlSpeed };
+        case VoiceChannel::tWarmth:   return { params::warmth };
+        case VoiceChannel::tComp:     return { compOn, compThr, compRatio, compKnee, compAttack, compRelease, compAuto, compMakeup, compMix, compScHp, compAutoGain };
+        case VoiceChannel::tPeq:
         {
             StringArray a { "peqOn", "peqPropQ", "peqOut" };
             for (int b = 1; b <= 6; ++b)
                 for (auto* k : { "on", "type", "freq", "gain", "q", "slope" }) a.add ("peq" + String (b) + "_" + k);
             return a;
         }
-        default:       return {};
+        default: return {};
     }
 }
 
-// The flow in one atomic word: 4 bits per module (up to 12), the count in the top 4 bits
-static juce::uint64 packOrder (const std::vector<int>& o)
+StringArray VoiceChannel::moduleParams (int m)
 {
-    juce::uint64 v = (juce::uint64) o.size() << 60;
-    for (size_t i = 0; i < o.size(); ++i) v |= ((juce::uint64) (o[i] & 15)) << (4 * i);
-    return v;
+    StringArray a;
+    for (auto& id : typeParams (typeOf (m))) a.add (paramFor (id, instanceOf (m)));
+    return a;
 }
 
-struct Flow { int n = 0; int m[VoiceChannel::numModules] {}; };
-static Flow unpackOrder (juce::uint64 v) noexcept
+String VoiceChannel::moduleOnParam (int m)
 {
-    Flow f;
-    f.n = juce::jmin ((int) VoiceChannel::numModules, (int) (v >> 60));
-    for (int i = 0; i < f.n; ++i) f.m[i] = (int) ((v >> (4 * i)) & 15);
-    return f;
+    String id;
+    switch (typeOf (m))
+    {
+        case tHpf:      id = params::hpfOn; break;
+        case tPse:      id = params::pseOn; break;
+        case tFeedback: id = params::fbOn; break;
+        case tEq:       id = params::eqOn; break;
+        case tDeess:    id = params::dsOn; break;
+        case tProx:     id = params::proxOn; break;
+        case tLeveler:  id = params::lvlOn; break;
+        case tComp:     id = params::compOn; break;
+        case tPeq:      id = "peqOn"; break;
+        default:        return {};
+    }
+    return paramFor (id, instanceOf (m));
 }
 
-// ---- LivePi's own parameters, added to LiveVoice's
-juce::AudioProcessorValueTreeState::ParameterLayout VoiceChannel::createLayout()
+// ------------------------------------------------------------------------------------- parameters
+
+// LiveVoice's parameters plus LivePi's own (polarity, parametric EQ)
+static AudioProcessorValueTreeState::ParameterLayout baseLayout()
 {
     auto layout = params::createLayout();
     auto dbA = AudioParameterFloatAttributes().withLabel ("dB")
@@ -130,6 +151,80 @@ juce::AudioProcessorValueTreeState::ParameterLayout VoiceChannel::createLayout()
     return layout;
 }
 
+// A parameter-only processor holding the base parameters: the pattern for the extra instances
+namespace
+{
+    struct Pattern : AudioProcessor
+    {
+        Pattern() : apvts (*this, nullptr, "Pattern", baseLayout()) {}
+        const String getName() const override { return "pattern"; }
+        void prepareToPlay (double, int) override {}
+        void releaseResources() override {}
+        void processBlock (AudioBuffer<float>&, MidiBuffer&) override {}
+        double getTailLengthSeconds() const override { return 0.0; }
+        bool acceptsMidi() const override { return false; }
+        bool producesMidi() const override { return false; }
+        AudioProcessorEditor* createEditor() override { return nullptr; }
+        bool hasEditor() const override { return false; }
+        int getNumPrograms() override { return 1; }
+        int getCurrentProgram() override { return 0; }
+        void setCurrentProgram (int) override {}
+        const String getProgramName (int) override { return {}; }
+        void changeProgramName (int, const String&) override {}
+        void getStateInformation (MemoryBlock&) override {}
+        void setStateInformation (const void*, int) override {}
+        AudioProcessorValueTreeState apvts;
+    };
+    Pattern& pattern() { static Pattern p; return p; }
+
+    // LiveVoice's own parameter ids: its voice presets set these, and nothing else
+    const std::set<String>& liveVoiceIds()
+    {
+        static const std::set<String> ids = []
+        {
+            std::set<String> s;
+            for (auto* ap : pattern().getParameters())
+                if (auto* rp = dynamic_cast<RangedAudioParameter*> (ap))
+                {
+                    const auto id = rp->getParameterID();
+                    if (! id.startsWith ("peq") && id != "inPolarity") s.insert (id);
+                }
+            return s;
+        }();
+        return ids;
+    }
+}
+
+AudioProcessorValueTreeState::ParameterLayout VoiceChannel::createLayout()
+{
+    auto layout = baseLayout();
+    // Extra instances: a copy of each of the type's parameters, same range, default and text, id + "_N"
+    for (int m = 0; m < numModules; ++m)
+    {
+        const int inst = instanceOf (m);
+        if (inst <= 1) continue;
+        for (auto& id : typeParams (typeOf (m)))
+        {
+            auto* orig = dynamic_cast<RangedAudioParameter*> (pattern().apvts.getParameter (id));
+            if (orig == nullptr) continue;
+            const ParameterID pid { paramFor (id, inst), 1 };
+            const auto name = orig->getName (64);
+            if (auto* c = dynamic_cast<AudioParameterChoice*> (orig))
+                layout.add (std::make_unique<AudioParameterChoice> (pid, name, c->choices, roundToInt (orig->convertFrom0to1 (orig->getDefaultValue()))));
+            else if (dynamic_cast<AudioParameterBool*> (orig) != nullptr)
+                layout.add (std::make_unique<AudioParameterBool> (pid, name, orig->getDefaultValue() > 0.5f));
+            else if (auto* i = dynamic_cast<AudioParameterInt*> (orig))
+                layout.add (std::make_unique<AudioParameterInt> (pid, name, i->getRange().getStart(), i->getRange().getEnd(),
+                                                                 roundToInt (orig->convertFrom0to1 (orig->getDefaultValue()))));
+            else if (auto* f = dynamic_cast<AudioParameterFloat*> (orig))
+                layout.add (std::make_unique<AudioParameterFloat> (pid, name, f->range, orig->convertFrom0to1 (orig->getDefaultValue()),
+                            AudioParameterFloatAttributes().withLabel (f->getLabel())
+                                .withStringFromValueFunction ([orig] (float v, int n) { return orig->getText (orig->convertTo0to1 (v), n); })));
+        }
+    }
+    return layout;
+}
+
 // ------------------------------------------------------------------------------------- setup
 
 VoiceChannel::VoiceChannel()
@@ -147,30 +242,49 @@ VoiceChannel::VoiceChannel()
     p.fbOn = r (fbOn); p.fbMode = r (fbMode); p.fbSens = r (fbSens); p.fbLearn = r (fbLearn); p.fbFreeze = r (fbFreeze);
     p.fbMaxFixed = r (fbMaxFixed); p.fbMaxFloat = r (fbMaxFloat); p.fbMaxDepth = r (fbMaxDepth); p.fbWidth = r (fbWidth);
     p.fbHold = r (fbHold); p.fbLo = r (fbLoFreq); p.fbHi = r (fbHiFreq);
-    p.hpfOn = r (hpfOn); p.hpfFreq = r (hpfFreq); p.hpfSlope = r (hpfSlope); p.eqOn = r (eqOn);
     p.dsOn = r (dsOn); p.dsFreq = r (dsFreq); p.dsThr = r (dsThr); p.dsRange = r (dsRange); p.dsMode = r (dsMode); p.dsQ = r (dsQ);
     p.dsRel = r (dsRel); p.dsRelative = r (dsRelative); p.dsRelThr = r (dsRelThr); p.dsFollow = r (dsFollow);
     p.dsShOn = r (dsShOn); p.dsShFreq = r (dsShFreq); p.dsShQ = r (dsShQ); p.dsShThr = r (dsShThr); p.dsShRelThr = r (dsShRelThr); p.dsShRange = r (dsShRange);
     p.pseOn = r (pseOn); p.pseThr = r (pseThr); p.pseRange = r (pseRange); p.pseAttack = r (pseAttack); p.pseHold = r (pseHold);
     p.pseRelease = r (pseRelease); p.pseScHp = r (pseScHp); p.pseScLp = r (pseScLp);
-    p.compOn = r (compOn); p.compThr = r (compThr); p.compRatio = r (compRatio); p.compKnee = r (compKnee); p.compAttack = r (compAttack);
-    p.compRelease = r (compRelease); p.compAuto = r (compAuto); p.compMakeup = r (compMakeup); p.compMix = r (compMix);
-    p.compScHp = r (compScHp); p.compAutoGain = r (compAutoGain);
     p.lvlOn = r (lvlOn); p.lvlTarget = r (lvlTarget); p.lvlRange = r (lvlRange); p.lvlSpeed = r (lvlSpeed);
     p.proxOn = r (proxOn); p.proxAmount = r (proxAmount); p.warmth = r (params::warmth);
-    p.polarity = r ("inPolarity"); p.peqOn = r ("peqOn"); p.peqPropQ = r ("peqPropQ"); p.peqOut = r ("peqOut");
-    for (int b = 0; b < 6; ++b)
+    p.polarity = r ("inPolarity");
+
+    for (int k = 0; k < nHpf; ++k)
     {
-        const auto n = "peq" + String (b + 1) + "_";
-        auto& d = p.pbands[(size_t) b];
-        d.on = r (n + "on"); d.type = r (n + "type"); d.freq = r (n + "freq"); d.gain = r (n + "gain"); d.q = r (n + "q"); d.slope = r (n + "slope");
+        auto q = [&] (const String& id) { return r (paramFor (id, k + 1)); };
+        p.hp[(size_t) k] = { q (hpfOn), q (hpfFreq), q (hpfSlope) };
     }
-    for (int b = 0; b < numEqBands; ++b)
+    for (int k = 0; k < nEq; ++k)
     {
-        auto& d = p.bands[(size_t) b];
-        d.on = r (bOn (b)); d.type = (b == 0 || b == numEqBands - 1) ? r (bType (b)) : nullptr;
-        d.freq = r (bFreq (b)); d.gain = r (bGain (b)); d.q = r (bQ (b)); d.dyn = r (bDyn (b));
-        d.thr = r (bThr (b)); d.range = r (bRange (b)); d.ratio = r (bRatio (b)); d.att = r (bAtt (b)); d.rel = r (bRel (b));
+        auto q = [&] (const String& id) { return r (paramFor (id, k + 1)); };
+        auto& e = p.eqs[(size_t) k];
+        e.on = q (eqOn);
+        for (int b = 0; b < numEqBands; ++b)
+        {
+            auto& d = e.bands[(size_t) b];
+            d.on = q (bOn (b)); d.type = (b == 0 || b == numEqBands - 1) ? q (bType (b)) : nullptr;
+            d.freq = q (bFreq (b)); d.gain = q (bGain (b)); d.q = q (bQ (b)); d.dyn = q (bDyn (b));
+            d.thr = q (bThr (b)); d.range = q (bRange (b)); d.ratio = q (bRatio (b)); d.att = q (bAtt (b)); d.rel = q (bRel (b));
+        }
+    }
+    for (int k = 0; k < nComp; ++k)
+    {
+        auto q = [&] (const String& id) { return r (paramFor (id, k + 1)); };
+        p.cp[(size_t) k] = { q (compOn), q (compThr), q (compRatio), q (compKnee), q (compAttack), q (compRelease),
+                             q (compAuto), q (compMakeup), q (compMix), q (compScHp), q (compAutoGain) };
+    }
+    for (int k = 0; k < nPeq; ++k)
+    {
+        auto q = [&] (const String& id) { return r (paramFor (id, k + 1)); };
+        auto& e = p.pq[(size_t) k];
+        e.on = q ("peqOn"); e.propQ = q ("peqPropQ"); e.out = q ("peqOut");
+        for (int b = 0; b < 6; ++b)
+        {
+            const auto n = "peq" + String (b + 1) + "_";
+            e.b[(size_t) b] = { q (n + "on"), q (n + "type"), q (n + "freq"), q (n + "gain"), q (n + "q"), q (n + "slope") };
+        }
     }
 }
 
@@ -181,8 +295,10 @@ VoiceChannel::~VoiceChannel()
 
 std::vector<int> VoiceChannel::getOrder() const
 {
-    const auto f = unpackOrder (packedOrder.load());
-    return std::vector<int> (f.m, f.m + f.n);
+    std::vector<int> o;
+    const int n = flowCount.load();
+    for (int i = 0; i < n; ++i) o.push_back (flowSlots[(size_t) i].load());
+    return o;
 }
 
 bool VoiceChannel::setOrder (const std::vector<int>& order)
@@ -194,14 +310,18 @@ bool VoiceChannel::setOrder (const std::vector<int>& order)
         if (! isPositiveAndBelow (m, (int) numModules) || ((mask >> m) & 1u)) return false;
         mask |= 1u << m;
     }
-    flowMask = mask;
-    packedOrder = packOrder (order);
+    // sequence lock: odd while writing, so the audio thread never uses a half-written flow
+    flowSeq.fetch_add (1, std::memory_order_acq_rel);
+    for (size_t i = 0; i < order.size(); ++i) flowSlots[i].store (order[i], std::memory_order_relaxed);
+    flowCount.store ((int) order.size(), std::memory_order_relaxed);
+    flowMask.store (mask, std::memory_order_relaxed);
+    flowSeq.fetch_add (1, std::memory_order_acq_rel);
     return true;
 }
 
 bool VoiceChannel::isModuleOn (int m) const
 {
-    if (m == warmth) return p.warmth->load() > 0.5f;
+    if (typeOf (m) == tWarmth) return p.warmth->load() > 0.5f;
     const auto id = moduleOnParam (m);
     auto* v = id.isNotEmpty() ? apvts.getRawParameterValue (id) : nullptr;
     return v != nullptr && v->load() > 0.5f;
@@ -213,19 +333,24 @@ void VoiceChannel::prepareToPlay (double sampleRate, int samplesPerBlock)
     setLatencySamples (0);
     constexpr int nCh = 1;
     fbSup.prepare (sampleRate, nCh);
-    dynEq.prepare (sampleRate, nCh);
+    for (auto& e : dynEq) e.prepare (sampleRate, nCh);
     deEsser.prepare (sampleRate, nCh);
     pseFx.prepare (sampleRate, nCh);
-    compFx.prepare (sampleRate, nCh);
+    for (auto& c : compFx) c.prepare (sampleRate, nCh);
     proximity.prepare (sampleRate, nCh);
-    highPass.prepare (sampleRate, nCh);
+    for (auto& h : highPass) h.prepare (sampleRate, nCh);
     levelerFx.prepare (sampleRate, nCh);
     warmthFx.prepare (sampleRate, nCh);
-    staticEq.prepare (sampleRate, nCh);
-    peqOutSmooth.reset (sampleRate, 0.02);
-    peqOutSmooth.setCurrentAndTargetValue (::dsp::dbToGain (p.peqOut->load()));
-    lastMask = flowMask.load();
+    for (int k = 0; k < nPeq; ++k)
+    {
+        staticEq[(size_t) k].prepare (sampleRate, nCh);
+        peqOutSmooth[(size_t) k].reset (sampleRate, 0.02);
+        peqOutSmooth[(size_t) k].setCurrentAndTargetValue (::dsp::dbToGain (p.pq[(size_t) k].out->load()));
+        peqWasOn[(size_t) k] = true;
+    }
+    for (auto& w : eqWasOn) w = true;
     detector.prepare (sampleRate);
+    lastMask = flowMask.load();
     rawBuf.setSize (1, std::max (8192, 2 * samplesPerBlock));
     bypassMix = p.bypass->load() > 0.5f ? 1.0f : 0.0f;
     fullyBypassed = bypassMix >= 1.0f;
@@ -234,26 +359,6 @@ void VoiceChannel::prepareToPlay (double sampleRate, int samplesPerBlock)
     inGainSmooth.setCurrentAndTargetValue (::dsp::dbToGain (p.inGain->load()) * (p.polarity->load() > 0.5f ? -1.0f : 1.0f));
     outGainSmooth.setCurrentAndTargetValue (::dsp::dbToGain (p.outGain->load()));
     updateSettings();
-}
-
-// A static EQ band: any type on any band; proportional Q (console style) narrows a bell as its gain grows
-::dsp::DynamicEq::BandSettings VoiceChannel::staticBand (int b) const noexcept
-{
-    using BT = params::BandType;
-    const auto& d = p.pbands[(size_t) b];
-    ::dsp::DynamicEq::BandSettings s;
-    const int t = jlimit (0, 5, (int) d.type->load());
-    s.on = d.on->load() > 0.5f;
-    s.type = t == 1 ? BT::lowShelf : t == 2 ? BT::highShelf : t == 3 ? BT::highPass : t == 4 ? BT::lowPass : BT::bell;
-    s.slope = params::slopeDbPerOct[jlimit (0, 5, (int) d.slope->load())];
-    s.freq = d.freq->load();
-    s.gainDb = d.gain->load();
-    s.q = d.q->load();
-    if (t == 5) { s.gainDb = -30.0f; s.q = jmax (s.q, 2.0f); }   // notch: a deep, narrow cut
-    else if (t == 0 && p.peqPropQ->load() > 0.5f) s.q *= std::pow (10.0f, std::abs (s.gainDb) / 40.0f);
-    s.q = jlimit (0.1f, 40.0f, s.q);
-    s.dynamic = false;
-    return s;
 }
 
 void VoiceChannel::releaseResources()
@@ -265,6 +370,40 @@ float VoiceChannel::getNotchQ() const noexcept
 {
     static constexpr float qs[] { 7.2f, 14.4f, 28.9f, 57.7f };   // 1/5, 1/10, 1/20, 1/40 octave
     return qs[jlimit (0, 3, (int) p.fbWidth->load())];
+}
+
+// A static EQ band: any type on any band; proportional Q (console style) narrows a bell as its gain grows
+::dsp::DynamicEq::BandSettings VoiceChannel::staticBand (const PeqP& e, int b) const noexcept
+{
+    using BT = params::BandType;
+    const auto& d = e.b[(size_t) b];
+    ::dsp::DynamicEq::BandSettings s;
+    const int t = jlimit (0, 5, (int) d.type->load());
+    s.on = d.on->load() > 0.5f;
+    s.type = t == 1 ? BT::lowShelf : t == 2 ? BT::highShelf : t == 3 ? BT::highPass : t == 4 ? BT::lowPass : BT::bell;
+    s.slope = params::slopeDbPerOct[jlimit (0, 5, (int) d.slope->load())];
+    s.freq = d.freq->load();
+    s.gainDb = d.gain->load();
+    s.q = d.q->load();
+    if (t == 5) { s.gainDb = -30.0f; s.q = jmax (s.q, 2.0f); }   // notch: a deep, narrow cut
+    else if (t == 0 && e.propQ->load() > 0.5f) s.q *= std::pow (10.0f, std::abs (s.gainDb) / 40.0f);
+    s.q = jlimit (0.1f, 40.0f, s.q);
+    s.dynamic = false;
+    return s;
+}
+
+::dsp::DynamicEq::BandSettings VoiceChannel::dynBand (const EqP& e, int b) const noexcept
+{
+    const auto& d = e.bands[(size_t) b];
+    ::dsp::DynamicEq::BandSettings s;
+    s.on = d.on->load() > 0.5f;
+    const auto shape = params::bandShapeFromChoice (b, d.type != nullptr ? (int) d.type->load() : 0);
+    s.type = shape.type; s.slope = shape.slope;
+    s.freq = d.freq->load(); s.gainDb = d.gain->load(); s.q = d.q->load();
+    s.dynamic = d.dyn->load() > 0.5f;
+    s.thresholdDb = d.thr->load(); s.rangeDb = d.range->load(); s.ratio = d.ratio->load();
+    s.attackMs = d.att->load(); s.releaseMs = d.rel->load();
+    return s;
 }
 
 // Same conversion as LiveVoice's updateSettings(): parameters -> module settings, once per block
@@ -290,19 +429,9 @@ void VoiceChannel::updateSettings() noexcept
     ds.hiFreq = p.fbHi->load();
     detector.setSettings (ds);
 
-    for (int b = 0; b < params::numEqBands; ++b)
-    {
-        const auto& d = p.bands[(size_t) b];
-        ::dsp::DynamicEq::BandSettings s;
-        s.on = d.on->load() > 0.5f;
-        const auto shape = params::bandShapeFromChoice (b, d.type != nullptr ? (int) d.type->load() : 0);
-        s.type = shape.type; s.slope = shape.slope;
-        s.freq = d.freq->load(); s.gainDb = d.gain->load(); s.q = d.q->load();
-        s.dynamic = d.dyn->load() > 0.5f;
-        s.thresholdDb = d.thr->load(); s.rangeDb = d.range->load(); s.ratio = d.ratio->load();
-        s.attackMs = d.att->load(); s.releaseMs = d.rel->load();
-        dynEq.setBand (b, s);
-    }
+    for (int k = 0; k < nEq; ++k)
+        for (int b = 0; b < params::numEqBands; ++b)
+            dynEq[(size_t) k].setBand (b, dynBand (p.eqs[(size_t) k], b));
 
     ::dsp::DeEsser::Settings de;
     de.on = p.dsOn->load() > 0.5f;
@@ -321,27 +450,61 @@ void VoiceChannel::updateSettings() noexcept
     ps.scHpHz = p.pseScHp->load(); ps.scLpHz = p.pseScLp->load();
     pseFx.setSettings (ps);
 
-    ::dsp::VocalCompressor::Settings cs;
-    cs.on = p.compOn->load() > 0.5f;
-    cs.thresholdDb = p.compThr->load(); cs.ratio = p.compRatio->load(); cs.kneeDb = p.compKnee->load();
-    cs.attackMs = p.compAttack->load(); cs.releaseMs = p.compRelease->load(); cs.autoRelease = p.compAuto->load() > 0.5f;
-    cs.makeupDb = p.compMakeup->load(); cs.mix = p.compMix->load() * 0.01f; cs.scHpHz = p.compScHp->load();
-    cs.autoGain = p.compAutoGain->load() > 0.5f;
-    compFx.setSettings (cs);
+    for (int k = 0; k < nComp; ++k)
+    {
+        const auto& c = p.cp[(size_t) k];
+        ::dsp::VocalCompressor::Settings cs;
+        cs.on = c.on->load() > 0.5f;
+        cs.thresholdDb = c.thr->load(); cs.ratio = c.ratio->load(); cs.kneeDb = c.knee->load();
+        cs.attackMs = c.attack->load(); cs.releaseMs = c.release->load(); cs.autoRelease = c.autoRel->load() > 0.5f;
+        cs.makeupDb = c.makeup->load(); cs.mix = c.mix->load() * 0.01f; cs.scHpHz = c.scHp->load();
+        cs.autoGain = c.autoGain->load() > 0.5f;
+        compFx[(size_t) k].setSettings (cs);
+    }
 
-    highPass.setSettings ({ p.hpfOn->load() > 0.5f, p.hpfFreq->load(), jlimit (0, 5, (int) p.hpfSlope->load()) });
+    for (int k = 0; k < nHpf; ++k)
+    {
+        const auto& h = p.hp[(size_t) k];
+        highPass[(size_t) k].setSettings ({ h.on->load() > 0.5f, h.freq->load(), jlimit (0, 5, (int) h.slope->load()) });
+    }
     proximity.setSettings ({ p.proxOn->load() > 0.5f, p.proxAmount->load() });
     ::dsp::AutoLeveler::Settings ls;
     ls.on = p.lvlOn->load() > 0.5f; ls.targetDb = p.lvlTarget->load(); ls.rangeDb = p.lvlRange->load();
     ls.speed = jlimit (0, 2, (int) p.lvlSpeed->load());
     levelerFx.setSettings (ls);
     warmthFx.setAmount (p.warmth->load());
-    for (int b = 0; b < 6; ++b) staticEq.setBand (b, staticBand (b));
+    for (int k = 0; k < nPeq; ++k)
+        for (int b = 0; b < 6; ++b)
+            staticEq[(size_t) k].setBand (b, staticBand (p.pq[(size_t) k], b));
+}
+
+void VoiceChannel::resetModule (int m) noexcept
+{
+    const auto k = (size_t) (instanceOf (m) - 1);
+    switch (typeOf (m))
+    {
+        case tHpf:      highPass[k].reset(); break;
+        case tPse:      pseFx.reset(); break;
+        case tFeedback: fbSup.reset(); break;
+        case tEq:       dynEq[k].reset(); break;
+        case tDeess:    deEsser.reset(); break;
+        case tProx:     proximity.reset(); break;
+        case tLeveler:  levelerFx.reset(); break;
+        case tWarmth:   warmthFx.reset(); break;
+        case tComp:     compFx[k].reset(); break;
+        case tPeq:      staticEq[k].reset(); break;
+        default: break;
+    }
 }
 
 void VoiceChannel::resetChain() noexcept
 {
-    highPass.reset(); pseFx.reset(); fbSup.reset(); dynEq.reset(); deEsser.reset(); warmthFx.reset(); staticEq.reset();
+    // the filters (as LiveVoice does after a bypass); the dynamics keep their state
+    for (int m = 0; m < numModules; ++m)
+    {
+        const int t = typeOf (m);
+        if (t == tHpf || t == tPse || t == tFeedback || t == tEq || t == tDeess || t == tWarmth || t == tPeq) resetModule (m);
+    }
     inGainSmooth.setCurrentAndTargetValue (::dsp::dbToGain (p.inGain->load()) * (p.polarity->load() > 0.5f ? -1.0f : 1.0f));
     outGainSmooth.setCurrentAndTargetValue (::dsp::dbToGain (p.outGain->load()));
 }
@@ -354,6 +517,22 @@ void VoiceChannel::processBlock (AudioBuffer<float>& buffer, MidiBuffer&)
     const int total = buffer.getNumSamples();
     if (total == 0 || buffer.getNumChannels() == 0)
         return;
+
+    // The flow: take a consistent copy (a write in progress is retried a few times; otherwise last block's)
+    for (int attempt = 0; attempt < 4; ++attempt)
+    {
+        const auto s0 = flowSeq.load (std::memory_order_acquire);
+        if (s0 & 1u) continue;
+        int tmp[numModules];
+        const int n = jlimit (0, (int) numModules, flowCount.load (std::memory_order_relaxed));
+        for (int i = 0; i < n; ++i) tmp[i] = flowSlots[(size_t) i].load (std::memory_order_relaxed);
+        if (flowSeq.load (std::memory_order_acquire) == s0)
+        {
+            rtCount = n;
+            for (int i = 0; i < n; ++i) rtFlow[i] = isPositiveAndBelow (tmp[i], (int) numModules) ? tmp[i] : -1;
+            break;
+        }
+    }
 
     auto peak = [] (std::atomic<float>& meter, const float* d, int n)
     {
@@ -383,51 +562,42 @@ void VoiceChannel::processBlock (AudioBuffer<float>& buffer, MidiBuffer&)
         }
         if (fullyBypassed) { resetChain(); fullyBypassed = false; }
 
-        // ---- input trim ----
-        // polarity flips through the 20 ms gain ramp, so it never clicks
+        // ---- input gain and polarity (polarity flips through the 20 ms gain ramp, so it never clicks) ----
         inGainSmooth.setTargetValue (::dsp::dbToGain (p.inGain->load()) * (p.polarity->load() > 0.5f ? -1.0f : 1.0f));
         if (inGainSmooth.isSmoothing()) for (int i = 0; i < n; ++i) ptr[i] *= inGainSmooth.getNextValue();
         else main.applyGain (0, 0, n, inGainSmooth.getTargetValue());
         peak (inputPeakDb, ptr, n);
         inputTap.push (ptr, n);
 
-        // ---- the modules, in the chosen order (all zero latency) ----
-        const auto flow = unpackOrder (packedOrder.load (std::memory_order_acquire));
         // a module put back into the flow starts from silence, not from where it was when taken out
         const juce::uint32 mask = flowMask.load (std::memory_order_acquire), added = mask & ~lastMask;
         if (added != 0)
-        {
-            if (added & (1u << hpf)) highPass.reset();
-            if (added & (1u << pse)) pseFx.reset();
-            if (added & (1u << feedback)) fbSup.reset();
-            if (added & (1u << eq)) dynEq.reset();
-            if (added & (1u << deess)) deEsser.reset();
-            if (added & (1u << prox)) proximity.reset();
-            if (added & (1u << leveler)) levelerFx.reset();
-            if (added & (1u << warmth)) warmthFx.reset();
-            if (added & (1u << comp)) compFx.reset();
-            if (added & (1u << peq)) staticEq.reset();
-        }
+            for (int m = 0; m < numModules; ++m)
+                if ((added >> m) & 1u) resetModule (m);
         lastMask = mask;
-        for (int fi = 0; fi < flow.n; ++fi)
+
+        // ---- the modules, in the chosen order (all zero latency) ----
+        for (int fi = 0; fi < rtCount; ++fi)
         {
-            const int m = flow.m[fi];
-            switch (m)
+            const int m = rtFlow[fi];
+            if (m < 0) continue;
+            const auto k = (size_t) (instanceOf (m) - 1);
+            switch (typeOf (m))
             {
-                case hpf:      highPass.process (main, n); break;
-                case pse:      pseFx.process (main, n); break;
-                case feedback: fbSup.process (main, n); break;
-                case eq:
+                case tHpf:      highPass[k].process (main, n); break;
+                case tPse:      pseFx.process (main, n); break;
+                case tFeedback: fbSup.process (main, n); break;
+                case tEq:
                 {
-                    const bool on = p.eqOn->load() > 0.5f;
-                    if (on && ! eqWasOn) dynEq.reset();
-                    eqWasOn = on;
-                    if (on) dynEq.process (main, n);
+                    const bool on = p.eqs[k].on->load() > 0.5f;
+                    if (on && ! eqWasOn[k]) dynEq[k].reset();
+                    eqWasOn[k] = on;
+                    if (on) dynEq[k].process (main, n);
                     break;
                 }
-                case deess:    deEsser.process (main, n); break;
-                case prox:     proximity.process (main, n); break;
-                case leveler:
+                case tDeess:    deEsser.process (main, n); break;
+                case tProx:     proximity.process (main, n); break;
+                case tLeveler:
                     if (const int dc = detector.getDetectionCount(); dc != lastDetectCount)
                     {
                         lastDetectCount = dc;
@@ -435,17 +605,18 @@ void VoiceChannel::processBlock (AudioBuffer<float>& buffer, MidiBuffer&)
                     }
                     levelerFx.process (main, n);
                     break;
-                case warmth:   warmthFx.process (main, n); break;
-                case comp:     compFx.process (main, n); break;
-                case peq:
+                case tWarmth:   warmthFx.process (main, n); break;
+                case tComp:     compFx[k].process (main, n); break;
+                case tPeq:
                 {
-                    const bool on = p.peqOn->load() > 0.5f;
-                    if (on && ! peqWasOn) staticEq.reset();
-                    peqWasOn = on;
-                    peqOutSmooth.setTargetValue (on ? ::dsp::dbToGain (p.peqOut->load()) : 1.0f);
-                    if (on) staticEq.process (main, n);
-                    if (peqOutSmooth.isSmoothing()) for (int i = 0; i < n; ++i) ptr[i] *= peqOutSmooth.getNextValue();
-                    else if (! approximatelyEqual (peqOutSmooth.getTargetValue(), 1.0f)) main.applyGain (0, 0, n, peqOutSmooth.getTargetValue());
+                    const bool on = p.pq[k].on->load() > 0.5f;
+                    if (on && ! peqWasOn[k]) staticEq[k].reset();
+                    peqWasOn[k] = on;
+                    auto& sm = peqOutSmooth[k];
+                    sm.setTargetValue (on ? ::dsp::dbToGain (p.pq[k].out->load()) : 1.0f);
+                    if (on) staticEq[k].process (main, n);
+                    if (sm.isSmoothing()) for (int i = 0; i < n; ++i) ptr[i] *= sm.getNextValue();
+                    else if (! approximatelyEqual (sm.getTargetValue(), 1.0f)) main.applyGain (0, 0, n, sm.getTargetValue());
                     break;
                 }
                 default: break;
@@ -586,7 +757,7 @@ var VoiceChannel::getView (bool full)
 {
     auto* o = new DynamicObject();
     Array<var> ord;
-    for (int m : getOrder()) ord.add (String (moduleId (m)));
+    for (int m : getOrder()) ord.add (moduleId (m));
     o->setProperty ("order", ord);
     o->setProperty ("preset", presets.getCurrentName());
     Array<var> names; for (auto& n : factoryPresetNames()) names.add (n);
@@ -598,6 +769,8 @@ var VoiceChannel::getView (bool full)
     {
         auto* mo = new DynamicObject();
         mo->setProperty ("name", moduleName (m));
+        mo->setProperty ("type", moduleId (moduleOf (typeOf (m), 1)));
+        mo->setProperty ("instance", instanceOf (m));
         mo->setProperty ("on", isModuleOn (m));
         mo->setProperty ("onParam", moduleOnParam (m));
         mo->setProperty ("inFlow", inFlow (m));
@@ -614,6 +787,8 @@ var VoiceChannel::getView (bool full)
     {
         auto* mo = new DynamicObject();
         mo->setProperty ("name", "Input");
+        mo->setProperty ("type", "input");
+        mo->setProperty ("instance", 1);
         mo->setProperty ("on", true);
         mo->setProperty ("onParam", "");
         mo->setProperty ("fixed", true);
@@ -637,19 +812,39 @@ var VoiceChannel::getView (bool full)
         l->setProperty ("pseKey", pseFx.getKeyLevelDb());
         l->setProperty ("pseGr", pseFx.getGainReductionDb());
         l->setProperty ("pseOpen", pseFx.getIsOpen());
-        l->setProperty ("compGr", compFx.getGainReductionDb());
-        l->setProperty ("compIn", compFx.getInputLevelDb());
-        l->setProperty ("compMakeup", compFx.getMakeupDb());
-        l->setProperty ("compOut", compFx.getInputLevelDb() - compFx.getGainReductionDb() + compFx.getMakeupDb());
         l->setProperty ("lvlGain", levelerFx.getGainDb());
         l->setProperty ("lvlLevel", levelerFx.getLevelDb());
         l->setProperty ("lvlHold", levelerFx.isHoldingBoost());
         l->setProperty ("proxCut", proximity.getCutDb());
         l->setProperty ("dsGr", deEsser.getCurrentGainReductionDb());
-        Array<var> eqDyn, eqDet;
-        for (int b = 0; b < params::numEqBands; ++b) { eqDyn.add (dynEq.getDynamicGainDb (b)); eqDet.add (dynEq.getDetectorLevelDb (b)); }
-        l->setProperty ("eqDyn", eqDyn);
-        l->setProperty ("eqDet", eqDet);
+        // per instance: compressors and dynamic EQs (instance 1 also under the old names)
+        Array<var> comps, eqs;
+        for (int k = 0; k < nComp; ++k)
+        {
+            auto& c = compFx[(size_t) k];
+            auto* co = new DynamicObject();
+            co->setProperty ("gr", c.getGainReductionDb());
+            co->setProperty ("in", c.getInputLevelDb());
+            co->setProperty ("makeup", c.getMakeupDb());
+            co->setProperty ("out", c.getInputLevelDb() - c.getGainReductionDb() + c.getMakeupDb());
+            comps.add (var (co));
+        }
+        for (int k = 0; k < nEq; ++k)
+        {
+            Array<var> dyn, det;
+            for (int b = 0; b < params::numEqBands; ++b) { dyn.add (dynEq[(size_t) k].getDynamicGainDb (b)); det.add (dynEq[(size_t) k].getDetectorLevelDb (b)); }
+            auto* eo = new DynamicObject();
+            eo->setProperty ("dyn", dyn); eo->setProperty ("det", det);
+            eqs.add (var (eo));
+        }
+        l->setProperty ("comps", comps);
+        l->setProperty ("eqs", eqs);
+        l->setProperty ("compGr", comps[0].getProperty ("gr", 0));
+        l->setProperty ("compIn", comps[0].getProperty ("in", -100));
+        l->setProperty ("compMakeup", comps[0].getProperty ("makeup", 0));
+        l->setProperty ("compOut", comps[0].getProperty ("out", -100));
+        l->setProperty ("eqDyn", eqs[0].getProperty ("dyn", {}));
+        l->setProperty ("eqDet", eqs[0].getProperty ("det", {}));
         Array<var> notches;
         for (int i = 0; i < ::dsp::FeedbackSuppressor::maxSlots; ++i)
         {
@@ -680,7 +875,7 @@ var VoiceChannel::setParam (const String& id, double value)
     rp->setValueNotifyingHost (norm);
     rp->endChangeGesture();
     // a preset changed by hand is marked as edited (gain staging and bypass are not part of a preset)
-    if (PresetManager::isPresetParameter (id) && ! presets.getCurrentName().endsWith (" (edited)"))
+    if (liveVoiceIds().count (id) > 0 && PresetManager::isPresetParameter (id) && ! presets.getCurrentName().endsWith (" (edited)"))
         presets.setCurrentName (presets.getCurrentName() + " (edited)");
     return paramVar (rp);
 }
@@ -759,18 +954,20 @@ var VoiceChannel::loadFactoryPreset (int index)
         return var (true);
     }
 
-    // LiveVoice's voice presets don't know LivePi's parametric EQ or polarity: keep those as they are
+    // LiveVoice's voice presets set LiveVoice's parameters only: keep LivePi's own (parametric EQs,
+    // polarity, the extra instances) as they are
     std::vector<std::pair<RangedAudioParameter*, float>> keep;
     for (auto* ap : getParameters())
         if (auto* rp = dynamic_cast<RangedAudioParameter*> (ap))
-            if (rp->getParameterID().startsWith ("peq") || rp->getParameterID() == "inPolarity")
+            if (liveVoiceIds().count (rp->getParameterID()) == 0)
                 keep.emplace_back (rp, rp->getValue());
     const bool ok = presets.loadFactory (index);
     for (auto& [rp, v] : keep) rp->setValueNotifyingHost (v);
     return var (ok);
 }
 
-// RTA of the channel's input or output (1/12 octave, 20 Hz .. 20 kHz) plus the selected module's curve
+// RTA of the channel's input or output (1/12 octave, 20 Hz .. 20 kHz), the selected module's curve,
+// and (for the other graphs) the high-pass filters in the flow, drawn faintly behind
 var VoiceChannel::getSpectrum (bool output, int module)
 {
     constexpr int order = 12, size = 1 << order, points = 120;
@@ -810,10 +1007,16 @@ var VoiceChannel::getSpectrum (bool output, int module)
         }
     }
 
-    Array<var> curve;
-    if (module == hpf || module == eq || module == feedback || module == deess || module == peq)
+    auto hpfSettings = [this] (int k) -> ::dsp::HighPass::Settings
     {
-        ::dsp::HighPass::Settings hs { p.hpfOn->load() > 0.5f, p.hpfFreq->load(), jlimit (0, 5, (int) p.hpfSlope->load()) };
+        const auto& h = p.hp[(size_t) k];
+        return { h.on->load() > 0.5f, h.freq->load(), jlimit (0, 5, (int) h.slope->load()) };
+    };
+
+    Array<var> curve, hpfBg;
+    const int type = typeOf (module), k = instanceOf (module) - 1;
+    if (type == tHpf || type == tEq || type == tFeedback || type == tDeess || type == tPeq)
+    {
         ::dsp::FeedbackSuppressor::NotchInfo nts[::dsp::FeedbackSuppressor::maxSlots];
         int nn = 0;
         for (int i = 0; i < ::dsp::FeedbackSuppressor::maxSlots; ++i)
@@ -826,49 +1029,58 @@ var VoiceChannel::getSpectrum (bool output, int module)
         de.bands[1] = { p.dsShOn->load() > 0.5f, p.dsShFreq->load(), p.dsShQ->load(), p.dsShThr->load(), p.dsShRelThr->load(), p.dsShRange->load() };
         const float gr[2] { deEsser.getBandGainReductionDb (0), deEsser.getBandGainReductionDb (1) };
         const float bf[2] { deEsser.getBandFrequency (0), deEsser.getBandFrequency (1) };
-
-        for (int k = 0; k < points; ++k)
+        // the other high-pass filters in the flow (on), for the background
+        ::dsp::HighPass::Settings bg[nHpf]; int nbg = 0;
+        for (int h = 0; h < nHpf; ++h)
         {
-            const double f = freqs[(size_t) k];
+            const int hm = moduleOf (tHpf, h + 1);
+            if (inFlow (hm) && hm != module && p.hp[(size_t) h].on->load() > 0.5f) bg[nbg++] = hpfSettings (h);
+        }
+
+        for (int i = 0; i < points; ++i)
+        {
+            const double f = freqs[(size_t) i];
             double db = 0.0;
-            if (module == hpf) db = ::dsp::HighPass::responseDb (hs, f, fs);
-            else if (module == feedback) db = ::dsp::FeedbackSuppressor::responseDb (nts, nn, q, f, fs);
-            else if (module == deess) db = ::dsp::DeEsser::reductionResponseDb (de, gr, bf, f, fs);
-            else if (module == peq)
+            if (type == tHpf) db = ::dsp::HighPass::responseDb (hpfSettings (k), f, fs);
+            else if (type == tFeedback) db = ::dsp::FeedbackSuppressor::responseDb (nts, nn, q, f, fs);
+            else if (type == tDeess) db = ::dsp::DeEsser::reductionResponseDb (de, gr, bf, f, fs);
+            else if (type == tPeq)
             {
-                if (p.peqOn->load() > 0.5f)
+                const auto& e = p.pq[(size_t) k];
+                if (e.on->load() > 0.5f)
                 {
-                    db = p.peqOut->load();
+                    db = e.out->load();
                     for (int b = 0; b < 6; ++b)
                     {
-                        const auto sb = staticBand (b);
+                        const auto sb = staticBand (e, b);
                         if (! sb.on) continue;
                         ::dsp::SvfCoeffs c[::dsp::DynamicEq::maxStages];
                         int ns = 0;
                         ::dsp::DynamicEq::designBand (sb, sb.freq, sb.q, sb.gainDb, fs, c, ns);
-                        for (int i = 0; i < ns; ++i) db += c[i].magnitudeDb (f, fs);
+                        for (int s = 0; s < ns; ++s) db += c[s].magnitudeDb (f, fs);
                     }
                 }
             }
-            else if (p.eqOn->load() > 0.5f)
+            else if (p.eqs[(size_t) k].on->load() > 0.5f)
             {
                 for (int b = 0; b < params::numEqBands; ++b)
                 {
-                    const auto& d = p.bands[(size_t) b];
-                    if (d.on->load() < 0.5f) continue;
-                    ::dsp::DynamicEq::BandSettings s;
-                    s.on = true;
-                    const auto shape = params::bandShapeFromChoice (b, d.type != nullptr ? (int) d.type->load() : 0);
-                    s.type = shape.type; s.slope = shape.slope;
-                    s.freq = d.freq->load(); s.q = d.q->load();
-                    const double g = d.gain->load() + (d.dyn->load() > 0.5f ? dynEq.getDynamicGainDb (b) : 0.0f);
+                    auto s = dynBand (p.eqs[(size_t) k], b);
+                    if (! s.on) continue;
+                    const double g = s.gainDb + (s.dynamic ? dynEq[(size_t) k].getDynamicGainDb (b) : 0.0f);
                     ::dsp::SvfCoeffs c[::dsp::DynamicEq::maxStages];
                     int ns = 0;
                     ::dsp::DynamicEq::designBand (s, s.freq, s.q, g, fs, c, ns);
-                    for (int i = 0; i < ns; ++i) db += c[i].magnitudeDb (f, fs);
+                    for (int st = 0; st < ns; ++st) db += c[st].magnitudeDb (f, fs);
                 }
             }
             curve.add (jlimit (-60.0, 30.0, db));
+            if (nbg > 0)
+            {
+                double hb = 0.0;
+                for (int h = 0; h < nbg; ++h) hb += ::dsp::HighPass::responseDb (bg[h], f, fs);
+                hpfBg.add (jlimit (-60.0, 30.0, hb));
+            }
         }
     }
 
@@ -877,5 +1089,6 @@ var VoiceChannel::getSpectrum (bool output, int module)
     o->setProperty ("freqs", fv);
     o->setProperty ("rta", rta);
     o->setProperty ("curve", curve);
+    o->setProperty ("hpf", hpfBg);
     return var (o);
 }
