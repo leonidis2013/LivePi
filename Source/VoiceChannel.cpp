@@ -740,6 +740,8 @@ static var paramVar (RangedAudioParameter* rp)
     const auto& range = rp->getNormalisableRange();
     o->setProperty ("min", range.start);
     o->setProperty ("max", range.end);
+    if (range.start < 0.0f && range.end > 0.0f && dynamic_cast<AudioParameterFloat*> (rp) != nullptr)
+        o->setProperty ("zero", rp->convertTo0to1 (0.0f));   // where 0 is, for the page's detent
     if (auto* c = dynamic_cast<AudioParameterChoice*> (rp))
     {
         o->setProperty ("type", "choice");

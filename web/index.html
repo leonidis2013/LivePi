@@ -595,7 +595,7 @@
   @media (max-width:720px) {
     .cvbar { flex-wrap:wrap; padding:8px 10px; padding-top:calc(8px + env(safe-area-inset-top)); }
     .cvpre span { display:none; }
-    .cvpre select { max-width:150px; }
+    .cvpre { flex:1 1 0; min-width:0; } .cvpre select { max-width:none; width:100%; }
     #cvCopy { max-width:110px; }
     .cvbody { gap:6px; padding:6px; }
     .cvside { flex:0 0 64px; padding:8px 4px; gap:6px; }
@@ -771,7 +771,7 @@
   .nmwrap, .cvname { position:relative; display:flex; align-items:center; min-width:0; cursor:text; }
   .nmwrap { width:100%; }
   .cvname { flex:1 1 160px; min-width:140px; }
-  @media (max-width:720px) { .cvbar > * { order:2; } .cvbar .cvname { order:0; flex-basis:calc(100% - 64px); } .cvbar #cvClose { order:1; } }
+  @media (max-width:720px) { .cvbar > * { order:3; } .cvbar .cvname { order:0; flex-basis:calc(100% - 64px); } .cvbar #cvClose { order:1; } .cvbar .cvpre { order:2; flex:1 1 100%; } }
   .strip.rack .nmwrap { width:auto; flex:0 1 240px; }
   .nmwrap .nm { padding-right:22px; width:100%; flex:1; }
   @media (max-width:720px) { .strip.rack .nmwrap { flex:1 1 120px; } }
@@ -780,6 +780,30 @@
   .cvname input { width:100%; background:transparent; border:1px solid transparent; font-size:15px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; padding:6px 24px 6px 6px; color:var(--fg); }
   .cvname input:focus { background:var(--card2); border-color:var(--line); text-transform:none; letter-spacing:0; }
   .strip .nmwrap .nm:focus { text-transform:none; letter-spacing:0; }
+
+  /* graph captions sit under the graph, never over its labels */
+  .cvgt { display:flex; flex-direction:column; }
+  .cvgt canvas { flex:1; min-height:0; }
+  .cvgt .cvcl { position:static; padding:4px 8px 6px; background:var(--card2); line-height:1.3; }
+  /* the mixer strip's voice: name on one line, the flow as coloured dots */
+  .vbox { display:flex; flex-direction:column; gap:6px; background:var(--card2); border-radius:10px; padding:8px; }
+  .vhead { display:flex; flex-direction:column; gap:1px; min-width:0; }
+  .vlab { font-size:9px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); }
+  .vname { font-size:13px; font-weight:700; line-height:1.25; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+  .vname.byp { color:var(--warn); }
+  .vflow { display:flex; flex-wrap:wrap; gap:4px 8px; }
+  .vm { display:inline-flex; align-items:center; gap:4px; font-size:11px; color:var(--faint); }
+  .vm i { width:7px; height:7px; border-radius:50%; background:var(--faint); }
+  .vm.on { color:var(--fg); }
+  .vm.on i { background:var(--mc); box-shadow:0 0 5px var(--mc); }
+  /* input level dot on the Input tile */
+  .fb .dot.lvl { width:12px; height:12px; flex:0 0 12px; display:block !important; }
+  .fb .dot.lvl.low { background:#4c8dff; box-shadow:0 0 6px #4c8dff; }
+  .fb .dot.lvl.good { background:#2fbf71; box-shadow:0 0 6px #2fbf71; }
+  .fb .dot.lvl.loud { background:#e8c23a; box-shadow:0 0 6px #e8c23a; }
+  .fb .dot.lvl.peak { background:#ff4d4d; box-shadow:0 0 8px #ff4d4d; }
+  /* 4. high-pass: a shorter graph, so its panel fits without scrolling */
+  @media (max-width:720px) { .cvviz.short { height:140px; } }
 </style>
 </head>
 <body>
@@ -1494,9 +1518,19 @@ function buildStrip(c, ch) {
   if (isMixer()) {
     const box = el('div', 'vbox');
     if (c.voice) {
-      box.append(el('div', 'vpre', c.voice.bypass ? 'Bypassed' : (c.voice.preset || 'Default')));
-      const fl = el('div', 'flowmini');
-      c.voice.modules.forEach(m => { const t = el('span', m.on ? 'on' : '', m.name); t.style.setProperty('--mc', MOD_COLOR[String(m.id).replace(/\d+$/, '')]); fl.append(t); });
+      const hd = el('div', 'vhead');
+      hd.append(el('span', 'vlab', 'Voice'), el('b', 'vname' + (c.voice.bypass ? ' byp' : ''), c.voice.bypass ? 'Bypassed' : (c.voice.preset || 'Default')));
+      hd.title = c.voice.preset || 'Default';
+      box.append(hd);
+      // the flow, in order: a coloured dot per module (dim when off)
+      const fl = el('div', 'vflow');
+      c.voice.modules.forEach((m, i) => {
+        const t = el('span', 'vm' + (m.on ? ' on' : ''));
+        t.style.setProperty('--mc', MOD_COLOR[String(m.id).replace(/\d+$/, '')]);
+        t.append(el('i'), el('span', '', (MOD_SHORT[String(m.id).replace(/\d+$/, '')] || m.name) + (/\d$/.test(m.id) ? ' ' + m.id.slice(-1) : '')));
+        t.title = (i + 1) + '. ' + m.name + (m.on ? '' : ' (off)');
+        fl.append(t);
+      });
       box.append(fl);
       const ob = el('button', 'on opench', 'Open channel'); ob.onclick = () => cvOpen(ch); box.append(ob);
     } else box.append(el('div', 'note', S.dryChannels ? 'Safe mode: unprocessed' : 'No processing'));
@@ -1815,7 +1849,7 @@ function buildCtl(p, label, send) {
     });
     k.addEventListener('pointermove', e => {
       if (!c._drag) return;
-      const v = Math.max(0, Math.min(1, v0 + (y0 - e.clientY) / (e.shiftKey ? 800 : 200)));
+      const v = detent(p, Math.max(0, Math.min(1, v0 + (y0 - e.clientY) / (e.shiftKey ? 800 : 200))));
       c._set(v); sendParam(p, v, c);
     });
     const end = () => { c._drag = false; };
@@ -2923,6 +2957,11 @@ function cvSend(id, norm, ctl) {
 }
 // Phones: a wide slider row instead of a knob. Drag sideways (the page still scrolls up and down),
 // − / + for fine steps, double-tap the bar for the default.
+// Gains stop at 0 dB on the way through (a detent): easy to put back exactly
+function detent(p, v) {
+  if (p.zero === undefined || !/gain|out$|_out|trim|makeup/i.test(p.id || p.name || '')) return v;
+  return Math.abs(v - p.zero) < 0.02 ? p.zero : v;
+}
 function buildSlider(p, label, send) {
   const c = el('div', 'ctl sld'); c.dataset.name = p.name.toLowerCase();
   const top = el('div', 'sldt'), txt = el('span', 'cv', p.text);
@@ -2935,7 +2974,7 @@ function buildSlider(p, label, send) {
   c.append(top, row);
   c._set = v => { const x = Math.max(0, Math.min(1, v)) * 100; fill.style.width = x + '%'; thumb.style.left = x + '%'; };
   c._text = t => { txt.textContent = t; };
-  const put = v => { v = Math.max(0, Math.min(1, v)); c._set(v); send(p, v, c); };
+  const put = v => { v = detent(p, Math.max(0, Math.min(1, v))); c._set(v); send(p, v, c); };
   const step = d => { put(p.value + d); };
   minus.onclick = () => step(-0.01); plus.onclick = () => step(0.01);
   let x0 = 0, v0 = 0, w = 1, lastTap = 0, moved = false;
@@ -2951,7 +2990,7 @@ function buildSlider(p, label, send) {
   return c;
 }
 function cvCtl(p, label, knob, wide) {
-  const q = { name: p.name, value: p.norm, default: p.def, text: p.text, type: p.type, choices: p.choices, id: p.id };
+  const q = { name: p.name, value: p.norm, default: p.def, text: p.text, type: p.type, choices: p.choices, id: p.id, zero: p.zero };
   const send = (pp, v, ctl) => { pp.value = v; cvSend(p.id, v, ctl); };
   const slider = (PHONE.matches || wide) && !knob && q.type !== 'bool' && q.type !== 'choice';
   const c = slider ? buildSlider(q, label || cvLabel(p.name), send) : buildCtl(q, label || cvLabel(p.name), send);
@@ -3092,7 +3131,7 @@ function cvFlow() {
     pw.onclick = e => { e.stopPropagation(); cvToggle(id); };
     if (fixed) pw.classList.add('hide');
     b.append(grip, el('span', 'fbi', fixed ? 'IN' : String(i)), el('span', 'dot' + (m.on ? ' on' : '')), el('span', 'fbn', m.name), el('span', 'fbs', sn), el('span', 'fbm', ''), pw);
-    if (fixed) { const mm = el('span', 'fbmeter'); mm.append(el('i')); b.append(mm); }
+
     b.onclick = () => { CV.sel = id; try { localStorage.setItem('lh.cvsel', id); } catch (e) {} cvRender(); };
     if (!fixed) cvDrag(grip, b);
     F.append(b);
@@ -3153,7 +3192,10 @@ function cvFlowSync() {
     const id = b.dataset.id, m = v.modules[id]; if (!m) return;
     if (id === 'input') {
       const ip = L.inPeak ?? -100; b.querySelector('.fbm').textContent = ip <= -99 ? '' : ip.toFixed(0) + ' dB';
-      const mi = b.querySelector('.fbmeter i'); if (mi) { const d = Math.max(ip, (CV.inDisp ?? -100) - 2.5); CV.inDisp = d; mi.style.width = Math.max(0, Math.min(100, (d + 60) / 60 * 100)) + '%'; mi.classList.toggle('hot', d > -6); }
+      // level dot: blue = low, green = good, yellow = loud, red = peaking
+      const d = Math.max(ip, (CV.inDisp ?? -100) - 2.5); CV.inDisp = d;
+      const dot = b.querySelector('.dot');
+      if (dot) { dot.className = 'dot lvl ' + (d > -3 ? 'peak' : d > -12 ? 'loud' : d > -40 ? 'good' : 'low'); dot.title = ip <= -99 ? 'No signal' : ip.toFixed(0) + ' dB'; }
       return;
     }
     const T = cvType(id);
@@ -3226,7 +3268,7 @@ function cvPanelBody(v, id, m, P) {
   const T = cvType(id);
 
   if (SPEC_MODS.includes(T)) {
-    const viz = el('div', 'cvviz'); const cnv = el('canvas'); viz.append(cnv); P.append(viz);
+    const viz = el('div', 'cvviz' + (T === 'hpf' ? ' short' : '')); const cnv = el('canvas'); viz.append(cnv); P.append(viz);
     if (T === 'eq' || T === 'peq') cvEqDrag(cnv, T);
     if (T === 'hpf') { cvHpfDrag(cnv); viz.append(el('span', 'cvhint', 'Slide sideways to move the cut-off')); }
     if (T === 'feedback') cvNotchTap(cnv);
@@ -3235,21 +3277,21 @@ function cvPanelBody(v, id, m, P) {
     const viz = el('div', 'cvgraphs');
     const t = el('div', 'cvgt sq'), hst = el('div', 'cvgt');
     const c1 = el('canvas'); c1.id = 'cmpT'; const c2 = el('canvas'); c2.id = 'cmpH';
-    t.append(c1, el('span', 'cvcl', 'Curve: drag for the threshold')); hst.append(c2, el('span', 'cvcl', 'History: input, output (line), gain reduction (red). Drag up/down for the threshold'));
+    t.append(c1, el('span', 'cvcl', 'Curve: slide for the threshold')); hst.append(c2, el('span', 'cvcl', 'Grey: input · line: output · red: gain reduction. Slide up/down for the threshold'));
     viz.append(t, hst); P.append(viz);
     cvThrDrag(c1, cvPid('compThr'), 'x'); cvThrDrag(c2, cvPid('compThr'), 'y');
   }
   if (T === 'leveler') {
     const viz = el('div', 'cvgraphs'), hst = el('div', 'cvgt');
     const c2 = el('canvas'); c2.id = 'lvlH';
-    hst.append(c2, el('span', 'cvcl', 'History: level (bars), gain it adds or takes away (line, around the middle). Drag up/down for the target'));
+    hst.append(c2, el('span', 'cvcl', 'Grey: level · yellow: gain added or taken away. Slide up/down for the target'));
     viz.append(hst); P.append(viz);
     cvThrDrag(c2, cvPid('lvlTarget'), 'y');
   }
   if (T === 'pse') {
     const viz = el('div', 'cvgraphs'), hst = el('div', 'cvgt');
     const c2 = el('canvas'); c2.id = 'pseH';
-    hst.append(c2, el('span', 'cvcl', 'History: voice level (green = open, grey = closed), turned down (orange line). Drag up/down for the threshold'));
+    hst.append(c2, el('span', 'cvcl', 'Green: open · grey: closed · orange: turned down. Slide up/down for the threshold'));
     viz.append(hst); P.append(viz);
     cvThrDrag(c2, 'pseThr', 'y');
   }
