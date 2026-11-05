@@ -66,6 +66,7 @@ public:
     juce::var addPlugin (int channel, const juce::String& pluginId);
     juce::var removePlugin (int channel, int slot);
     juce::var setBypass (int channel, int slot, bool bypassed);
+    juce::var movePlugin (int channel, int from, int to);   // reorder a channel's plugins
 
     // Mixer
     juce::var setMixer (const juce::var& body);          // { channel, gainDb?, mute? }

@@ -80,6 +80,7 @@ run_case() {
   check "$label: preset saved" "api /api/state | jq -e '.presets | index(\"Smoke test\")' >/dev/null"
   check "$label: preset deleted" "post /api/presets/delete '{\"name\":\"Smoke test\"}' | jq -e .ok >/dev/null && api /api/state | jq -e '(.presets | index(\"Smoke test\")) == null' >/dev/null"
   check "$label: deleting a missing preset is refused" "post /api/presets/delete '{\"name\":\"../last\"}' | jq -e .error >/dev/null"
+  check "$label: moving a missing plugin is refused" "post /api/chain/move '{\"channel\":0,\"from\":7,\"to\":0}' | jq -e .error >/dev/null"
   # ---- Pisound button (no Pisound in CI: settings still work, presses are simulated nowhere)
   check "$label: button settings answer (5 presses, 10 actions, no Pisound here)" "api /api/button | jq -e '(.gestures|length)==5 and (.actions|length)==10 and .present==false' >/dev/null"
   check "$label: button action saved" "post /api/button '{\"actions\":{\"click1\":{\"action\":\"mute\",\"channel\":1}}}' | jq -e .ok >/dev/null && api /api/button | jq -e '.gestures[0].action==\"mute\" and .gestures[0].channel==1' >/dev/null"

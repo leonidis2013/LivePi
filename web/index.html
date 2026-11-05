@@ -234,6 +234,7 @@
   .och input:checked + span { background:var(--acc); color:var(--onacc); }
   .och input:focus-visible + span { outline:2px solid var(--acc); }
 
+
   /* plugin view */
   .zoom button { min-width:40px; }
   #pvHand.on { background:var(--acc); color:var(--onacc); }
@@ -586,7 +587,7 @@
     .fb .fbn { font-size:12px; }
     .fb .pwr { width:26px; height:26px; }
     .fb .grip { width:16px; flex-basis:16px; }
-    .fbflowhint { display:none; }
+    .fbflowhint { grid-column:1 / -1; padding:0 2px; }
   }
   @media (max-width:720px) {
     .cvbar { flex-wrap:wrap; padding:8px 10px; padding-top:calc(8px + env(safe-area-inset-top)); }
@@ -611,6 +612,97 @@
 
   .cvside.strip { width:auto; min-width:0; flex:0 0 132px; margin:0; }
   @media (max-width:720px) { .cvside.strip { flex:0 0 64px; } }
+
+  /* ---- VST rack ---- */
+  .strips.rackmode { flex-direction:column; overflow-x:visible; gap:10px; }
+  .strip.rack { width:auto; flex:none; max-width:1100px; padding:8px 10px 10px; gap:6px; border-radius:12px; }
+  .rkhead { display:flex; align-items:center; gap:10px; }
+  .strip.rack .nm { width:auto; flex:0 1 220px; min-width:90px; text-align:left; }
+  .rkinfo { flex:1; text-align:left; }
+  .rkkeys { display:flex; align-items:center; gap:8px; margin-left:auto; }
+  .rkkeys .mute { width:auto; min-width:72px; }
+  .rkkeys .monbtn { width:auto; height:auto; min-width:64px; border-radius:999px; padding:6px 10px; font-size:12px; }
+  .ctl.rklvl { display:flex; flex-direction:row; align-items:center; gap:6px; width:auto; }
+  .rklvl .cl { display:none; }
+  .rklvl svg.rk { width:40px; height:40px; }
+  .rklvl .cv { min-width:58px; font-size:12px; text-align:left; font-variant-numeric:tabular-nums; color:var(--dim); }
+  .rkbody { display:flex; align-items:stretch; gap:10px; }
+  .rkm { display:flex; flex-direction:column; align-items:center; gap:3px; flex:0 0 26px; }
+  .rkm .meter { flex:1; min-height:56px; width:9px; }
+  .rkm .meter b { position:absolute; left:0; right:0; height:1px; background:color-mix(in srgb, var(--card) 70%, transparent); }
+  .rkm span { font-size:9px; font-weight:700; letter-spacing:.08em; color:var(--dim); }
+  .rkunits { flex:1; display:flex; flex-wrap:wrap; align-items:stretch; gap:8px; min-width:0; }
+  .rkarrow { align-self:center; color:var(--faint); font-size:22px; line-height:1; }
+  .rku { background:var(--card2); border:1px solid var(--line); border-left:3px solid var(--acc); border-radius:8px; padding:6px 8px; width:200px; display:flex; flex-direction:column; gap:6px; }
+  .rku.byp { border-left-color:var(--warn); opacity:.75; }
+  .rku.byp .cnlink { text-decoration:line-through; color:var(--dim); }
+  .rku.dragging { z-index:5; box-shadow:0 8px 24px var(--shadow); opacity:.95; position:relative; }
+  .rkut { display:flex; align-items:center; gap:6px; min-width:0; }
+  .rkut .cnlink { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; font-size:13px; }
+  .rkn { font-size:10px; font-weight:700; color:var(--dim); background:var(--card); border-radius:4px; padding:1px 5px; }
+  .rkgrip { cursor:grab; touch-action:none; color:var(--dim); padding:4px 2px 4px 6px; letter-spacing:-2px; user-select:none; }
+  .rkgrip.off { visibility:hidden; }
+  .rku .more { margin-top:0; }
+  .rkadd { border:1px dashed var(--line); border-left:1px dashed var(--line); background:transparent; justify-content:center; }
+  .rkadd .addbtn { border:0; }
+  .rkbus { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .rkbus .listen { width:auto; }
+  @media (max-width:720px) {
+    .rkhead { flex-wrap:wrap; gap:6px; }
+    .strip.rack .nm { flex:1 1 120px; }
+    .rkinfo { display:none; }
+    .rkkeys { width:100%; justify-content:space-between; }
+    .rkarrow { display:none; }
+    .rku { width:auto; flex:1 1 100%; flex-direction:row; flex-wrap:wrap; align-items:center; gap:6px; padding:5px 6px; }
+    .rku .rkut { flex:1 1 0; order:0; }
+    .rku .rkgrip { order:-1; padding-left:0; }
+    .rku .cb .ib { width:32px; height:32px; min-height:32px; }
+    .rku .more { flex-basis:100%; }
+    .rkadd { min-height:44px; }
+    .rkbody { gap:8px; }
+  }
+
+  /* ---- mixer channel screen: module tiles and phone sliders ---- */
+  .fb .fbi { font-size:10px; font-weight:700; color:var(--dim); min-width:12px; text-align:center; }
+  .cvph .mv { font-size:16px; font-weight:700; }
+  .sld { grid-column:1 / -1; display:flex; flex-direction:column; gap:4px; }
+  .sldt { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .sldt .cl { font-size:13px; font-weight:600; color:var(--fg); }
+  .sldt .cv { font-size:13px; color:var(--dim); }
+  .sldr { display:flex; align-items:center; gap:8px; }
+  .sldb { flex:0 0 40px; width:40px; min-height:40px; height:40px; padding:0; border-radius:10px; font-size:20px; font-weight:700; }
+  .sldbar { position:relative; flex:1; height:40px; touch-action:pan-y; cursor:ew-resize; }
+  .sldbar::before { content:""; position:absolute; left:0; right:0; top:50%; height:8px; margin-top:-4px; border-radius:4px; background:var(--inset); }
+  .sldbar i { position:absolute; left:0; top:50%; height:8px; margin-top:-4px; border-radius:4px; background:var(--mc, var(--acc)); }
+  .sldbar b { position:absolute; top:50%; width:26px; height:26px; margin:-13px 0 0 -13px; border-radius:50%; background:var(--knob); border:1px solid var(--faint); box-shadow:0 1px 4px var(--shadow); }
+  @media (max-width:900px) {
+    .cvflow { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:6px; overflow:visible; }
+    .fb { min-height:40px; padding:6px; gap:5px; touch-action:manipulation; }
+    .fb .grip { display:none; }
+    .fb .fbn { font-size:12px; }
+  }
+  .fb .fbn { display:none; }
+  .fb .fbs { display:block; flex:1; min-width:0; font-weight:700; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sld, .sldr { width:100%; align-items:stretch; }
+  .sldr { align-items:center; }
+  @media (max-width:720px) {
+    /* phone: the module tiles go full width above; input left, panel, output right */
+    .cvbody { display:grid; grid-template-columns:56px minmax(0,1fr) 50px; grid-template-rows:auto minmax(0,1fr); grid-template-areas:"flow flow flow" "in panel out"; gap:6px; }
+    .cvmain { display:contents; }
+    .cvflow { grid-area:flow; }
+    .cvpanel { grid-area:panel; }
+    .cvside.cvin { grid-area:in; }
+    #cvOut { grid-area:out; }
+    .cvside { padding:8px 3px; }
+    .cvside h4 { font-size:9px; letter-spacing:.06em; }
+    .cvside .rk { width:40px; height:40px; }
+    .cvside .monbtn { width:46px; height:40px; font-size:10px; }
+    .fb .fbn { display:none; }
+    .fb .fbs { display:block; flex:1; min-width:0; font-weight:700; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .cvctls { grid-template-columns:repeat(2, minmax(0,1fr)); gap:14px 10px; }
+    .fb .pwr { width:24px; height:24px; flex:0 0 24px; }
+    .fb .dot { display:none; }
+  }
 </style>
 </head>
 <body>
@@ -743,17 +835,18 @@
   <div class="card">
     <h2>Mode</h2>
     <div class="set"><div class="sl"><b>LivePi mode</b><span id="modeNote"></span></div><div class="sc"><div class="seg" id="modeSeg"><button data-v="vst">VST rack</button><button data-v="mixer">Mixer</button></div></div></div>
+    <div class="set" id="pvDefRow"><div class="sl"><b>Plugins open in</b><span>When you tap a plugin name (this device)</span></div><div class="sc"><div class="seg" id="pvDefSeg"><button data-v="controls">Controls</button><button data-v="window">Plugin</button></div></div></div>
+    <div class="set" id="rtaRow"><div class="sl"><b>RTA shows</b><span>Behind the curves: before or after the modules (this device)</span></div><div class="sc"><div class="seg" id="rtaSeg"><button data-v="in">Input</button><button data-v="out">Output</button></div></div></div>
   </div>
   <div class="card">
-    <h2>Appearance</h2>
+    <h2>Monitoring</h2>
+    <div class="set"><div class="sl"><b>PAFL mode</b><span>Where PAFL listens on every channel</span></div><div class="sc"><div class="seg" id="paflSeg"><button data-v="0">PFL</button><button data-v="2">AFL</button><button data-v="1">Input</button></div></div></div>
+    <div class="set"><div class="sl"><b>Listen delay</b><span>Listen here on this device: lower = less delay</span></div><div class="sc"><div class="seg" id="leadSeg"><button data-v="40">Lowest</button><button data-v="80">Low</button><button data-v="200">Safe</button></div></div></div>
+  </div>
+  <div class="card">
+    <h2>This device</h2>
     <div class="set"><div class="sl"><b>Theme</b><span>Auto follows this device</span></div><div class="sc"><div class="seg" id="themeSeg"><button data-theme="auto">Auto</button><button data-theme="dark">Dark</button><button data-theme="light">Light</button></div></div></div>
     <div class="set"><div class="sl"><b>Keep screen awake</b><span id="awakeNote">Off: the screen dims as set on this device</span></div><div class="sc"><div class="seg" id="awakeSeg"><button data-v="on">On</button><button data-v="off">Off</button></div></div></div>
-  </div>
-  <div class="card">
-    <h2>Mixer</h2>
-    <div class="set"><div class="sl"><b>Plugins open in</b><span>What tapping a plugin name opens (this device)</span></div><div class="sc"><div class="seg" id="pvDefSeg"><button data-v="controls">Controls</button><button data-v="window">Plugin</button></div></div></div>
-    <div class="set"><div class="sl"><b>PAFL mode</b><span>PFL before the fader, AFL after it</span></div><div class="sc"><div class="seg" id="paflSeg"><button data-v="0">PFL</button><button data-v="2">AFL</button><button data-v="1">Input</button></div></div></div>
-    <div class="set"><div class="sl"><b>Listen delay</b><span>Lower = less delay, more risk of crackles</span></div><div class="sc"><div class="seg" id="leadSeg"><button data-v="40">Lowest</button><button data-v="80">Low</button><button data-v="200">Safe</button></div></div></div>
   </div>
   <div class="card" id="btnCard">
     <h2>Pisound button</h2>
@@ -1320,15 +1413,149 @@ function buildStrip(c, ch) {
   return s;
 }
 
+/* ---------- VST rack: one row per channel, plugins as rack units in signal order ---------- */
+function rackMeter(kind, label, tip) {
+  const w = el('div', 'rkm'); w.title = tip;
+  const m = el('div', 'meter'); m.dataset.k = kind; m.append(el('i'));
+  [0, -12, -24].forEach(t => { const tk = el('b'); tk.style.bottom = meterPct(t) + '%'; m.append(tk); });
+  w.append(m, el('span', '', label));
+  return w;
+}
+function rackLevel(ch, c) {
+  const p = { type: 'float', name: 'Level', value: posFromDb(c.gainDb), default: posFromDb(0), text: '' };
+  const fmt = db => db <= MINDB ? '-inf' : (db > 0 ? '+' : '') + db.toFixed(1) + ' dB';
+  const k = buildCtl(p, 'Level', (pp, v, ctl) => {
+    pp.value = v; const db = dbFromPos(v); ctl._text(fmt(db));
+    throttled('g' + ch, () => api('/api/mixer', { channel: ch, gainDb: db }));
+  });
+  k.classList.add('rklvl'); k._p = p; k._fmt = fmt; k._text(fmt(c.gainDb));
+  k.title = 'Output level of this channel (double-tap = 0 dB)';
+  return k;
+}
+function rackDrag(grip, unit, ch) {
+  let st = null;
+  grip.addEventListener('pointerdown', e => {
+    e.preventDefault(); e.stopPropagation(); grip.setPointerCapture(e.pointerId);
+    const units = [...unit.parentNode.querySelectorAll('.rku[data-i]')];
+    st = { x: e.clientX, y: e.clientY, units, idx: units.indexOf(unit) };
+    unit.classList.add('dragging'); RACK_QUIET = Date.now() + 60000;
+  });
+  grip.addEventListener('pointermove', e => { if (st) unit.style.transform = `translate(${e.clientX - st.x}px,${e.clientY - st.y}px)`; });
+  const end = async e => {
+    if (!st) return;
+    const s = st; st = null; unit.classList.remove('dragging'); unit.style.transform = ''; RACK_QUIET = 0;
+    let to = s.idx, best = 1e9;
+    s.units.forEach((u, i) => { const r = u.getBoundingClientRect(); const d = Math.hypot(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2)); if (d < best) { best = d; to = i; } });
+    if (to === s.idx) return;
+    const r = await api('/api/chain/move', { channel: ch, from: s.idx, to });
+    if (!r.ok) toast(r.error || 'Could not move the plugin');
+    structKey = ''; refresh();
+  };
+  grip.addEventListener('pointerup', end); grip.addEventListener('pointercancel', end);
+}
+let RACK_QUIET = 0;
+function buildRack(c, ch) {
+  const isBus = ch === 100;
+  const s = el('div', 'strip rack' + (isBus ? ' bus' : '')); s.dataset.ch = ch;
+  const head = el('div', 'rkhead');
+  const nm = el('input', 'nm'); nm.value = c.name; nm.maxLength = 24;
+  if (isBus) nm.readOnly = true; else nm.onchange = () => api('/api/channel/name', { channel: ch, name: nm.value });
+  head.append(nm);
+  const info = el('span', 'rkinfo cpu');
+  const sum = c.slots.filter(p => p.cpuAvg !== undefined && !p.bypassed).reduce((a, p) => a + p.cpuAvg, 0);
+  if (!isBus && c.slots.some(p => p.cpuAvg !== undefined)) info.textContent = `≈ ${sum.toFixed(1)}% of one core`;
+  head.append(info);
+  const keys = el('div', 'rkkeys');
+  keys.append(rackLevel(ch, c));
+  const mute = el('button', 'mute', 'Mute');
+  mute.onclick = () => { const on = !mute.classList.contains('on'); mute.classList.toggle('on', on); api('/api/mixer', { channel: ch, mute: on }); };
+  keys.append(mute);
+  if (!isBus) {
+    const mb = el('button', 'monbtn' + (c.sendDb > -60 ? ' on' : ''), 'PAFL');
+    mb.title = 'PAFL: listen to this channel on the Monitor mix (PFL/AFL is set in Setup > Settings). One channel at a time.';
+    mb.dataset.ch = ch;
+    mb.onclick = () => setMonitorSource(mb.classList.contains('on') ? -1 : ch);
+    keys.append(mb);
+  }
+  head.append(keys);
+  s.append(head);
+
+  const body = el('div', 'rkbody');
+  body.append(rackMeter('in', isBus ? 'SEND' : 'IN', isBus ? 'Monitor mix level before its level control' : 'Input level, before the plugins'));
+  const units = el('div', 'rkunits');
+  if (isBus) {
+    const mode = ({ 0: 'PFL', 1: 'INPUT', 2: 'AFL' })[S ? S.paflMode || 0 : 0];
+    const who = (S ? S.chains : []).find(cc => cc.sendDb > -60);
+    const lb = el('button', 'listen' + (mon.on ? ' on' : ''));
+    lb.innerHTML = `<svg viewBox="0 0 24 24"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg><span>${mon.on ? 'Listening' : 'Listen here'}</span>`;
+    lb.title = 'Play the monitor mix on this phone / computer (a copy of the audio; it never delays the Pi)';
+    lb.onclick = () => mon.on ? monStop() : monStart();
+    const box = el('div', 'rkbus');
+    box.append(el('div', 'pafl', who ? `${mode} · ${who.name}` : `${mode} · no channel`), lb, el('div', 'cpu monstat', mon.on ? monText() : ''));
+    units.append(box);
+  } else {
+    c.slots.forEach((p, i) => {
+      if (i) units.append(el('span', 'rkarrow', '›'));
+      const u = el('div', 'rku' + (p.bypassed ? ' byp' : '')); u.dataset.i = i;
+      const top = el('div', 'rkut');
+      const grip = el('span', 'rkgrip', '⋮⋮'); grip.title = 'Drag to move this plugin';
+      if (c.slots.length > 1) rackDrag(grip, u, ch); else grip.classList.add('off');
+      const nmLink = el('span', 'cnlink', p.name);
+      nmLink.title = 'Open (' + (pluginViewDefault() === 'window' ? 'plugin screen' : 'controls') + ')';
+      nmLink.onclick = () => openPlugin(ch, i, p.name, pluginViewDefault() === 'window' && S && S.editorAvailable ? 'window' : 'controls');
+      top.append(el('span', 'rkn', String(i + 1)), nmLink, grip);
+      const cb = el('div', 'cb');
+      const ctl = ib('ctl', 'Controls'); ctl.onclick = () => openPlugin(ch, i, p.name, 'controls'); cb.append(ctl);
+      if (S && S.editorAvailable) { const e = ib('win', 'Plugin screen'); e.onclick = () => openPlugin(ch, i, p.name, 'window'); cb.append(e); }
+      const by = ib('pw', p.bypassed ? 'Bypassed: tap to enable' : 'On: tap to bypass', 'pw' + (p.bypassed ? '' : ' on'));
+      by.onclick = async () => { await api('/api/chain/bypass', { channel: ch, slot: i, bypass: !p.bypassed }); refresh(); };
+      const mo = ib('more', 'More');
+      cb.append(by, mo);
+      const more = el('div', 'more hide');
+      const cm = ib('cpu', 'Estimate CPU use with a test signal (not during a show)');
+      cm.onclick = async () => { cm.disabled = true; const r = await api('/api/plugins/measure', { channel: ch, slot: i }); if (r.error) { cm.disabled = false; } else refresh(); };
+      const rm = ib('del', 'Remove from this channel', 'danger');
+      rm.onclick = async () => { if (!confirm('Remove ' + p.name + ' from this channel?')) return; await api('/api/chain/remove', { channel: ch, slot: i }); refresh(); };
+      const inf = el('span', 'cpu grow', '');
+      if (p.cpuMeasuring) { inf.textContent = 'measuring…'; cm.disabled = true; }
+      else if (p.cpuAvg !== undefined) inf.textContent = `CPU ${p.cpuAvg.toFixed(1)}%`;
+      more.append(cm, inf, rm);
+      mo.onclick = () => more.classList.toggle('hide');
+      if (p.cpuMeasuring) more.classList.remove('hide');
+      u.append(top, cb, more);
+      units.append(u);
+    });
+    // Empty slot at the end of the chain
+    const add = el('div', 'rku rkadd');
+    const open = el('button', 'addbtn', c.slots.length ? '+ Add' : '+ Add plugin');
+    const row = el('div', 'row hide'); row.style.margin = '0';
+    const sel = el('select', 'grow');
+    plugins.forEach(p => { const o = el('option', '', p.name); o.value = p.id; sel.append(o); });
+    const btn = el('button', 'on', 'Add');
+    open.onclick = () => { if (!plugins.length) return toast('Upload or scan for plugins on the Setup tab first'); open.classList.add('hide'); row.classList.remove('hide'); };
+    btn.onclick = async () => { btn.disabled = true; await api('/api/chain/add', { channel: ch, id: sel.value }); btn.disabled = false; refresh(); };
+    row.append(sel, btn); add.append(open, row);
+    if (c.slots.length) units.append(el('span', 'rkarrow', '›'));
+    units.append(add);
+  }
+  body.append(units, rackMeter('out', 'OUT', isBus ? 'Monitor mix level after its level control' : 'Output level, after the plugins and the level control'));
+  s.append(body);
+  return s;
+}
+
 function renderStrips(st) {
   const key = JSON.stringify(st.chains.map(c => [c.name, c.slots, c.sendDb > -60])) + JSON.stringify([st.monitorBus, st.outputNames]) + '|' + plugins.length + '|' + !!st.editorAvailable + '|' + (st.paflMode || 0) + '|' + (st.mode || '') + JSON.stringify(st.chains.map(c => c.voice ? [c.voice.preset, c.voice.bypass, c.voice.modules.map(m => m.id + (m.on ? 1 : 0)).join()] : 0));
   if (key === structKey) return;
   const a = document.activeElement;
   if (a && a.tagName === 'INPUT' && a.closest('#strips')) return;   // don't rebuild while renaming
   structKey = key;
+  if (Date.now() < RACK_QUIET) { structKey = ''; return; }   // a plugin is being dragged
   const root = $('strips'); root.innerHTML = '';
-  st.chains.forEach((c, ch) => root.append(buildStrip(c, ch)));
-  if (st.monitorBus) root.append(buildStrip(st.monitorBus, 100));
+  const rack = !isMixer();
+  root.classList.toggle('rackmode', rack);
+  const build = rack ? buildRack : buildStrip;
+  st.chains.forEach((c, ch) => root.append(build(c, ch)));
+  if (st.monitorBus) root.append(build(st.monitorBus, 100));
   syncMix(st);
 }
 
@@ -1336,7 +1563,9 @@ function syncMix(st) {
   document.querySelectorAll('.strip[data-ch]').forEach(s => {
     const c = +s.dataset.ch === 100 ? st.monitorBus : st.chains[+s.dataset.ch]; if (!c) return;
     const f = s.querySelector('.fader');
-    if (!f.dataset.drag) paintFader(f, c.gainDb);
+    if (f && !f.dataset.drag) paintFader(f, c.gainDb);
+    const k = s.querySelector('.rklvl');
+    if (k && !k._drag && Math.abs(k._p.value - posFromDb(c.gainDb)) > 1e-4) { k._p.value = posFromDb(c.gainDb); k._set(k._p.value); k._text(k._fmt(c.gainDb)); }
     s.querySelector('.mute').classList.toggle('on', c.mute);
     const mb = s.querySelector('.monbtn');
     if (mb) mb.classList.toggle('on', c.sendDb > -60);
@@ -2523,6 +2752,8 @@ awakeStart();
 const MOD_COLOR = { hpf: '#7ea9cc', pse: '#8bd450', feedback: '#ff8a3d', eq: '#2ec4b6', deess: '#a78bfa', prox: '#4cc9f0', leveler: '#80ed99', warmth: '#f4978e', comp: '#f6c453' };
 const BAND_COLOR = ['#2ec4b6', '#4cc9f0', '#7bdff2', '#80ed99', '#f7d070', '#f4978e'];
 const SPEC_MODS = ['hpf', 'eq', 'feedback', 'deess'];
+const MOD_SHORT = { hpf: 'HPF', pse: 'PSE', feedback: 'Feedback', eq: 'EQ', deess: 'De-ess', prox: 'Proximity', leveler: 'Leveler', warmth: 'Warmth', comp: 'Comp' };
+const PHONE = window.matchMedia('(max-width:720px)');
 const CV = { ch: -1, view: null, live: null, spec: null, sel: 'eq', band: 0, out: true, timers: [], key: '', ctls: {}, hold: null, warmthLast: 30, quietUntil: 0 };
 function isMixer() { return !!(S && S.mode === 'mixer'); }
 function cvLabel(name) {
@@ -2536,6 +2767,7 @@ async function cvOpen(ch) {
   CV.timers.forEach(clearInterval);
   CV.timers = [setInterval(cvLive, 110), setInterval(cvSpec, 150), setInterval(() => cvLoad(false), 2500)];
 }
+PHONE.addEventListener && PHONE.addEventListener('change', () => { if (CV.ch >= 0 && CV.view) cvRender(); });
 function cvClose() { $('cv').classList.add('hide'); CV.ch = -1; CV.timers.forEach(clearInterval); CV.timers = []; refresh(); }
 $('cvClose').onclick = cvClose;
 async function cvLoad(force) {
@@ -2564,9 +2796,40 @@ function cvSend(id, norm, ctl) {
     }
   }, 50);
 }
-function cvCtl(p, label) {
+// Phones: a wide slider row instead of a knob. Drag sideways (the page still scrolls up and down),
+// − / + for fine steps, double-tap the bar for the default.
+function buildSlider(p, label, send) {
+  const c = el('div', 'ctl sld'); c.dataset.name = p.name.toLowerCase();
+  const top = el('div', 'sldt'), txt = el('span', 'cv', p.text);
+  top.append(el('span', 'cl', label), txt);
+  const row = el('div', 'sldr');
+  const minus = el('button', 'sldb', '−'), plus = el('button', 'sldb', '+');
+  const bar = el('div', 'sldbar'), fill = el('i'), thumb = el('b');
+  bar.append(fill, thumb);
+  row.append(minus, bar, plus);
+  c.append(top, row);
+  c._set = v => { const x = Math.max(0, Math.min(1, v)) * 100; fill.style.width = x + '%'; thumb.style.left = x + '%'; };
+  c._text = t => { txt.textContent = t; };
+  const put = v => { v = Math.max(0, Math.min(1, v)); c._set(v); send(p, v, c); };
+  const step = d => { put(p.value + d); };
+  minus.onclick = () => step(-0.01); plus.onclick = () => step(0.01);
+  let x0 = 0, v0 = 0, w = 1, lastTap = 0, moved = false;
+  bar.addEventListener('pointerdown', e => {
+    const now = Date.now();
+    if (now - lastTap < 320) { lastTap = 0; put(p.default); return; }
+    lastTap = now; bar.setPointerCapture(e.pointerId); x0 = e.clientX; v0 = p.value; w = bar.getBoundingClientRect().width || 1; c._drag = true; moved = false;
+  });
+  bar.addEventListener('pointermove', e => { if (!c._drag) return; if (Math.abs(e.clientX - x0) > 3) moved = true; if (moved) put(v0 + (e.clientX - x0) / w); });
+  const end = () => { c._drag = false; };
+  bar.addEventListener('pointerup', end); bar.addEventListener('pointercancel', end);
+  c._set(p.value);
+  return c;
+}
+function cvCtl(p, label, knob) {
   const q = { name: p.name, value: p.norm, default: p.def, text: p.text, type: p.type, choices: p.choices, id: p.id };
-  const c = buildCtl(q, label || cvLabel(p.name), (pp, v, ctl) => { pp.value = v; cvSend(p.id, v, ctl); });
+  const send = (pp, v, ctl) => { pp.value = v; cvSend(p.id, v, ctl); };
+  const slider = PHONE.matches && !knob && q.type !== 'bool' && q.type !== 'choice';
+  const c = slider ? buildSlider(q, label || cvLabel(p.name), send) : buildCtl(q, label || cvLabel(p.name), send);
   CV.ctls[p.id] = { c, q };
   return c;
 }
@@ -2624,7 +2887,7 @@ function cvSides() {
   const v = CV.view, ch = CV.ch, chain = S.chains[ch] || {};
   const L = $('cvIn'); L.innerHTML = ''; L.className = 'cvside cvin strip'; L.dataset.ch = ch;
   L.append(el('h4', '', 'Input'));
-  if (v.inGain) L.append(cvCtl(v.inGain, 'Gain'));
+  if (v.inGain) L.append(cvCtl(v.inGain, 'Gain', true));
   const fm = el('div', 'fm');
   const fader = makeFader(db => throttled('g' + ch, () => api('/api/mixer', { channel: ch, gainDb: db })));
   fm.append(cvMeter('vin', 'IN'), fader);
@@ -2638,7 +2901,7 @@ function cvSides() {
   keys.append(mute, mb); L.append(keys);
   const R = $('cvOut'); R.innerHTML = '';
   R.append(el('h4', '', 'Output'));
-  if (v.outGain) R.append(cvCtl(v.outGain, 'Trim'));
+  if (v.outGain) R.append(cvCtl(v.outGain, 'Trim', true));
   const fo = el('div', 'fm'); fo.append(cvMeter('vout', 'OUT')); R.append(fo, el('div', 'db cvoutdb', ''));
 }
 function cvSetMeter(kind, db) {
@@ -2658,14 +2921,13 @@ function cvFlow() {
     const pw = el('button', 'pwr' + (m.on ? ' on' : '')); pw.title = m.on ? 'On: tap to switch off' : 'Off: tap to switch on';
     pw.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg>';
     pw.onclick = e => { e.stopPropagation(); cvToggle(id); };
-    b.append(grip, el('span', 'dot' + (m.on ? ' on' : '')), el('span', 'fbn', m.name), el('span', 'fbm', ''), pw);
+    b.append(grip, el('span', 'fbi', String(i + 1)), el('span', 'dot' + (m.on ? ' on' : '')), el('span', 'fbn', m.name), el('span', 'fbs', MOD_SHORT[id] || m.name), el('span', 'fbm', ''), pw);
     b.onclick = () => { CV.sel = id; try { localStorage.setItem('lh.cvsel', id); } catch (e) {} cvRender(); };
     cvDrag(grip, b);
     F.append(b);
   });
-  F.append(el('div', 'fbflowhint', 'Top to bottom is the signal flow. Drag ⋮⋮ to change the order.'));
+  F.append(el('div', 'fbflowhint', PHONE.matches ? 'Tap a module to open it. ↑ ↓ at the top of its panel move it in the flow.' : 'Top to bottom is the signal flow. Drag ⋮⋮ to change the order.'));
   cvFlowSync();
-  const selB = F.querySelector('.fb.sel'); if (selB && getComputedStyle(F).flexDirection === 'row') selB.scrollIntoView({ inline: 'center', block: 'nearest' });
 }
 function cvToggle(id) {
   const m = CV.view.modules[id];
@@ -2710,16 +2972,13 @@ function cvDrag(grip, block) {
   });
   grip.addEventListener('pointermove', e => {
     if (!start) return;
-    const d = start.row ? e.clientX - start.x : e.clientY - start.y;
-    block.style.transform = start.row ? `translateX(${d}px)` : `translateY(${d}px)`;
+    block.style.transform = `translate(${e.clientX - start.x}px,${e.clientY - start.y}px)`;
   });
   const end = async e => {
     if (!start) return;
     const s = start; start = null; block.classList.remove('dragging'); block.style.transform = '';
-    const p = s.row ? e.clientX : e.clientY;
-    let to = 0;
-    s.items.forEach((it, i) => { if (it === block) return; const r = it.getBoundingClientRect(); const mid = s.row ? r.left + r.width / 2 : r.top + r.height / 2; if (p > mid) to = i + (i < s.idx ? 1 : 0); });
-    to = Math.max(0, Math.min(s.items.length - 1, to));
+    let to = s.idx, best = 1e9;
+    s.items.forEach((it, i) => { const r = it.getBoundingClientRect(); const d = Math.hypot(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2)); if (d < best) { best = d; to = i; } });
     CV.quietUntil = Date.now() + 1500;
     if (to === s.idx) return;
     const order = CV.view.order.slice(); const [id] = order.splice(s.idx, 1); order.splice(to, 0, id);
@@ -2739,13 +2998,8 @@ function cvPanel() {
   const pos = v.order.indexOf(id);
   const h = el('div', 'cvph');
   const t = el('h3', '', m.name); t.append(el('small', '', `${pos + 1} of ${v.order.length} in the flow`)); h.append(t);
-  if (SPEC_MODS.includes(id)) {
-    const seg = el('div', 'seg');
-    for (const [k, lab] of [[false, 'RTA in'], [true, 'RTA out']]) { const b = el('button', CV.out === k ? 'on' : '', lab); b.onclick = () => { CV.out = k; try { localStorage.setItem('lh.cvout', k ? 'out' : 'in'); } catch (e) {} CV.hold = null; seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); }; seg.append(b); }
-    h.append(seg);
-  }
-  const up = el('button', 'ico', pos > 0 ? '◀' : '◀'); up.title = 'Move earlier in the flow'; up.disabled = pos === 0;
-  const dn = el('button', 'ico', '▶'); dn.title = 'Move later in the flow'; dn.disabled = pos === v.order.length - 1;
+  const up = el('button', 'ico mv', '↑'); up.title = 'Move this module earlier in the flow'; up.disabled = pos === 0;
+  const dn = el('button', 'ico mv', '↓'); dn.title = 'Move this module later in the flow'; dn.disabled = pos === v.order.length - 1;
   up.onclick = () => { const o = v.order.slice(); [o[pos - 1], o[pos]] = [o[pos], o[pos - 1]]; cvSetOrder(o); };
   dn.onclick = () => { const o = v.order.slice(); [o[pos + 1], o[pos]] = [o[pos], o[pos + 1]]; cvSetOrder(o); };
   const pwr = el('button', 'tog cvpower' + (m.on ? ' on' : ''), m.on ? 'ON' : 'OFF'); pwr.onclick = () => cvToggle(id);
@@ -2928,7 +3182,13 @@ function modeSync() {
   document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === m));
   $('modeNote').textContent = m === 'mixer' ? 'Mixer: every channel has the LiveVoice modules built in, in any order. Zero latency.'
                                             : 'VST rack: every channel runs the VST plugins you load.';
+  $('pvDefRow').classList.toggle('hide', m === 'mixer');
+  $('rtaRow').classList.toggle('hide', m !== 'mixer');
+  rtaSync();
 }
+function rtaOut() { try { return localStorage.getItem('lh.cvout') !== 'in'; } catch (e) { return true; } }
+function rtaSync() { const v = rtaOut() ? 'out' : 'in'; document.querySelectorAll('#rtaSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); }
+document.querySelectorAll('#rtaSeg button').forEach(b => b.onclick = () => { try { localStorage.setItem('lh.cvout', b.dataset.v); } catch (e) {} CV.out = b.dataset.v === 'out'; CV.hold = null; rtaSync(); });
 document.querySelectorAll('#modeSeg button').forEach(b => b.onclick = async () => {
   const to = b.dataset.v; if ((to === 'mixer') === isMixer()) return;
   const msg = to === 'mixer'

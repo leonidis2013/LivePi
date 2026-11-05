@@ -2,7 +2,7 @@
 
 <img src="images/logo.svg" width="72" alt="LivePi logo">
 
-**LivePi v0.20.0** · Copyright © Jerod Ulicki
+**LivePi v0.21.0** · Copyright © Jerod Ulicki
 
 LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Audio goes in through the Pi's sound card, through your plugins (for example LiveVoice), and back out with very little delay. You control everything from a web page on a phone, tablet or computer. The Pi needs no screen, keyboard or mouse.
 
@@ -16,7 +16,7 @@ LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Aud
 2. [Installing LivePi](#2-installing-livepi)
 3. [Opening LivePi](#3-opening-livepi)
 4. [The screen at a glance](#4-the-screen-at-a-glance)
-5. [The mixer](#5-the-mixer)
+5. [The rack](#5-the-rack)
 6. [Monitoring (PAFL)](#6-monitoring-pafl)
 7. [Working with plugins](#7-working-with-plugins)
    - [Mixer mode](#mixer-mode-built-in-livevoice-channels)
@@ -120,7 +120,7 @@ A device that closes the page, or leaves it in the background for about 12 secon
 
 ## 4. The screen at a glance
 
-<img src="images/mixer-phone.png" width="300" alt="Mixer on a phone">
+<img src="images/mixer-phone.png" width="300" alt="The rack on a phone">
 
 **Top bar**
 
@@ -139,38 +139,36 @@ If the connection to the Pi is lost, the whole page grays out with **"Connection
 
 ---
 
-## 5. The mixer
+## 5. The rack
 
-Each channel has its own strip.
+In **VST rack** mode each channel is one row of the rack, with the signal flowing left to right: the **IN** meter, the plugins in order, then the **OUT** meter. (In **Mixer** mode the channels are mixer strips instead: see [Mixer mode](#mixer-mode-built-in-livevoice-channels).)
 
 | Part | What it does |
 |---|---|
 | **Name** | Tap to rename the channel. |
-| **IN meter** | Level coming in, before the plugins. Scale +6 to −48 dB. |
-| **Fader** | Channel level, from −∞ to +6 dB. **Double-tap** (or double-click) to reset to 0 dB. |
-| **OUT meter** | Level going out, after the plugins and the fader. |
+| **Level knob** | The channel's output level, from −∞ to +6 dB. Drag up or down; **double-tap** for 0 dB. |
 | **MUTE** | Silences the channel's output. |
-| **PAFL** (round key) | Sends this channel to the Monitor mix (see [Monitoring](#6-monitoring-pafl)). It lights amber when on. |
-| **Plugin chain** | The plugins on this channel, in order (see below). |
+| **PAFL** | Sends this channel to the Monitor mix (see [Monitoring](#6-monitoring-pafl)). It lights amber when on. |
+| **IN / OUT meters** | Level coming in, before the plugins, and going out, after the plugins and the level knob. |
+| **Plugins** | One unit per plugin, numbered in signal order (see below). |
+
+The **Monitor** row at the bottom has the monitor mix's level, mute, what PAFL is listening to, and **Listen here**.
 
 With one channel, its output feeds both left and right. With more channels, channel N goes to output N.
 
 **Soft start:** when LivePi starts, the audio device changes, or a preset loads, the outputs stay silent for under a second while the converters and plugins settle, then fade in. The meters ignore that moment too, so start-up thumps never reach the speakers. Adding a plugin to a channel does the same for that channel only.
 
-### Plugin chain
-
-<img src="images/mixer-phone-plugin.png" width="300" alt="Plugin chain on a phone">
-
-On a phone the chain is folded into one line, for example "LiveVoice ›". Tap it to open. Each plugin shows:
+### Plugin units
 
 | Control | What it does |
 |---|---|
+| **⋮⋮** | Drag to move the plugin to another place in the chain. |
 | **Plugin name** | Tap to open the plugin in your preferred view (Settings → *Plugins open in*). |
 | **Sliders icon** | Opens **Controls**: big touch knobs. |
 | **Window icon** | Opens the **Plugin** screen: the plugin's own interface. |
-| **Power icon** | On (blue) or bypassed (amber). |
+| **Power icon** | On (blue) or bypassed (amber, name crossed out). |
 | **⋯** | More: **CPU** estimates the plugin's CPU use with a test signal (not during a show), and the **trash can** removes it from the channel. |
-| **+ Add plugin** | Pick an installed plugin and press **Add**. |
+| **+ Add** | The empty slot at the end of the chain: pick an installed plugin and press **Add**. |
 
 ### Presets
 
@@ -233,7 +231,7 @@ The plugin keeps its wide shape on a portrait phone, so start from **Fit** and z
 
 LivePi has two modes, set for the whole Pi in **⚙ → Settings → Mode**:
 
-- **VST rack:** each channel runs the VST plugins you load (everything above).
+- **VST rack:** each channel is a row of the rack running the VST plugins you load (everything above).
 - **Mixer:** each channel has the **LiveVoice modules built in**: the same processing code as the LiveVoice plugin, without loading a plugin. All modules are **zero latency**, in any order, so the chain adds no delay.
 
 Switching keeps everything: your VST chains wait untouched while you're in mixer mode, and your mixer settings wait while you're in VST mode. The audio stops for a moment when you switch.
@@ -247,8 +245,8 @@ On the mixer, each channel shows its voice preset and its modules in flow order 
 | Area | What it does |
 |---|---|
 | **Left: Input** | Input **gain** (before the modules), the IN meter, the channel **fader**, **Mute** and **PAFL**. Always on the left. |
-| **Flow** | The modules in signal order, top to bottom (side by side on a phone). Each shows a status (gain reduction, notch count, open/closed) and its **power** button. **Tap a module** to open its controls on the right. **Drag the ⋮⋮ grip** to move it; the ◀ ▶ buttons in the panel also move it one place. |
-| **Panel** | The selected module, large: its graph or meters, and all its controls as big touch knobs, switches and lists. Double-tap a knob for its default. |
+| **Flow** | The modules, numbered in signal order: a list on a computer, a grid of tiles on a phone or tablet. Each shows a status (gain reduction, notch count, open/closed) and its **power** button. **Tap a module** to open its controls. **Drag the ⋮⋮ grip** to move it (computer); the **↑ ↓** buttons at the top of the panel move it one place (everywhere). |
+| **Panel** | The selected module, large: its graph or meters, and all its controls as big touch knobs (on a phone: wide sliders), switches and lists. Double-tap a knob or slider for its default. |
 | **Right: Output** | Output **trim** and the channel's OUT meter, after the fader. Always on the right. |
 | **Top bar** | **Voice**: load one of LiveVoice's voice presets (Pastor, Spoken Word, Male, Female, Worship Leader); it replaces the module settings, not the gains. **Copy to…** copies this channel's settings and order to another channel. **Bypass** switches every module off at once. |
 
@@ -266,9 +264,9 @@ On the mixer, each channel shows its voice preset and its modules in flow order 
 | **Warmth** | Amount (off at 0 %). |
 | **Compressor** | Input level against the threshold, gain reduction and makeup; threshold, ratio, knee, attack, release, auto release, makeup, mix, sidechain HP, auto gain. |
 
-**RTA in / RTA out** shows the channel's input or output spectrum behind the curve.
+The analyser behind the curves shows the channel's output, or its input: choose in **⚙ → Settings → Mode → RTA shows**.
 
-On a phone, the flow scrolls sideways above the panel, with input on the left and output on the right:
+On a phone, all nine modules sit as tiles across the top, so every one is a single tap away. Below them: input on the left, the panel, output on the right. The controls are wide sliders: **drag sideways** (the page still scrolls up and down), tap **−** / **+** for fine steps, double-tap the slider for its default:
 
 <img src="images/mixer-channel-phone.png" width="300" alt="Channel screen on a phone">
 
@@ -334,13 +332,11 @@ If no sound card is found at start-up, LivePi falls back to the virtual card for
 
 | Setting | Meaning |
 |---|---|
-| **Theme** | Auto (follows the device), Dark or Light. Saved on this device only. |
-| **Mode** | **VST rack** or **Mixer** for the whole Pi (see [Mixer mode](#mixer-mode-built-in-livevoice-channels)). |
-| **Keep screen awake** | On: the screen doesn't dim or lock while LivePi is open, handy for an iPad on the desk. Saved on this device only. If it says *tap anywhere to start it*, tap the page once. Keep the iPad on power. |
-| **Plugins open in** | What tapping a plugin name opens: Controls or Plugin. Saved on this device only. |
-| **PAFL mode** | PFL, AFL or Input, for all channels. Saved in presets. |
+| **Mode** | **VST rack** or **Mixer** for the whole Pi (see [Mixer mode](#mixer-mode-built-in-livevoice-channels)). VST rack also shows **Plugins open in** (Controls or Plugin, when you tap a plugin name); Mixer shows **RTA shows** (Input or Output: what the analyser behind the curves measures). Both are saved on this device only. |
+| **Monitoring** | **PAFL mode** (PFL, AFL or Input, for all channels, saved in presets) and **Listen delay** (Lowest, Low or Safe, for *Listen here* on this device). |
+| **This device: Theme** | Auto (follows the device), Dark or Light. |
+| **This device: Keep screen awake** | On: the screen doesn't dim or lock while LivePi is open, handy for an iPad on the desk. Saved on this device only. If it says *tap anywhere to start it*, tap the page once. Keep the iPad on power. |
 | **Pisound button** | What each click or hold of the Pisound's button does. See [The Pisound button](#the-pisound-button). |
-| **Listen delay** | Lowest, Low or Safe, for *Listen here* on this device. |
 | **Password** | See the next section. |
 | **Trusted access** | See the next section. Only shown while password protection is on. |
 | **Network** | IP settings for the wired and Wi-Fi connections: **Automatic (DHCP)** or **Static** (IP address, subnet mask, gateway, DNS servers). See below. |

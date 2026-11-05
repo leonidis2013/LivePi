@@ -1189,6 +1189,21 @@ var HostEngine::removePlugin (int channel, int slot)
     return ok();
 }
 
+var HostEngine::movePlugin (int channel, int from, int to)
+{
+    if (findSlot (channel, from) == nullptr)
+        return err ("no such plugin");
+    auto& c = chainFor (channel)->slots;
+    to = jlimit (0, (int) c.size() - 1, to);
+    if (to == from) return ok();
+    auto s = c[(size_t) from];
+    c.erase (c.begin() + from);
+    c.insert (c.begin() + to, s);
+    rebuildConnections();
+    saveLast();
+    return ok();
+}
+
 var HostEngine::setBypass (int channel, int slot, bool bypassed)
 {
     auto* s = findSlot (channel, slot);

@@ -1177,6 +1177,12 @@ void WebServer::setupRoutes()
         reply (res, onMT ([this, b] { return engine.removePlugin ((int) b["channel"], (int) b["slot"]); }));
     });
 
+    svr.Post ("/api/chain/move", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto b = body (req);
+        reply (res, onMT ([this, b] { return engine.movePlugin ((int) b["channel"], (int) b["from"], (int) b["to"]); }));
+    });
+
     svr.Post ("/api/chain/bypass", [this] (const httplib::Request& req, httplib::Response& res)
     {
         auto b = body (req);
