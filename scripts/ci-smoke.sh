@@ -105,6 +105,7 @@ run_case() {
   check "$label: mixer has the Input module and the parametric EQ" "api '/api/voice?channel=0' | jq -e '.modules.input.fixed==true and (.modules.peq.params|length)==39 and .modules.peq.inFlow==false' >/dev/null"
   check "$label: modules can be taken out and added" "post /api/voice/order '{\"channel\":0,\"order\":[\"comp\",\"peq\",\"hpf\",\"pse\"]}' | jq -e .ok >/dev/null && api '/api/voice?channel=0&live=1' | jq -e '(.order|length)==4 and .order[1]==\"peq\"' >/dev/null"
   check "$label: parametric EQ curve" "post /api/voice/param '{\"channel\":0,\"id\":\"peq3_gain\",\"value\":6}' | jq -e .ok==null >/dev/null; api '/api/voice/spectrum?channel=0&module=peq&out=1' | jq -e '([.curve[]]|max) > 4' >/dev/null"
+  post /api/voice/order '{"channel":0,"order":["comp","peq","hpf","pse","feedback"]}' >/dev/null   # notches need the feedback module in the flow
   check "$label: a notch set by hand" "post /api/voice/notch '{\"channel\":0,\"cmd\":\"addFixed\",\"freq\":1250,\"depth\":-9}' | jq -e .ok >/dev/null && sleep 1 && api '/api/voice?channel=0&live=1' | jq -e '[.live.notches[] | select(.fixed and (.freq > 1200) and (.freq < 1300))] | length == 1' >/dev/null"
   check "$label: a hand-set notch out of range is refused" "post /api/voice/notch '{\"channel\":0,\"cmd\":\"addFixed\",\"freq\":5}' | jq -e .error >/dev/null"
   check "$label: lapel voice preset" "api '/api/voice?channel=0' | jq -e '.presets | map(test(\"Lapel\")) | any' >/dev/null"
