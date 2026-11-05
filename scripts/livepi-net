@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+# LivePi network helper (NetworkManager). Installed root-owned as /usr/local/sbin/livepi-net.
+#   livepi-net status                                   JSON for the page (no root needed)
+#   livepi-net set DEV auto TOKEN                       DHCP
+#   livepi-net set DEV static IP PREFIX GW|- DNS|- TOKEN   fixed address (DNS: comma list or -)
+#   livepi-net confirm TOKEN                            keep the new settings
+# Every change is undone automatically after 2 minutes unless it is confirmed from the page
+# (which proves the Pi can still be reached). Internal: _apply, _revert (run by systemd timers).
+set -euo pipefail
+
+RUN=/run/livepi-net
+STATE=/var/lib/livepi-net
+REVERT_AFTER=120
+
+die() { echo "$*" >&2; exit 1; }
+have() { command -v "$1" >/dev/null 2>&1; }
+
+ipv4() {   # valid unicast IPv4 address
+  [[ "$1" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$ ]] || return 1
+  local i; for i in 1 2 3 4; do (( 10#${BASH_REMATCH[$i]} <= 255 )) || return 1; done
+  local a=$((10#${BASH_REMATCH[1]}))
+  (( a != 0 && a != 127 && a < 224 ))
+}
+toint() { local IFS=.; set -- $1; echo $(( ($1 << 24) | ($2 << 16) | ($3 << 8) | $4 )); }
+esc() { local s="${1//\\/\\\\}"; s="${s//\"/\\\"}"; printf '%s' "$s" | tr -d '\000-\037'; }
+
+devices() { nmcli -g DEVICE,TYPE device status 2>/dev/null | awk -F: '$2=="ethernet"||$2=="wifi"{print $1":"$2}'; }
+dev_type() { devices | awk -F: -v d="$1" '$1==d{print $2}'; }
+dev_con() { nmcli -g GENERAL.CONNECTION device show "$1" 2>/dev/null | head -n1; }
+
+status() {
+  if ! have nmcli; then echo '{"available":false,"reason":"This Pi does not use NetworkManager, so LivePi cannot change its network settings."}'; return; fi
+  local first=1 now pend=0 rev="" revAt=0
+  now=$(date +%s)
+  [[ -r $RUN/expires ]] && pend=$(( $(cat "$RUN/expires") - now )) && (( pend < 0 )) && pend=0
+  if [[ -r $STATE/reverted ]]; then revAt=$(head -n1 "$STATE/reverted"); rev=$(sed -n 2p "$STATE/reverted"); fi
+  printf '{"available":true,"hostname":"%s","pending":%d,"revertedAt":%s,"reverted":"%s","devices":[' "$(esc "$(hostname)")" "$pend" "${revAt:-0}" "$(esc "$rev")"
+  while IFS=: read -r dev type; do
+    [[ -n $dev ]] || continue
+    local st con mac addr gw dns method caddr cgw cdns
+    st=$(nmcli -g GENERAL.STATE device show "$dev" 2>/dev/null | head -n1)
+    con=$(dev_con "$dev")
+    mac=$(nmcli -g GENERAL.HWADDR device show "$dev" 2>/dev/null | head -n1 | sed 's/\\:/:/g')
+    addr=$(nmcli -g IP4.ADDRESS device show "$dev" 2>/dev/null | head -n1 | sed 's/ | /,/g')
+    gw=$(nmcli -g IP4.GATEWAY device show "$dev" 2>/dev/null | head -n1)
+    dns=$(nmcli -g IP4.DNS device show "$dev" 2>/dev/null | head -n1 | sed 's/ | /,/g')
+    method=""; caddr=""; cgw=""; cdns=""
+    if [[ -n $con ]]; then
+      { read -r method; read -r caddr; read -r cgw; read -r cdns; } < <(nmcli -g ipv4.method,ipv4.addresses,ipv4.gateway,ipv4.dns connection show "$con" 2>/dev/null || true)
+    fi
+    (( first )) || printf ','
+    first=0
+    printf '{"device":"%s","type":"%s","state":"%s","connection":"%s","mac":"%s","address":"%s","gateway":"%s","dns":"%s","method":"%s","configAddress":"%s","configGateway":"%s","configDns":"%s"}' \
+      "$(esc "$dev")" "$(esc "$type")" "$(esc "$st")" "$(esc "$con")" "$(esc "$mac")" "$(esc "$addr")" "$(esc "$gw")" "$(esc "$dns")" \
+      "$(esc "$method")" "$(esc "${caddr// /}")" "$(esc "$cgw")" "$(esc "${cdns// /}")"
+  done < <(devices)
+  printf ']}\n'
+}
+
+stop_timers() {
+  local u; for u in livepi-net-apply livepi-net-revert; do
+    systemctl stop "$u.timer" "$u.service" >/dev/null 2>&1 || true
+    systemctl reset-failed "$u.timer" "$u.service" >/dev/null 2>&1 || true
+  done
+}
+
+# Write method/addresses/gateway/dns (one per line) into connection $1 and make it live
+set_con() {
+  local con="$1" dev="$2" method="$3" addr="$4" gw="$5" dns="$6"
+  if [[ $method == manual ]]; then
+    nmcli connection modify "$con" ipv4.method manual ipv4.addresses "$addr" ipv4.gateway "$gw" ipv4.dns "$dns"
+  else
+    nmcli connection modify "$con" ipv4.method auto ipv4.addresses "" ipv4.gateway "" ipv4.dns "$dns"
+  fi
+}
+make_live() { nmcli device reapply "$1" >/dev/null 2>&1 || nmcli connection up "$2" >/dev/null 2>&1 || true; }
+
+cmd="${1:-status}"
+case "$cmd" in
+  status) status; exit 0 ;;
+esac
+
+[[ $EUID -eq 0 ]] || die "Run with sudo"
+have nmcli || die "This Pi does not use NetworkManager."
+mkdir -p "$RUN" "$STATE"; chmod 755 "$RUN" "$STATE"
+
+case "$cmd" in
+  set)
+    dev="${2:-}"; mode="${3:-}"
+    [[ "$dev" =~ ^[A-Za-z0-9._-]{1,15}$ ]] || die "Bad device name"
+    [[ -n "$(dev_type "$dev")" ]] || die "No such wired or Wi-Fi device: $dev"
+    con="$(dev_con "$dev")"; [[ -n $con ]] || die "$dev is not connected, so it has no settings to change"
+    [[ -f $RUN/token ]] && die "Another change is waiting to be confirmed. Wait for it to finish."
+    if [[ $mode == auto ]]; then
+      token="${4:-}"; method=auto; addr=""; gw=""; dns=""
+    elif [[ $mode == static ]]; then
+      ip="${4:-}"; prefix="${5:-}"; gw="${6:-}"; dns="${7:-}"; token="${8:-}"; method=manual
+      ipv4 "$ip" || die "The IP address is not valid"
+      [[ "$prefix" =~ ^[0-9]{1,2}$ ]] && (( prefix >= 8 && prefix <= 30 )) || die "The subnet mask is not valid"
+      mask=$(( (0xFFFFFFFF << (32 - prefix)) & 0xFFFFFFFF ))
+      (( ( $(toint "$ip") & ~mask & 0xFFFFFFFF ) != 0 && ( $(toint "$ip") | mask ) != 0xFFFFFFFF )) || die "That IP address is the network or broadcast address of its subnet"
+      if [[ $gw == - ]]; then gw=""; else
+        ipv4 "$gw" || die "The gateway is not valid"
+        (( ( $(toint "$gw") & mask ) == ( $(toint "$ip") & mask ) )) || die "The gateway must be in the same subnet as the IP address"
+        [[ $gw != "$ip" ]] || die "The gateway can't be the Pi's own address"
+      fi
+      addr="$ip/$prefix"
+    else
+      die "Mode must be auto or static"
+    fi
+    if [[ $mode == static ]]; then
+      if [[ $dns == - ]]; then dns=""; else
+        n=0; list=""
+        for d in ${dns//,/ }; do ipv4 "$d" || die "DNS server $d is not valid"; list="$list${list:+ }$d"; n=$((n+1)); done
+        (( n <= 3 )) || die "At most 3 DNS servers"
+        dns="$list"
+      fi
+    fi
+    [[ "$token" =~ ^[0-9a-f]{32}$ ]] || die "Bad token"
+
+    # Remember the current settings for the automatic undo
+    { echo "$con"; echo "$dev"; nmcli -g ipv4.method,ipv4.addresses,ipv4.gateway,ipv4.dns connection show "$con"; } > "$RUN/prev"
+    chmod 600 "$RUN/prev"
+    ( umask 077; echo "$token" > "$RUN/token" )
+    echo $(( $(date +%s) + REVERT_AFTER )) > "$RUN/expires"; chmod 644 "$RUN/expires"
+    rm -f "$STATE/reverted"
+
+    set_con "$con" "$dev" "$method" "$addr" "$gw" "$dns"
+    stop_timers
+    # Apply in 2 s, so the page gets its answer before the network changes; undo in 2 minutes
+    systemd-run --quiet --unit=livepi-net-apply --on-active=2 /usr/local/sbin/livepi-net _apply "$dev" "$con" >/dev/null
+    systemd-run --quiet --unit=livepi-net-revert --on-active=$REVERT_AFTER /usr/local/sbin/livepi-net _revert >/dev/null
+    echo "ok"
+    ;;
+  _apply)
+    make_live "${2:-}" "${3:-}"
+    ;;
+  confirm)
+    token="${2:-}"
+    [[ "$token" =~ ^[0-9a-f]{32}$ ]] || die "Bad token"
+    [[ -f $RUN/token ]] || { echo "nothing to confirm"; exit 0; }
+    [[ "$(cat "$RUN/token")" == "$token" ]] || die "Wrong token"
+    systemctl stop livepi-net-revert.timer >/dev/null 2>&1 || true
+    systemctl reset-failed livepi-net-revert.timer livepi-net-revert.service >/dev/null 2>&1 || true
+    rm -f "$RUN/token" "$RUN/prev" "$RUN/expires"
+    echo "ok"
+    ;;
+  _revert)
+    [[ -f $RUN/prev ]] || exit 0
+    { read -r con; read -r dev; read -r method; read -r addr; read -r gw; read -r dns; } < "$RUN/prev"
+    set_con "$con" "$dev" "${method:-auto}" "${addr// /}" "$gw" "${dns//,/ }" || true
+    make_live "$dev" "$con"
+    printf '%s\n%s\n' "$(date +%s)" "The new network settings for $dev were not confirmed within 2 minutes, so the previous settings were put back." > "$STATE/reverted"
+    chmod 644 "$STATE/reverted"
+    rm -f "$RUN/token" "$RUN/prev" "$RUN/expires"
+    ;;
+  *) die "usage: livepi-net status | set DEV auto TOKEN | set DEV static IP PREFIX GW DNS TOKEN | confirm TOKEN" ;;
+esac

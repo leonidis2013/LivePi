@@ -160,6 +160,8 @@ echo "== System tuning for live audio"
 # A root-owned copy the web page may run (Settings > System > Reliability > Fix now). The copy in
 # /opt/livepi belongs to the LivePi user, so it must never be what runs as root.
 install -m 755 -o root -g root "$HERE/rt-tune.sh" /usr/local/sbin/livepi-tune
+# Network settings from the page (Settings > Network); every change undoes itself unless confirmed
+install -m 755 -o root -g root "$HERE/livepi-net" /usr/local/sbin/livepi-net
 if [[ $TUNING -eq 1 ]]; then
   /usr/local/sbin/livepi-tune apply ${TUNE_SKIP:+--skip=$TUNE_SKIP} || echo "Tuning did not finish; run later: sudo /usr/local/sbin/livepi-tune apply"
 else
@@ -173,7 +175,7 @@ chmod 755 /var/lib/livepi-os
 
 echo "== Allow the web page to reboot / shut down the Pi and run OS updates"
 cat > /etc/sudoers.d/livepi <<EOF
-${USER_NAME} ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/local/sbin/livepi-os check, /usr/local/sbin/livepi-os upgrade, /usr/local/sbin/livepi-tune apply, /usr/local/sbin/livepi-tune apply --only\=*
+${USER_NAME} ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/local/sbin/livepi-os check, /usr/local/sbin/livepi-os upgrade, /usr/local/sbin/livepi-tune apply, /usr/local/sbin/livepi-tune apply --only\=*, /usr/local/sbin/livepi-net set *, /usr/local/sbin/livepi-net confirm *
 EOF
 chmod 440 /etc/sudoers.d/livepi
 visudo -c -f /etc/sudoers.d/livepi >/dev/null || { echo "sudoers check failed, removing rule"; rm -f /etc/sudoers.d/livepi; }

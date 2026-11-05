@@ -27,6 +27,8 @@ unzip -q /work/livepi-build-*.zip || say "FAIL  unzip"
 cd livepi || { say "FAIL  no livepi directory in the zip"; exit 1; }
 check "package has pisound-setup.sh" "[ -x pisound-setup.sh ] && bash -n pisound-setup.sh"
 check "package has rt-tune.sh" "[ -x rt-tune.sh ] && bash -n rt-tune.sh"
+check "package has livepi-net" "[ -x livepi-net ] && bash -n livepi-net"
+check "livepi-net status works without NetworkManager (says not available)" "./livepi-net status | jq -e '.available==false' >/dev/null"
 check "binary has no missing libraries" "! ldd ./LivePi | grep -q 'not found'"
 [ -s manifest.json ] && say "manifest: $(cat manifest.json)"
 
@@ -159,6 +161,9 @@ reliability_case() {
   check "reliability: fix without the installer's helper asks for the one-time setup" "post /api/reliability/fix '{}' | jq -e '.error==\"setup\"' >/dev/null"
   check "reliability: fixing one item without the helper also asks for the setup" "post /api/reliability/fix '{\"item\":\"core\"}' | jq -e '.error==\"setup\"' >/dev/null"
   check "reliability: unknown fix items are refused" "post /api/reliability/fix '{\"item\":\"rm -rf\"}' | jq -e '.error==\"Unknown item\"' >/dev/null"
+  check "network: page is told the one-time setup is needed" "api /api/network | jq -e '.available==false and .setup==true' >/dev/null"
+  check "network: change without the helper asks for the setup" "post /api/network '{\"device\":\"eth0\",\"mode\":\"auto\"}' | jq -e '.error==\"setup\"' >/dev/null"
+  check "network: confirm refuses a bad token" "post /api/network/confirm '{\"token\":\"nope\"}' | jq -e '.error==\"Bad token\"' >/dev/null"
   check "reliability: state lists notices" "api /api/state | jq -e '(.notices|type==\"array\") and .safeMode==false' >/dev/null"
   check "reliability: session loaded" "api /api/state | jq -e '.chains[1].name==\"Beta\"' >/dev/null"
   # two crashes in a row while starting -> the third start is in safe mode

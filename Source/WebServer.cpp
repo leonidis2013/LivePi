@@ -465,7 +465,9 @@ void WebServer::setupRoutes()
         }
 
         const String path (req.path);
-        const bool open = path == "/api/session" || path == "/api/login" || path == "/api/logout";
+        // /api/network/confirm comes from the page at the Pi's NEW address, before any login or
+        // control there: the one-time token from the change (checked by the helper) is the proof
+        const bool open = path == "/api/session" || path == "/api/login" || path == "/api/logout" || path == "/api/network/confirm";
         if (path.startsWith ("/api/") && ! open && ! isAuthed (req))
         {
             res.status = 401;
@@ -689,6 +691,93 @@ void WebServer::setupRoutes()
         auto* o = new DynamicObject();
         o->setProperty ("ok", true);
         o->setProperty ("output", out);
+        reply (res, var (o));
+    });
+
+    // ---- Network settings (NetworkManager via the root helper /usr/local/sbin/livepi-net)
+    svr.Get ("/api/network", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        const File helper ("/usr/local/sbin/livepi-net");
+        if (! helper.existsAsFile())
+        {
+            auto* o = new DynamicObject();
+            o->setProperty ("available", false);
+            o->setProperty ("setup", true);
+            reply (res, var (o));
+            return;
+        }
+        int code = -1;
+        auto v = JSON::parse (Reliability::spawnRead ({ helper.getFullPathName().toStdString(), "status" }, 10000, &code));
+        if (! v.isObject())
+        {
+            reply (res, errVar ("Could not read the network settings"));
+            return;
+        }
+        // Which device the page is using right now (the address this request arrived on)
+        const String here = String (req.local_addr).fromLastOccurrenceOf ("::ffff:", false, true);   // IPv4 seen through IPv6
+        if (auto* devs = v.getProperty ("devices", {}).getArray())
+            for (auto& d : *devs)
+                for (auto& a : StringArray::fromTokens (d["address"].toString(), ",", ""))
+                    if (a.upToFirstOccurrenceOf ("/", false, false).trim() == here)
+                        v.getDynamicObject()->setProperty ("via", d["device"]);
+        v.getDynamicObject()->setProperty ("port", port);
+        reply (res, v);
+    });
+
+    svr.Post ("/api/network", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        if (! File ("/usr/local/sbin/livepi-net").existsAsFile()) { reply (res, errVar ("setup")); return; }
+        const auto b = body (req);
+        const auto dev = b["device"].toString(), mode = b["mode"].toString();
+        auto plain = [] (const String& x, const char* chars, int maxLen) { return x.isNotEmpty() && x.length() <= maxLen && x.containsOnly (chars); };
+        if (! plain (dev, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-", 15) || (mode != "auto" && mode != "static"))
+        {
+            reply (res, errVar ("Bad request"));
+            return;
+        }
+        const auto token = randomHex (16);
+        std::vector<std::string> cmd { "/usr/bin/sudo", "-n", "/usr/local/sbin/livepi-net", "set", dev.toStdString(), mode.toStdString() };
+        if (mode == "static")
+        {
+            const auto ip = b["ip"].toString(), gw = b["gateway"].toString();
+            const int prefix = (int) b.getProperty ("prefix", 0);
+            StringArray dns;
+            if (auto* a = b["dns"].getArray()) for (auto& d : *a) if (d.toString().trim().isNotEmpty()) dns.add (d.toString().trim());
+            bool okArgs = plain (ip, "0123456789.", 15) && prefix >= 8 && prefix <= 30 && (gw.isEmpty() || plain (gw, "0123456789.", 15)) && dns.size() <= 3;
+            for (auto& d : dns) okArgs = okArgs && plain (d, "0123456789.", 15);
+            if (! okArgs) { reply (res, errVar ("Check the IP address, subnet mask, gateway and DNS servers")); return; }
+            cmd.push_back (ip.toStdString());
+            cmd.push_back (String (prefix).toStdString());
+            cmd.push_back (gw.isEmpty() ? "-" : gw.toStdString());
+            cmd.push_back (dns.isEmpty() ? "-" : dns.joinIntoString (",").toStdString());
+        }
+        cmd.push_back (token.toStdString());
+        int code = -1;
+        const auto out = Reliability::spawnRead (cmd, 30000, &code).trim();
+        Logger::writeToLog ("Network change " + dev + " " + mode + " (exit " + String (code) + "): " + out);
+        if (code != 0)
+        {
+            reply (res, errVar (out.containsIgnoreCase ("password") || out.containsIgnoreCase ("sudo") || out.containsIgnoreCase ("not allowed")
+                                  ? String ("setup") : out.fromLastOccurrenceOf ("\n", false, false)));
+            return;
+        }
+        auto* o = new DynamicObject();
+        o->setProperty ("ok", true);
+        o->setProperty ("token", token);
+        o->setProperty ("revertSeconds", 120);
+        reply (res, var (o));
+    });
+
+    svr.Post ("/api/network/confirm", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        const auto token = body (req)["token"].toString();
+        if (token.length() != 32 || ! token.containsOnly ("0123456789abcdef")) { reply (res, errVar ("Bad token")); return; }
+        int code = -1;
+        const auto out = Reliability::spawnRead ({ "/usr/bin/sudo", "-n", "/usr/local/sbin/livepi-net", "confirm", token.toStdString() }, 15000, &code).trim();
+        if (code != 0) { reply (res, errVar (out.isEmpty() ? String ("Could not confirm") : out)); return; }
+        auto* o = new DynamicObject();
+        o->setProperty ("ok", true);
+        o->setProperty ("result", out);
         reply (res, var (o));
     });
 

@@ -1,6 +1,6 @@
 # LivePi User Manual
 
-**LivePi v0.15.0** · Copyright © Jerod Ulicki
+**LivePi v0.16.0** · Copyright © Jerod Ulicki
 
 LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Audio goes in through the Pi's sound card, through your plugins (for example LiveVoice), and back out with very little delay. You control everything from a web page on a phone, tablet or computer. The Pi needs no screen, keyboard or mouse.
 
@@ -289,6 +289,22 @@ If no sound card is found at start-up, LivePi falls back to the virtual card for
 | **Listen delay** | Lowest, Low or Safe, for *Listen here* on this device. |
 | **Password** | See the next section. |
 | **Trusted access** | See the next section. Only shown while password protection is on. |
+| **Network** | IP settings for the wired and Wi-Fi connections: **Automatic (DHCP)** or **Static** (IP address, subnet mask, gateway, DNS servers). See below. |
+
+### Network settings
+
+⚙ → Settings → **Network** shows each connection (Wired, Wi-Fi) with its current address, gateway, DNS and MAC address. **this page** marks the connection you're using.
+
+- **Automatic (DHCP):** the router gives the Pi its address. This is how a Pi starts out.
+- **Static:** a fixed address, so the Pi is always at the same place. Enter the **IP address**, **subnet mask** (usually 255.255.255.0), **gateway** (your router) and, optionally, up to three **DNS servers**. LivePi checks the values before applying, for example that the gateway is in the same subnet. On a church or AV network, pick an address outside the router's DHCP range, or reserve it in the router.
+
+Press **Apply** and confirm. The audio keeps running; only the network connection drops for a few seconds.
+
+**You can't lock yourself out.** Every change undoes itself after 2 minutes unless the page reaches the Pi at its new settings. If you change the connection this page uses, the page waits for the Pi at the new address and opens it there, which confirms the change. If that address doesn't work (a typo, the wrong subnet), the old settings come back by themselves after 2 minutes. Then open the old address again, and the card says what happened. When you switch to Automatic, the new address comes from the router, so the page opens at `livepi.local` (your Pi's name) instead.
+
+Wi-Fi networks and passwords are set when the SD card is written (Raspberry Pi Imager); this card only sets the IP settings of a connection that already exists.
+
+On Pis installed before v0.16, the card first shows a **one-time setup** with a copyable installer command, like the Reliability card.
 
 ---
 

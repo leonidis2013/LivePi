@@ -488,6 +488,20 @@
     .fxbox { width:100%; border-radius:16px 16px 0 0; max-height:88vh; padding:18px 16px calc(18px + env(safe-area-inset-bottom)); }
     .fxacts button { flex:1; min-height:44px; }
   }
+
+  /* network settings */
+  .relfixbox { display:flex; flex-direction:column; gap:10px; align-items:flex-start; padding:12px; border-radius:10px; font-size:13px; line-height:1.45;
+               background:color-mix(in srgb, var(--acc) 9%, var(--card)); border:1px solid color-mix(in srgb, var(--acc) 35%, transparent); }
+  .relfixbox p { margin:0; } .relfixbox ol { margin:0; padding-left:18px; }
+  .relfixbox pre.cmd { margin:0; width:100%; box-sizing:border-box; white-space:pre-wrap; word-break:break-all; background:var(--inset); padding:10px; border-radius:8px; font-size:12px; user-select:all; -webkit-user-select:all; }
+  .netdev { padding-top:4px; }
+  .netdev + .netdev { margin-top:10px; border-top:1px solid var(--line); padding-top:10px; }
+  .netdev .hwcard em.via { color:var(--acc); }
+  .sc input.ipf { width:170px; max-width:100%; font-variant-numeric:tabular-nums; }
+  .netinfo { font-size:12px; color:var(--dim); line-height:1.5; }
+  .netinfo b { color:var(--fg); font-weight:600; }
+  .neterr { color:var(--bad); font-size:12px; }
+  @media (max-width:720px) { .sc input.ipf { width:150px; font-size:15px; } .set.stack { flex-wrap:wrap; } .set.stack .sl { flex-basis:100%; } .set.stack .sc { flex:1 1 100%; justify-content:flex-start; } }
 </style>
 </head>
 <body>
@@ -653,6 +667,10 @@
     <div class="set"><div class="sl"><b>Add network</b><span>Only ones you control</span></div><div class="sc"><input id="acNew" placeholder="192.168.1.0/24" autocomplete="off" class="ip"><button id="acAdd">Add</button></div></div>
     </div>
   </div>
+  <div class="card" id="netCard">
+    <h2>Network</h2>
+    <div id="netBody"><div class="note">Loading…</div></div>
+  </div>
   </div>
   </div>
  </div>
@@ -783,6 +801,7 @@ function showSub(n) {
   try { localStorage.setItem('lh.sub', n); } catch (e) {}
   if (n === 'audio' && typeof hwLoad === 'function') setTimeout(() => hwLoad(true), 0);
   if (n === 'system' && typeof relLoad === 'function') setTimeout(relLoad, 0);
+  if (n === 'settings' && typeof netLoad === 'function') setTimeout(() => netLoad(true), 0);
 }
 document.querySelectorAll('#sub button').forEach(b => b.onclick = () => showSub(b.dataset.sub));
 (function restoreTabs() {
@@ -1926,6 +1945,20 @@ function copyText(t) {
   ta.focus(); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch (e) {} ta.remove();
   return Promise.resolve(ok);
 }
+/* The one-time installer run that lets the page change system settings (no login names shown) */
+function appendSetup(box, intro) {
+  const cmd = 'curl -fsSL https://github.com/leonidis2013/LivePi/releases/latest/download/livepi-linux-arm64.tar.gz | tar xz && cd livepi && sudo ./install-pi.sh';
+  const p = el('p'); p.textContent = intro; box.append(p);
+  const ol = el('ol');
+  ol.innerHTML = '<li>Open a terminal on the Pi, the same way you did to install LivePi.</li>'
+    + '<li>Paste this command and press Enter. Press Enter at each question to keep your current settings:</li>';
+  box.append(ol);
+  const pre = el('pre', 'cmd', cmd); box.append(pre);
+  const c = el('button', '', 'Copy command');
+  c.onclick = async () => { const ok = await copyText(cmd); toast(ok ? 'Copied' : 'Select the command and copy it'); if (!ok) { const rg = document.createRange(); rg.selectNodeContents(pre); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(rg); } };
+  box.append(c);
+  return c;
+}
 let relSetupNeeded = false;
 function issueClose() { $('fixDlg').classList.add('hide'); }
 async function issueOpen(id) {
@@ -1961,20 +1994,12 @@ async function issueOpen(id) {
     acts.append(b, later);
   } else if (it.fix === 'tune') {
     // Pis installed before v0.11: the page has no permission to change system settings yet
-    const cmd = 'curl -fsSL https://github.com/leonidis2013/LivePi/releases/latest/download/livepi-linux-arm64.tar.gz | tar xz && cd livepi && sudo ./install-pi.sh';
     box.append(el('h4', '', 'Fix it (one-time setup first)'));
-    const p = el('p'); p.textContent = 'Changing system settings needs administrator permission, which only the installer can give, once. After that, this button fixes it with one tap.'; box.append(p);
-    const ol = el('ol');
-    ol.innerHTML = '<li>Open a terminal on the Pi, the same way you did to install LivePi.</li>'
-      + '<li>Paste this command and press Enter. Press Enter at each question to keep your current settings:</li>';
-    box.append(ol);
-    const pre = el('pre', 'cmd', cmd); box.append(pre);
-    const c = el('button', '', 'Copy command');
-    c.onclick = async () => { const ok = await copyText(cmd); toast(ok ? 'Copied' : 'Select the command and copy it'); if (!ok) { const rg = document.createRange(); rg.selectNodeContents(pre); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(rg); } };
+    appendSetup(box, 'Changing system settings needs administrator permission, which only the installer can give, once. After that, this button fixes it with one tap.');
     box.append(el('p', 'fxsmall', 'When it finishes, tap this item again: it offers the reboot that completes the fix.'));
     const again = el('button', 'on', 'Check again');
     again.onclick = async () => { relSetupNeeded = false; await relLoad(); issueOpen(id); };
-    acts.append(c, again, later);
+    acts.append(again, later);
   } else if (it.manual) {
     box.append(el('h4', '', 'How to fix it'));
     const ul = el('ul'); it.manual.forEach(m => ul.append(el('li', '', m))); box.append(ul);
@@ -1991,6 +2016,195 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('fixDlg
 $('status').addEventListener('click', e => { const c = e.target.closest('[data-issue]'); if (c) issueOpen(c.dataset.issue); });
 $('relRefresh').onclick = relLoad;
 setInterval(() => { if (!$('tab-setup').classList.contains('hide') && !document.querySelector('[data-pane="system"]').classList.contains('hide') && !document.hidden) relLoad(); }, 5000);
+
+/* ---------- network settings (Settings > Network) ---------- */
+let NETCFG = null;
+const netDirty = {};                                     // device -> the user has unsaved edits
+const isIp = v => /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.test(v) && v.split('.').every(x => +x <= 255);
+const ipInt = v => v.split('.').reduce((a, x) => (a * 256) + (+x), 0);
+function maskFromPrefix(p) { const m = p === 0 ? 0 : (0xFFFFFFFF << (32 - p)) >>> 0; return [24, 16, 8, 0].map(s => (m >>> s) & 255).join('.'); }
+function prefixFromMask(m) {
+  m = (m || '').trim().replace(/^\//, '');
+  if (/^\d{1,2}$/.test(m)) { const p = +m; return p >= 8 && p <= 30 ? p : -1; }
+  if (!isIp(m)) return -1;
+  const n = ipInt(m), inv = (~n >>> 0);
+  if ((inv & (inv + 1)) !== 0) return -1;                // not a contiguous mask like 255.255.255.0
+  const p = 32 - Math.log2(inv + 1);
+  return p >= 8 && p <= 30 ? p : -1;
+}
+function netPaneOpen() { return !document.hidden && !$('tab-setup').classList.contains('hide') && !document.querySelector('[data-pane="settings"]').classList.contains('hide'); }
+async function netLoad(force) {
+  if (!force && (!netPaneOpen() || Object.values(netDirty).some(Boolean))) return;
+  const r = await api('/api/network', undefined, true);
+  if (!r || r.available === undefined) return;
+  NETCFG = r; netRender();
+}
+function netRender() {
+  const root = $('netBody'); root.innerHTML = '';
+  const r = NETCFG;
+  if (!r.available) {
+    if (r.setup) {
+      const d = el('div', 'relfixbox');
+      appendSetup(d, 'Changing the network settings needs administrator permission, which only the installer can give, once.');
+      const again = el('button', 'on', 'Check again'); again.onclick = () => netLoad(true); d.append(again);
+      root.append(d);
+    } else root.append(el('div', 'note', r.reason || 'Network settings are not available on this Pi.'));
+    return;
+  }
+  if (r.revertedAt && Date.now() / 1000 - r.revertedAt < 900) root.append(el('div', 'locknote', r.reverted));
+  if (r.pending > 0) root.append(el('div', 'locknote', `A change is waiting to be confirmed. If it isn't, the old settings come back in ${r.pending} s.`));
+  root.append(el('div', 'note', 'The audio keeps running while the network changes. Every change undoes itself after 2 minutes unless this page can reach the Pi at its new settings, so a mistake can\'t lock you out.'));
+  for (const d of r.devices || []) root.append(netDevice(d, r));
+}
+function netDevice(d, r) {
+  const box = el('div', 'netdev');
+  const name = (d.type === 'wifi' ? 'Wi-Fi' : 'Wired') + ' (' + d.device + ')';
+  const h = el('div', 'hwcard', name); if (r.via === d.device) { const e = el('em', 'via', 'this page'); h.append(e); }
+  box.append(h);
+  const connected = !!d.connection && /connected/i.test(d.state) && !/disconnected/i.test(d.state);
+  const info = el('div', 'netinfo');
+  info.innerHTML = connected
+    ? `<b>${esc(d.address || 'no address')}</b>` + (d.gateway ? ` · gateway ${esc(d.gateway)}` : '') + (d.dns ? ` · DNS ${esc(d.dns.replace(/,/g, ', '))}` : '') + (d.mac ? `<br>MAC ${esc(d.mac)}` : '')
+    : 'Not connected.' + (d.type === 'wifi' ? ' Wi-Fi is set up when the SD card is written (Raspberry Pi Imager).' : ' Plug in a network cable.');
+  box.append(info);
+  if (!d.connection) return box;
+
+  const row = (label, note, ctl) => { const r0 = el('div', 'set'), sl = el('div', 'sl'), sc = el('div', 'sc'); sl.append(el('b', '', label)); if (note) sl.append(el('span', '', note)); sc.append(ctl); r0.append(sl, sc); box.append(r0); return r0; };
+  const startStatic = d.method === 'manual';
+  const cfgAddr = (d.configAddress || '').split(',')[0], liveAddr = (d.address || '').split(',')[0];
+  const base = startStatic ? cfgAddr : liveAddr;
+  const v0 = {
+    mode: startStatic ? 'static' : 'auto',
+    ip: (base.split('/')[0] || ''),
+    mask: base.includes('/') ? maskFromPrefix(+base.split('/')[1]) : '255.255.255.0',
+    gw: startStatic ? (d.configGateway || '') : (d.gateway || ''),
+    dns: (startStatic ? (d.configDns || '') : (d.dns || '')).split(/[ ,]+/).filter(Boolean).join(', ')
+  };
+  const v = Object.assign({}, v0);
+
+  const seg = el('div', 'seg');
+  for (const [k, t] of [['auto', 'Automatic (DHCP)'], ['static', 'Static']]) { const b = el('button', '', t); b.dataset.v = k; seg.append(b); }
+  row('IP settings', 'Automatic gets an address from your router', seg).classList.add('stack');
+  const fields = {};
+  const mk = (key, label, note, ph) => { const i = el('input', 'ipf'); i.value = v[key]; i.placeholder = ph; i.inputMode = 'decimal'; i.autocomplete = 'off'; i.spellcheck = false; fields[key] = row(label, note, i); i.oninput = () => { v[key] = i.value.trim(); sync(); }; return i; };
+  mk('ip', 'IP address', '', '192.168.1.50');
+  mk('mask', 'Subnet mask', 'Usually 255.255.255.0', '255.255.255.0');
+  mk('gw', 'Gateway', 'Your router', '192.168.1.1');
+  mk('dns', 'DNS servers', 'Optional, separated by commas', '192.168.1.1, 1.1.1.1');
+  const err = el('div', 'neterr');
+  const apply = el('button', 'on', 'Apply');
+  const applyRow = row('Apply', '', apply);
+  applyRow.querySelector('.sl').append(err);
+
+  function check() {
+    if (v.mode === 'auto') return '';
+    if (!isIp(v.ip)) return 'Enter a valid IP address, like 192.168.1.50.';
+    const p = prefixFromMask(v.mask); if (p < 0) return 'Enter a valid subnet mask, like 255.255.255.0.';
+    if (v.gw) {
+      if (!isIp(v.gw)) return 'Enter a valid gateway address, or leave it empty.';
+      const m = p === 0 ? 0 : (0xFFFFFFFF << (32 - p)) >>> 0;
+      if (((ipInt(v.gw) & m) >>> 0) !== ((ipInt(v.ip) & m) >>> 0)) return 'The gateway must be in the same subnet as the IP address.';
+      if (v.gw === v.ip) return 'The gateway can\'t be the Pi\'s own address.';
+    }
+    const dns = v.dns.split(/[ ,]+/).filter(Boolean);
+    if (dns.length > 3) return 'At most 3 DNS servers.';
+    if (dns.some(x => !isIp(x))) return 'Check the DNS server addresses.';
+    return '';
+  }
+  function sync() {
+    seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v.mode));
+    for (const k in fields) fields[k].classList.toggle('hide', v.mode !== 'static');
+    const changed = v.mode !== v0.mode || (v.mode === 'static' && (v.ip !== v0.ip || v.mask !== v0.mask || v.gw !== v0.gw || v.dns !== v0.dns));
+    netDirty[d.device] = changed;
+    const e = changed ? check() : '';
+    err.textContent = e;
+    apply.disabled = !changed || !!e || r.pending > 0;
+  }
+  seg.querySelectorAll('button').forEach(b => b.onclick = () => { v.mode = b.dataset.v; sync(); });
+  apply.onclick = () => netConfirmDialog(d, v, r);
+  sync();
+  return box;
+}
+function netConfirmDialog(d, v, r) {
+  const box = $('fixBox'); box.innerHTML = '';
+  const name = (d.type === 'wifi' ? 'Wi-Fi' : 'Wired') + ' (' + d.device + ')';
+  const head = el('div', 'fxhead'), x = el('button', 'fxx', '✕'); x.onclick = issueClose;
+  head.append(el('i', 'fxi warn', '!'), el('h3', '', 'Change the network settings?'), x);
+  box.append(head);
+  const p = prefixFromMask(v.mask), dns = v.dns.split(/[ ,]+/).filter(Boolean);
+  const ul = el('ul');
+  if (v.mode === 'auto') ul.append(el('li', '', name + ': automatic address from the router (DHCP)'));
+  else {
+    ul.append(el('li', '', name + ': static address ' + v.ip + ', subnet mask ' + maskFromPrefix(p)));
+    ul.append(el('li', '', 'Gateway: ' + (v.gw || 'none')));
+    ul.append(el('li', '', 'DNS: ' + (dns.length ? dns.join(', ') : 'none')));
+  }
+  box.append(ul);
+  const usingIt = r.via === d.device;
+  box.append(el('h4', '', 'What happens'));
+  box.append(el('p', '', usingIt
+    ? 'This is the connection this page uses. It drops for a few seconds, then the page opens at the Pi\'s new address and confirms the change. If the Pi can\'t be reached there, the old settings come back by themselves after 2 minutes.'
+    : 'This connection drops for a few seconds. The change is confirmed automatically. The audio keeps running.'));
+  const acts = el('div', 'fxacts');
+  const go = el('button', 'on', 'Apply'), cancel = el('button', '', 'Cancel'); cancel.onclick = issueClose;
+  go.onclick = async () => {
+    go.disabled = true; go.textContent = 'Applying…';
+    const body = { device: d.device, mode: v.mode };
+    if (v.mode === 'static') Object.assign(body, { ip: v.ip, prefix: p, gateway: v.gw, dns });
+    const res = await api('/api/network', body);
+    if (!res.ok) {
+      if (res.error === 'setup') { issueClose(); NETCFG = { available: false, setup: true }; netRender(); return; }
+      toast(res.error || 'The change did not go through'); go.disabled = false; go.textContent = 'Apply'; return;
+    }
+    netDirty[d.device] = false;
+    if (usingIt) netFollow(res.token, v, r);
+    else {
+      box.querySelector('.fxacts').remove();
+      box.append(el('p', 'fxstate ok', 'Applying… confirming in a few seconds.'));
+      setTimeout(async () => {
+        const c = await api('/api/network/confirm', { token: res.token });
+        issueClose(); toast(c.ok ? 'Network settings saved' : 'Could not confirm: ' + (c.error || '')); netLoad(true);
+      }, 6000);
+    }
+  };
+  acts.append(go, cancel); box.append(acts);
+  $('fixDlg').classList.remove('hide');
+}
+// The page's own connection changed: find the Pi at its new address, then open the page there
+function netFollow(token, v, r) {
+  const hereIsIp = /^\d+\.\d+\.\d+\.\d+$/.test(location.hostname);
+  const host = v.mode === 'static' ? (hereIsIp ? v.ip : location.hostname)
+                                   : (hereIsIp ? (r.hostname || 'livepi').toLowerCase() + '.local' : location.hostname);
+  const base = `http://${host}:${r.port || location.port || 8080}`;
+  const url = `${base}/?netconfirm=${token}`;
+  const box = $('fixBox'); box.innerHTML = '';
+  const head = el('div', 'fxhead'); head.append(el('i', 'fxi warn', '…'), el('h3', '', 'Moving to the new address'));
+  box.append(head);
+  const st = el('p', 'fxstate warn', 'Waiting for the Pi at ' + host + '…'); box.append(st);
+  const a = el('a', '', 'Open ' + base); a.href = url; box.append(el('p', 'fxsmall', 'If it doesn\'t open by itself, use this link: '), a);
+  box.append(el('p', 'fxsmall', 'If the Pi can\'t be reached there, the old settings come back by themselves after 2 minutes. Then open the old address again.'));
+  $('fixDlg').classList.remove('hide');
+  NET_FOLLOWING = true;
+  const until = Date.now() + 115000;
+  const tryIt = () => {
+    if (Date.now() > until) { st.textContent = 'The Pi did not answer at the new address. The old settings are being put back.'; st.className = 'fxstate bad'; return; }
+    st.textContent = 'Waiting for the Pi at ' + host + '… (' + Math.round((until - Date.now()) / 1000) + ' s left)';
+    fetch(base + '/manifest.json?t=' + Date.now(), { mode: 'no-cors', cache: 'no-store' })
+      .then(() => { st.textContent = 'Found it. Opening…'; location.href = url; })
+      .catch(() => setTimeout(tryIt, 2000));
+  };
+  setTimeout(tryIt, 4000);
+}
+let NET_FOLLOWING = false;
+// Opened at the new address after a change: confirm it, so it is kept
+(function netConfirmOnLoad() {
+  const m = location.search.match(/[?&]netconfirm=([0-9a-f]{32})/);
+  if (!m) return;
+  try { history.replaceState(null, '', location.pathname); } catch (e) {}
+  fetch('/api/network/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-LivePi': '1' }, body: JSON.stringify({ token: m[1] }) })
+    .then(r => r.json()).then(j => toast(j.ok ? 'New network settings kept.' : 'Could not confirm the network change: ' + (j.error || ''))).catch(() => {});
+})();
+setInterval(() => netLoad(false), 5000);
 
 /* ---------- presets ---------- */
 $('presetLoad').onclick = async () => { const n = $('presetList').value; if (!n) return; const r = await api('/api/presets/load', { name: n }); if (r.ok) toast('Loaded ' + n); structKey = ''; refresh(); };
