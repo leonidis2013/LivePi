@@ -2,7 +2,7 @@
 
 <img src="images/logo.svg" width="72" alt="LivePi logo">
 
-**LivePi v0.23.1** · Copyright © Jerod Ulicki
+**LivePi v0.23.2** · Copyright © Jerod Ulicki
 
 LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Audio goes in through the Pi's sound card, through your plugins (for example LiveVoice), and back out with very little delay. You control everything from a web page on a phone, tablet or computer. The Pi needs no screen, keyboard or mouse.
 
@@ -95,7 +95,7 @@ You can answer some of these up front:
 
 ### The setup assistant
 
-The first time LivePi is opened, a short **setup assistant** walks through the audio interface, the number of channels, VST rack or Mixer mode, the starting sound for each microphone (mixer mode, including **Lapel**), the network (automatic or a fixed IP address) and the password. In the assistant, **Next** applies what you changed (the audio interface, the number of channels; a network change asks you to confirm first, because the connection can drop). The assistant remembers where it was, so it carries on at the next step on another device or at the Pi's new network address. Skip any step. Run it again any time: **⚙ → Settings → Setup assistant → Run setup**, handy when something isn't working.
+The first time LivePi is opened, a short **setup assistant** walks through the audio interface, the number of channels and their names, VST rack or Mixer mode, the starting sound for each microphone (mixer mode, including **Lapel**), the network (automatic or a fixed IP address) and the password. In the assistant, **Next** applies what you changed (the audio interface, the number of channels; a network change asks you to confirm first, because the connection can drop). The assistant remembers where it was, so it carries on at the next step on another device or at the Pi's new network address. Skip any step. Run it again any time: **⚙ → Settings → Setup assistant → Run setup**, handy when something isn't working.
 
 
 Open **`http://livepi.local:8080`** in any browser on the same network. If that name doesn't work, use the Pi's IP address instead, for example `http://192.168.1.50:8080`.
@@ -155,7 +155,7 @@ In **VST rack** mode each channel is one row of the rack, with the signal flowin
 
 | Part | What it does |
 |---|---|
-| **Name** | Tap to rename the channel. |
+| **Name** | Tap it (✎) to rename the channel; Enter or tapping away saves. |
 | **Level knob** | The channel's output level, from −∞ to +6 dB. Drag up or down; **double-tap** for 0 dB. |
 | **MUTE** | Silences the channel's output. |
 | **PAFL** | Sends this channel to the Monitor mix (see [Monitoring](#6-monitoring-pafl)). It lights amber when on. |
@@ -257,7 +257,7 @@ On the mixer, each channel shows its voice preset and its modules in flow order 
 | **Flow** | **Input** (gain and polarity) is always first and can't be removed. Then the modules, numbered in signal order: a list on a computer, a grid of tiles on a phone or tablet. Each shows a status (gain reduction, notch count, open/closed) and its **power** button. **Tap a module** to open its controls. **Drag the ⋮⋮ grip** to move it (computer); the **↑ ↓** buttons at the top of the panel move it one place (everywhere). **Remove** (top of the panel) takes a module out of the flow: it isn't processed at all, and its settings are kept. **+ Add module** puts one back, after the module that is open, or adds **another one** of a kind already in the flow: up to 2 high-pass filters, 2 dynamic EQs, 3 compressors and 4 parametric EQs, each with its own settings ("Compressor 2"). The Input tile has a small level meter. |
 | **Panel** | The selected module, large: its graph or meters, and all its controls as big touch knobs (on a phone: wide sliders), switches and lists. Double-tap a knob or slider for its default. |
 | **Right: Output** | Output **trim**, the channel **fader** with the OUT meter (after the fader), **Mute** and **PAFL**. Always on the right. |
-| **Top bar** | **Voice**: load a voice preset (Pastor, Spoken Word, Male, Female, Worship Leader, and **Lapel / Lavalier Mic** for clip-on mics: more gain before feedback, the chest resonance around 750 Hz cut, presence and air added back, no proximity control, leveler on); it replaces the module settings, not the gains. **Copy to…** copies this channel's settings and order to another channel. **Bypass** switches every module off at once. |
+| **Top bar** | The channel's **name**: tap it (✎) to rename the channel. **Voice**: load a voice preset (Pastor, Spoken Word, Male, Female, Worship Leader, and **Lapel / Lavalier Mic** for clip-on mics: more gain before feedback, the chest resonance around 750 Hz cut, presence and air added back, no proximity control, leveler on); it replaces the module settings, not the gains. **Copy to…** copies this channel's settings and order to another channel. **Bypass** switches every module off at once. |
 
 **The modules**
 

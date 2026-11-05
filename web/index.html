@@ -767,6 +767,19 @@
   .wz .set:has(#devApply), .wz #chApply, .wz .netapply { display:none; }
 
   .cvflat { order:99; flex:1 1 100%; border:1px dashed var(--line); background:transparent; color:var(--dim); }
+
+  .nmwrap, .cvname { position:relative; display:flex; align-items:center; min-width:0; cursor:text; }
+  .nmwrap { width:100%; }
+  .cvname { flex:1 1 160px; min-width:140px; }
+  @media (max-width:720px) { .cvbar > * { order:2; } .cvbar .cvname { order:0; flex-basis:calc(100% - 64px); } .cvbar #cvClose { order:1; } }
+  .strip.rack .nmwrap { width:auto; flex:0 1 240px; }
+  .nmwrap .nm { padding-right:22px; width:100%; flex:1; }
+  @media (max-width:720px) { .strip.rack .nmwrap { flex:1 1 120px; } }
+  .pen { position:absolute; right:6px; font-size:12px; color:var(--faint); pointer-events:none; }
+  .nmwrap:hover .pen, .cvname:hover .pen { color:var(--acc); }
+  .cvname input { width:100%; background:transparent; border:1px solid transparent; font-size:15px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; padding:6px 24px 6px 6px; color:var(--fg); }
+  .cvname input:focus { background:var(--card2); border-color:var(--line); text-transform:none; letter-spacing:0; }
+  .strip .nmwrap .nm:focus { text-transform:none; letter-spacing:0; }
 </style>
 </head>
 <body>
@@ -967,7 +980,7 @@
 </div>
 <div id="cv" class="chview hide">
   <div class="cvbar">
-    <b id="cvTitle" class="grow"></b>
+    <label class="cvname grow" title="Tap to rename this channel"><input id="cvTitle" maxlength="24" autocomplete="off" spellcheck="false"><span class="pen">✎</span></label>
     <label class="cvpre"><span>Voice</span><select id="cvPreset"></select></label>
     <select id="cvCopy" title="Copy this channel's settings to another channel"></select>
     <button id="cvBypass" title="Bypass every module of this channel">Bypass</button>
@@ -1410,9 +1423,13 @@ function buildStrip(c, ch) {
   const isBus = ch === 100;
   if (isBus) s.classList.add('bus');
   const nm = el('input', 'nm'); nm.value = c.name; nm.maxLength = 24;
-  if (isBus) nm.readOnly = true;
-  else nm.onchange = () => api('/api/channel/name', { channel: ch, name: nm.value });
-  s.append(nm);
+  if (isBus) { nm.readOnly = true; s.append(nm); }
+  else {
+    nm.title = 'Tap to rename this channel';
+    nm.onchange = () => { if (nm.value.trim()) api('/api/channel/name', { channel: ch, name: nm.value.trim() }); };
+    nm.addEventListener('keydown', e => { if (e.key === 'Enter') nm.blur(); });
+    const w = el('label', 'nmwrap'); w.append(nm, el('span', 'pen', '✎')); s.append(w);
+  }
 
   const fm = el('div', 'fm');
   const fader = makeFader(db => throttled('g' + ch, () => api('/api/mixer', { channel: ch, gainDb: db })));
@@ -1555,8 +1572,13 @@ function buildRack(c, ch) {
   const s = el('div', 'strip rack' + (isBus ? ' bus' : '')); s.dataset.ch = ch;
   const head = el('div', 'rkhead');
   const nm = el('input', 'nm'); nm.value = c.name; nm.maxLength = 24;
-  if (isBus) nm.readOnly = true; else nm.onchange = () => api('/api/channel/name', { channel: ch, name: nm.value });
-  head.append(nm);
+  if (isBus) { nm.readOnly = true; head.append(nm); }
+  else {
+    nm.title = 'Tap to rename this channel';
+    nm.onchange = () => { if (nm.value.trim()) api('/api/channel/name', { channel: ch, name: nm.value.trim() }); };
+    nm.addEventListener('keydown', e => { if (e.key === 'Enter') nm.blur(); });
+    const w = el('label', 'nmwrap'); w.append(nm, el('span', 'pen', '✎')); head.append(w);
+  }
   const info = el('span', 'rkinfo cpu');
   const sum = c.slots.filter(p => p.cpuAvg !== undefined && !p.bypassed).reduce((a, p) => a + p.cpuAvg, 0);
   if (!isBus && c.slots.some(p => p.cpuAvg !== undefined)) info.textContent = `≈ ${sum.toFixed(1)}% of one core`;
@@ -2948,7 +2970,7 @@ function cvRender() {
   if (!v.modules[CV.sel] || (CV.sel !== 'input' && !v.order.includes(CV.sel))) CV.sel = v.order[0] || 'input';
   const key = [ch, CV.sel, CV.band, v.order.join(','), (v.presets || []).join('|')].join('/');
   const chain = S && S.chains ? S.chains[ch] : null;
-  $('cvTitle').textContent = chain ? chain.name : 'Channel ' + (ch + 1);
+  if (document.activeElement !== $('cvTitle')) $('cvTitle').value = chain ? chain.name : 'Ch ' + (ch + 1);
   // voice presets (LiveVoice's factory presets)
   const ps = $('cvPreset');
   if (ps._k !== (v.presets || []).join('|') + v.preset) {
@@ -2970,6 +2992,13 @@ function cvRender() {
   CV.key = key; CV.ctls = {};
   cvSides(); cvFlow(); cvPanel();
 }
+// Rename the channel from its screen (Enter or tapping away saves it)
+$('cvTitle').addEventListener('change', async () => {
+  const n = $('cvTitle').value.trim(); if (!n || CV.ch < 0) return;
+  const r = await api('/api/channel/name', { channel: CV.ch, name: n });
+  if (r && !r.error) { if (S && S.chains[CV.ch]) S.chains[CV.ch].name = n; structKey = ''; toast('Renamed to ' + n); }
+});
+$('cvTitle').addEventListener('keydown', e => { if (e.key === 'Enter') $('cvTitle').blur(); });
 $('cvPreset').onchange = async () => {
   const i = $('cvPreset').value; if (i === '') return;
   const name = CV.view.presets[+i];
@@ -3590,6 +3619,17 @@ function wzSteps() {
     { id: 'channels', title: 'Channels', note: 'How many microphones go into the Pi? One channel per input.',
       body: b => { const c = wzBorrow('chCard'); if (c) { b.append(c); $('chCount').addEventListener('input', () => WZ.dirty.ch = true, { once: true }); } },
       next: async () => { if (WZ.dirty.ch) { WZ.dirty.ch = false; $('chApply').click(); await new Promise(r => setTimeout(r, 800)); } } },
+    { id: 'names', title: 'Channel names', note: 'Name each channel after its microphone or person, for example Pastor or Worship lead.',
+      body: async b => {
+        await refresh();
+        ((S && S.chains) || []).forEach((c, i) => {
+          const row = el('div', 'set'), l = el('div', 'sl'), sc = el('div', 'sc'), inp = el('input', 'ip');
+          l.append(el('b', '', 'Channel ' + (i + 1))); inp.value = c.name; inp.maxLength = 24; inp.placeholder = 'Ch ' + (i + 1);
+          inp.onchange = () => { if (inp.value.trim()) api('/api/channel/name', { channel: i, name: inp.value.trim() }); };
+          sc.append(inp); row.append(l, sc); b.append(row);
+        });
+      },
+      next: async () => { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); await new Promise(r => setTimeout(r, 300)); } },
     { id: 'mode', title: 'How do you want to process the voice?', note: 'VST rack: your own plugins on each channel. Mixer: the LiveVoice modules built in, zero latency, in any order.',
       body: b => { const c = wzBorrow('modeCard'); if (c) b.append(c); } },
     { id: 'mics', title: 'Microphones', note: 'Mixer mode: pick the starting sound for each channel. Lapel = a clip-on (lavalier) mic.', skip: () => !isMixer(),
