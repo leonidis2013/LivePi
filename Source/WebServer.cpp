@@ -664,7 +664,7 @@ void WebServer::setupRoutes()
         // Which item to fix (from the popup); nothing = everything. Only known names reach the helper.
         const auto item = body (req).getProperty ("item", var()).toString();
         static const std::map<String, String> items { { "core", "core,preempt" }, { "rt", "service" }, { "mem", "service" },
-                                                      { "wd", "service" }, { "apt", "updates" }, { "cpu", "cpu" }, { "usb", "usb" } };
+                                                      { "wd", "service" }, { "boot", "service" }, { "apt", "updates" }, { "cpu", "cpu" }, { "usb", "usb" } };
         String only;
         if (item.isNotEmpty())
         {

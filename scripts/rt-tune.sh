@@ -157,6 +157,7 @@ LimitRTPRIO=95
 LimitMEMLOCK=infinity
 UNIT
     systemctl daemon-reload >/dev/null 2>&1 || true
+    systemctl enable livepi.service >/dev/null 2>&1 || true     # and start at every boot
     REBOOT=1
   fi
   echo "applied $(date -Iseconds); boot options: $(ours_in_cmdline)" > "$MARK"

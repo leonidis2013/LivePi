@@ -67,7 +67,17 @@ apt-get install -y libasound2 2>/dev/null || apt-get install -y libasound2t64
 
 echo "== Installing to /opt/livepi"
 # Running the installer again: stop LivePi first (a running program can't be overwritten). It starts
-# again at the end.
+# again at the end, and also if the installer stops early because of an error.
+STOPPED_LIVEPI=0
+if systemctl is-active --quiet livepi.service 2>/dev/null; then STOPPED_LIVEPI=1; fi
+on_error() {
+  echo
+  echo "!! The installer stopped early (line $1). Nothing you had is lost."
+  if [[ $STOPPED_LIVEPI -eq 1 ]]; then systemctl start livepi.service 2>/dev/null && echo "   LivePi is running again with the previous setup."; fi
+  echo "   Run the installer again, or send the lines above to get help."
+}
+set -o errtrace
+trap 'on_error $LINENO' ERR
 systemctl stop livepi.service 2>/dev/null || true
 for i in $(seq 1 50); do pgrep -x LivePi >/dev/null || break; sleep 0.2; done
 pkill -9 -x LivePi 2>/dev/null || true
@@ -294,8 +304,20 @@ else
   echo "Continuing without a password: everyone on your network can use LivePi. Set one any time in Setup > Settings."
 fi
 
-systemctl enable --now livepi.service
+systemctl daemon-reload
+systemctl enable livepi.service
 systemctl restart livepi.service
+trap - ERR
+
+# Check that it really runs and starts at boot
+echo
+echo "== Checking"
+sleep 3
+if systemctl is-enabled --quiet livepi.service; then echo "   Starts automatically at boot: yes"; else echo "!! LivePi is not set to start at boot. Run: sudo systemctl enable livepi"; fi
+if systemctl is-active --quiet livepi.service; then echo "   Running now: yes"; else
+  echo "!! LivePi is not running. Its last messages:"
+  journalctl -u livepi.service -n 15 --no-pager 2>/dev/null | sed 's/^/   /' || true
+fi
 
 echo
 echo "Done. Open http://$(hostname).local:8080 from any device on the network."

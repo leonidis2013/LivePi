@@ -1915,6 +1915,10 @@ function relItems(r) {
     add({ id: 'usb', title: 'USB power saving', lvl: rb ? 'warn' : 'dim', text: rb ? 'Fixed. Reboot to finish.' : 'On. Only matters for USB audio interfaces.',
           why: 'The OS may put USB devices to sleep to save power. A USB audio interface that is put to sleep drops out. (Not used by a Pisound or other HATs.)',
           fix: rb ? 'reboot' : 'tune' });
+  if (r.service) add({ id: 'boot', title: 'Starts at boot', lvl: r.bootStart ? 'ok' : 'bad',
+        text: r.bootStart ? 'On. LivePi starts by itself when the Pi is switched on.' : 'Off. After a reboot or a power cut LivePi stays off.',
+        why: 'If LivePi is not set to start at boot, a power cut or a reboot leaves the Pi silent until someone starts it by hand.',
+        fix: r.bootStart ? null : 'tune' });
   add({ id: 'crash', title: 'Crash protection', lvl: 'ok',
         text: r.safeMode ? 'Safe mode is on: plugins were not loaded after failed starts (see the banner).' : 'On. After two failed starts in a row LivePi starts without plugins, so the audio keeps passing through.', fix: null });
   return items;

@@ -570,6 +570,9 @@ var HostEngine::getReliability()
     o->setProperty ("throttled", health != nullptr ? health->throttled.load() : -1);
     o->setProperty ("safeMode", safeMode);
     o->setProperty ("fallback", autoFallback);
+    // Started by systemd and enabled to start at boot (the symlink "systemctl enable" creates)
+    o->setProperty ("service", File ("/etc/systemd/system/livepi.service").existsAsFile());
+    o->setProperty ("bootStart", File ("/etc/systemd/system/multi-user.target.wants/livepi.service").exists());
     return var (o);
 }
 
