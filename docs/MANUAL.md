@@ -2,7 +2,7 @@
 
 <img src="images/logo.svg" width="72" alt="LivePi logo">
 
-**LivePi v0.19.0** · Copyright © Jerod Ulicki
+**LivePi v0.20.0** · Copyright © Jerod Ulicki
 
 LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Audio goes in through the Pi's sound card, through your plugins (for example LiveVoice), and back out with very little delay. You control everything from a web page on a phone, tablet or computer. The Pi needs no screen, keyboard or mouse.
 
@@ -72,7 +72,7 @@ The installer sets up LivePi to start at boot, tunes the Pi for low-latency audi
 | Question | What to answer |
 |---|---|
 | **Will you use a Blokas Pisound?** | **Y** if you have one. LivePi switches on its driver; nothing is downloaded. If a Pisound is already fitted and working, this is done without asking. |
-| **Apply all recommended settings?** (live-audio tuning) | **Enter** applies them all. Answer **n** to go through them one by one, each with a short note: reserve a CPU core for the audio, the faster-responding kernel mode, automatic OS updates off, CPU at full speed, the watchdog, USB power saving off and Wi-Fi power saving off. Anything you skip can be fixed later from ⚙ → System → Reliability. |
+| **Apply all recommended settings?** (live-audio tuning) | **Enter** applies them all. Answer **n** to go through them one by one, each with a short note: reserve a CPU core for the audio, the faster-responding kernel mode, automatic OS updates off, CPU at full speed, the watchdog, USB power saving off, Wi-Fi power saving off and, with a Pisound, letting LivePi use its button. Anything you skip can be fixed later from ⚙ → System → Reliability. |
 | **Do you want to set a password? [Y/n]** | **Y** to protect the page with a password (at least 4 characters). **N** lets everyone on your network use LivePi. When you run the installer again and a password is already set, it asks **Keep it?** instead: press Enter to keep your password and trusted access as they are. |
 | **Turn on trusted access?** *(only after setting a password)* | **Y** lets devices on networks you trust skip the password. You then enter the network (the Pi's own network is suggested) and can add more. |
 
@@ -321,10 +321,10 @@ If no sound card is found at start-up, LivePi falls back to the virtual card for
 |---|---|
 | **Version** | The installed LivePi version, for example *v0.8.0*. |
 | **Update from: Online / File** | Online checks GitHub; File installs a downloaded update. |
-| **Check / Install update** | Install is grayed out until a newer version is found, or until a file has been chosen. |
-| **Choose a version** | Pick any released version from the list, newer or older, and press **Upgrade**, **Downgrade** or **Reinstall**. Older versions don't have the features added since then; presets, plugins and settings are kept, and you can upgrade again at any time. |
+| **Check for updates** | Looks for a newer release (needs internet). |
+| **Version to install** | **Latest**: the newest release. **Install update** is grayed out (*Up to date*) until a newer version is found. **Other version**: pick any released version from the list, newer or older, and press **Upgrade**, **Downgrade** or **Reinstall**. Older versions don't have the features added since then; presets, plugins and settings are kept, and you can upgrade again at any time. |
 | **Restart LivePi** | Restarts the program. Audio stops for a few seconds. |
-| **Reliability** | A checklist of everything that protects the audio: real-time priority, the reserved CPU core, memory lock, power supply, temperature, CPU speed, automatic OS updates, the watchdog and crash protection. See [Reliability and latency](#11-reliability-and-latency). |
+| **Reliability** | One line with a green tick (*Ready for a service*) when everything is fine; tap it to open the full checklist of everything that protects the audio: real-time priority, the reserved CPU core, memory lock, power supply, temperature, CPU speed, automatic OS updates, the watchdog and crash protection. See [Reliability and latency](#11-reliability-and-latency). |
 | **Operating system** | Checks for and installs Raspberry Pi OS updates. Needs internet. Don't run it right before a service: it can cause dropouts and may need a reboot. |
 | **Danger zone → Reboot Pi** | Restarts the whole Pi, which takes about 30 seconds. |
 
@@ -339,10 +339,27 @@ If no sound card is found at start-up, LivePi falls back to the virtual card for
 | **Keep screen awake** | On: the screen doesn't dim or lock while LivePi is open, handy for an iPad on the desk. Saved on this device only. If it says *tap anywhere to start it*, tap the page once. Keep the iPad on power. |
 | **Plugins open in** | What tapping a plugin name opens: Controls or Plugin. Saved on this device only. |
 | **PAFL mode** | PFL, AFL or Input, for all channels. Saved in presets. |
+| **Pisound button** | What each click or hold of the Pisound's button does. See [The Pisound button](#the-pisound-button). |
 | **Listen delay** | Lowest, Low or Safe, for *Listen here* on this device. |
 | **Password** | See the next section. |
 | **Trusted access** | See the next section. Only shown while password protection is on. |
 | **Network** | IP settings for the wired and Wi-Fi connections: **Automatic (DHCP)** or **Static** (IP address, subnet mask, gateway, DNS servers). See below. |
+
+### The Pisound button
+
+LivePi reads the Pisound's button itself; Blokas' button software is not needed. **⚙ → Settings → Pisound button** sets what each press does:
+
+| Press | How |
+|---|---|
+| **1 click**, **2 clicks**, **3 clicks** | Quick presses; LivePi waits 0.4 s after the last one to count them. |
+| **Hold 2 s** | Hold for 2 to 5 seconds, then let go. The LED flashes once at 2 seconds. |
+| **Hold 5 s** | Keep holding: it acts the moment the LED flashes again, at 5 seconds. |
+
+Actions: **Mute / unmute a channel**, **Mute / unmute every channel**, **Bypass a channel's effects** (the mixer channel's modules, or a VST channel's plugins), **Next** or **Previous saved preset** (in name order), **Clear learned feedback** (mixer mode), **Mute / unmute the monitor mix**, **Restart LivePi in safe mode** (holds only) and **Shut down the Pi** (the 5-second hold only, so it can't happen by accident). Every press starts as **Nothing**.
+
+The card shows whether the button is **Pressed**, and the **Last press** with what it did, so you can try each one. The LED flashes once to confirm an action. **Use the button: Off** ignores every press.
+
+If the card says **Blokas' button program is running**, tap **Turn it off**: otherwise both programs act on the same presses, and Blokas' 5-second hold shuts the Pi down. If it says LivePi *is not allowed to read the button*, tap **Fix it**. The installer asks about both (*Let LivePi use the Pisound button?*).
 
 ### Network settings
 
@@ -390,7 +407,7 @@ LivePi uses **major.minor.patch** versions (for example 0.8.0):
 
 A new version appears on the [Releases page](https://github.com/leonidis2013/LivePi/releases) as "LivePi vX.Y.Z".
 
-- **Online:** ⚙ → System → **Update from: Online** → **Check** → **Install update** (the latest), or pick any version under **Choose a version**.
+- **Online:** ⚙ → System → **Update from: Online** → **Check**, then **Version to install: Latest** → **Install update**, or **Other version** to pick any release.
 - **Offline:** download `livepi-build-N.zip` from the Releases page, then use ⚙ → System → **Update from: File** → **Choose…** → **Install update**.
 
 Presets, plugins, password and settings are kept. If a new version fails to start three times in a row, LivePi puts the previous version back by itself and shows a notice. Some releases need the newer installer; the update tells you if so. In that case run the installer again (section 2.2).
@@ -414,7 +431,7 @@ Presets, plugins, password and settings are kept. If a new version fails to star
 | **Session backup** | A copy of your session is kept after every good start. If the session file is ever damaged (for example by a power cut), LivePi loads the copy. |
 | **Power and heat warnings** | The top bar shows **⚡ Low power**, **Throttled**, **⚡ Power dipped** or **Was throttled** when the Pi's power supply or temperature is causing it to slow down, the most common hidden cause of dropouts on a Raspberry Pi. |
 
-**⚙ → System → Reliability** shows all of this as a checklist. Everything should show a green tick before a service. Problems are highlighted with a **!**: tap one and a popup explains what is wrong, why it matters, and fixes it:
+**⚙ → System → Reliability** sums all of this up in one line: a green tick and *Ready for a service* when everything is fine. Tap it to open the full checklist. Anything that needs attention is shown straight away under that line, highlighted with a **!**: tap one and a popup explains what is wrong, why it matters, and fixes it:
 
 - **Fix**: changes that one setting with one tap; nothing else is changed. If the fix needs a restart, the item then says *Fixed. Reboot to finish* and the popup offers **Reboot now**.
 - **How to fix**: for things only you can fix, like the power supply or cooling, the popup lists what to do.
@@ -430,7 +447,8 @@ The installer runs `rt-tune.sh`, which:
 - turns off USB power saving,
 - turns off automatic background OS updates (update from ⚙ → System instead),
 - turns off Wi-Fi power saving,
-- tells the system never to stop restarting LivePi and never to pick LivePi when memory runs out.
+- tells the system never to stop restarting LivePi and never to pick LivePi when memory runs out,
+- lets LivePi read the Pisound button and flash its LED, and turns off Blokas' own button program (`pisound-btn`) so only LivePi acts on presses.
 
 The boot settings take effect after a reboot. To see them, run `sudo /opt/livepi/rt-tune.sh status`. To undo them, run `sudo /opt/livepi/rt-tune.sh undo`.
 

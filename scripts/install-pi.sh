@@ -91,6 +91,7 @@ chown -R "$USER_NAME:$(id -gn "$USER_NAME")" /opt/livepi
 
 echo "== Real-time limits for the audio group"
 usermod -aG audio "$USER_NAME"
+getent group gpio >/dev/null 2>&1 && usermod -aG gpio "$USER_NAME"   # the Pisound button
 cat > /etc/security/limits.d/99-audio.conf <<EOF
 @audio - rtprio 95
 @audio - memlock unlimited
@@ -135,6 +136,11 @@ if [[ $TUNING -eq 1 && -t 0 ]]; then
       "Takes effect after a reboot."
     q wifi "Turn off Wi-Fi power saving?" \
       "Keeps the LivePi page responsive over Wi-Fi. Makes no difference on a wired network."
+    if [[ -e /sys/kernel/pisound/id ]] || grep -qi pisound /proc/asound/cards 2>/dev/null; then
+      q button "Let LivePi use the Pisound button?" \
+        "You choose what each click or hold does in Setup > Settings > Pisound button." \
+        "Turns off Blokas' own button program (pisound-btn), if it is installed."
+    fi
   fi
 fi
 TUNE_SKIP="${TUNE_SKIP#,}"

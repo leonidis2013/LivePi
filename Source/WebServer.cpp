@@ -664,7 +664,7 @@ void WebServer::setupRoutes()
         // Which item to fix (from the popup); nothing = everything. Only known names reach the helper.
         const auto item = body (req).getProperty ("item", var()).toString();
         static const std::map<String, String> items { { "core", "core,preempt" }, { "rt", "service" }, { "mem", "service" },
-                                                      { "wd", "service" }, { "boot", "service" }, { "apt", "updates" }, { "cpu", "cpu" }, { "usb", "usb" } };
+                                                      { "wd", "service" }, { "boot", "service" }, { "apt", "updates" }, { "cpu", "cpu" }, { "usb", "usb" }, { "button", "button" } };
         String only;
         if (item.isNotEmpty())
         {
@@ -862,6 +862,17 @@ void WebServer::setupRoutes()
     svr.Post ("/api/hwmixer", [this] (const httplib::Request& req, httplib::Response& res)
     {
         reply (res, HwMixer::set (body (req)));
+    });
+
+    svr.Get ("/api/button", [this] (const httplib::Request&, httplib::Response& res)
+    {
+        reply (res, onMT ([this] { return engine.getButton(); }));
+    });
+
+    svr.Post ("/api/button", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto b = body (req);
+        reply (res, onMT ([this, b] { return engine.setButton (b); }));
     });
 
     svr.Post ("/api/device", [this] (const httplib::Request& req, httplib::Response& res)

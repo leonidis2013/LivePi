@@ -9,6 +9,7 @@
 #include "ChannelStrip.h"
 #include "CpuBench.h"
 #include "MonitorRing.h"
+#include "PisoundButton.h"
 #include "Reliability.h"
 #include "VoiceChannel.h"
 #include "VirtualAudio.h"
@@ -43,6 +44,8 @@ public:
     juce::var getReliability();        // the checklist on the System page
     juce::var restoreSession();        // leave safe mode: load the session with its plugins again
     juce::var dismissNotice (const juce::String& id);
+    juce::var getButton();                         // the Pisound button: status and what each press does
+    juce::var setButton (const juce::var& body);   // { enabled?, actions?: { click1: { action, channel }, ... } }
 
     // Audio device
     juce::var getDevices();
@@ -193,4 +196,12 @@ private:
     void deviceChanged();                               // message thread, after any device change
     void addNotice (const juce::String& id, const juce::String& text, const juce::String& level = "warn");
     static juce::var withoutPlugins (const juce::var& session);
+
+    // ---- Pisound button (see PisoundButton.h)
+    PisoundButton button;
+    juce::var buttonCfg;                                 // ~/.livepi/button.json
+    juce::String lastPress, currentPreset;
+    juce::int64 lastPressAt = 0;
+    void runButton (int gesture);                        // message thread
+    juce::String buttonAction (const juce::String& action, int channel);   // does it; returns what happened
 };

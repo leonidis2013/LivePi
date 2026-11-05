@@ -27,6 +27,7 @@ unzip -q /work/livepi-build-*.zip || say "FAIL  unzip"
 cd livepi || { say "FAIL  no livepi directory in the zip"; exit 1; }
 check "package has pisound-setup.sh" "[ -x pisound-setup.sh ] && bash -n pisound-setup.sh"
 check "package has rt-tune.sh" "[ -x rt-tune.sh ] && bash -n rt-tune.sh"
+check "rt-tune knows the button item" "grep -q 'ALL=.*button' rt-tune.sh"
 check "package has livepi-net" "[ -x livepi-net ] && bash -n livepi-net"
 check "livepi-net status works without NetworkManager (says not available)" "./livepi-net status | jq -e '.available==false' >/dev/null"
 check "binary has no missing libraries" "! ldd ./LivePi | grep -q 'not found'"
@@ -79,6 +80,12 @@ run_case() {
   check "$label: preset saved" "api /api/state | jq -e '.presets | index(\"Smoke test\")' >/dev/null"
   check "$label: preset deleted" "post /api/presets/delete '{\"name\":\"Smoke test\"}' | jq -e .ok >/dev/null && api /api/state | jq -e '(.presets | index(\"Smoke test\")) == null' >/dev/null"
   check "$label: deleting a missing preset is refused" "post /api/presets/delete '{\"name\":\"../last\"}' | jq -e .error >/dev/null"
+  # ---- Pisound button (no Pisound in CI: settings still work, presses are simulated nowhere)
+  check "$label: button settings answer (5 presses, 10 actions, no Pisound here)" "api /api/button | jq -e '(.gestures|length)==5 and (.actions|length)==10 and .present==false' >/dev/null"
+  check "$label: button action saved" "post /api/button '{\"actions\":{\"click1\":{\"action\":\"mute\",\"channel\":1}}}' | jq -e .ok >/dev/null && api /api/button | jq -e '.gestures[0].action==\"mute\" and .gestures[0].channel==1' >/dev/null"
+  check "$label: shut down refused on a single click" "post /api/button '{\"actions\":{\"click1\":{\"action\":\"shutdown\"}}}' | jq -e .error >/dev/null"
+  check "$label: unknown button action refused" "post /api/button '{\"actions\":{\"hold\":{\"action\":\"rm\"}}}' | jq -e .error >/dev/null"
+  check "$label: shut down allowed on the 5 s hold" "post /api/button '{\"actions\":{\"longHold\":{\"action\":\"shutdown\"}}}' | jq -e .ok >/dev/null"
   # ---- mixer mode: built-in LiveVoice channels
   post /api/channels '{"count":2}' >/dev/null
   post /api/mode '{"mode":"mixer"}' >/dev/null; sleep 2

@@ -3,7 +3,7 @@
 #   sudo /opt/livepi/rt-tune.sh            apply everything (default)
 #   sudo /opt/livepi/rt-tune.sh apply --only=core,updates     apply only these items
 #   sudo /opt/livepi/rt-tune.sh apply --skip=wifi             apply everything except these
-#     items: core preempt usb updates cpu wifi service
+#     items: core preempt usb updates cpu wifi service button
 #   sudo /opt/livepi/rt-tune.sh status     show what is set
 #   sudo /opt/livepi/rt-tune.sh undo       put the boot settings back and re-enable automatic updates
 #
@@ -20,11 +20,13 @@
 #  - ModemManager off (it probes serial/USB devices at random times).
 #  - The LivePi service: never stop restarting it, restart within 1 s, let LivePi use the systemd
 #    watchdog, and never pick LivePi when memory runs out (a drop-in, takes effect when LivePi restarts).
+#  - The Pisound button: Blokas' own button program (pisound-btn) off, so LivePi alone acts on presses,
+#    and LivePi may read the button and flash the LED (takes effect at once).
 # Boot settings take effect after a reboot. A backup of cmdline.txt is kept next to it.
 set -euo pipefail
 
 CMD="${1:-apply}"
-ALL="core preempt usb updates cpu wifi service"
+ALL="core preempt usb updates cpu wifi service button"
 ITEMS="$ALL"
 for arg in "${@:2}"; do
   case "$arg" in
@@ -41,6 +43,7 @@ MARK=/etc/livepi-tuning
 PREV=/etc/livepi-tuning.before   # what was set before LivePi changed anything (for undo)
 NM_CONF=/etc/NetworkManager/conf.d/livepi-wifi-powersave.conf
 DROPIN=/etc/systemd/system/livepi.service.d/10-reliability.conf
+BTN_DROPIN=/etc/systemd/system/livepi.service.d/20-button.conf
 TIMERS="apt-daily.timer apt-daily-upgrade.timer man-db.timer"
 
 ncpu=$(nproc --all 2>/dev/null || echo 1)
@@ -105,11 +108,22 @@ set_cmdline() {
 }
 
 [[ $CMD == status ]] && { status; exit 0; }
+if [[ $CMD == button-perms ]]; then
+  [[ $EUID -eq 0 ]] || exit 1
+  for c in /sys/class/gpio/gpiochip*; do
+    case "$(cat "$c/label" 2>/dev/null)" in pinctrl-rp1|pinctrl-bcm2835|pinctrl-bcm2711)
+      g="/sys/class/gpio/gpio$(( $(cat "$c/base") + 17 ))"
+      [[ -d $g ]] && chmod a+r "$g/value" && chmod a+rw "$g/edge" ;;
+    esac
+  done 2>/dev/null || true
+  [[ -e /sys/kernel/pisound/led ]] && chmod a+w /sys/kernel/pisound/led 2>/dev/null || true
+  exit 0
+fi
 [[ $CMD == apply || $CMD == undo ]] || { echo "usage: sudo $0 [apply|status|undo]"; exit 2; }
 [[ $EUID -eq 0 ]] || { echo "Run with sudo"; exit 1; }
 REBOOT=0
 
-UNITS="$TIMERS unattended-upgrades.service ModemManager.service"
+UNITS="$TIMERS unattended-upgrades.service ModemManager.service pisound-btn.service"
 if [[ $CMD == apply ]]; then
   # Remember the original state once, so undo can put back exactly that
   if [[ ! -f $PREV ]]; then
@@ -160,6 +174,19 @@ UNIT
     systemctl enable livepi.service >/dev/null 2>&1 || true     # and start at every boot
     REBOOT=1
   fi
+  if has button; then
+    systemctl disable --now pisound-btn.service >/dev/null 2>&1 || true
+    # The button's GPIO (shared by the Pisound driver through sysfs) and the LED, readable/writable by LivePi
+    "$0" button-perms || true
+    mkdir -p "$(dirname "$BTN_DROPIN")"
+    {
+      echo "# Added by LivePi rt-tune.sh: LivePi reads the Pisound button and flashes its LED"
+      echo "[Service]"
+      getent group gpio >/dev/null 2>&1 && echo "SupplementaryGroups=gpio"
+      echo "ExecStartPre=-+/usr/local/sbin/livepi-tune button-perms"
+    } > "$BTN_DROPIN"
+    systemctl daemon-reload >/dev/null 2>&1 || true
+  fi
   echo "applied $(date -Iseconds); boot options: $(ours_in_cmdline)" > "$MARK"
   echo "LivePi tuning applied: $ITEMS"
 else
@@ -172,7 +199,7 @@ else
   else
     for t in $TIMERS; do systemctl enable --now "$t" >/dev/null 2>&1 || true; done
   fi
-  rm -f "$NM_CONF" "$MARK" "$PREV" "$DROPIN"
+  rm -f "$NM_CONF" "$MARK" "$PREV" "$DROPIN" "$BTN_DROPIN"
   systemctl daemon-reload >/dev/null 2>&1 || true
   echo "LivePi tuning removed."
 fi

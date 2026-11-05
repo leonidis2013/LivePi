@@ -368,7 +368,7 @@
   .sl { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
   .sl b { font-weight:600; font-size:14px; }
   .sl span, .sl i { font-size:12px; color:var(--dim); line-height:1.35; }
-  .sl span.bad { color:var(--bad); }
+  .sl span.bad, .sl b.bad { color:var(--bad); }
   .sl span:empty, .sl b:empty { display:none; }
   .sc { flex:0 1 auto; display:flex; gap:6px; align-items:center; justify-content:flex-end; flex-wrap:wrap; min-width:0; }
   .sc:empty { display:none; }
@@ -468,6 +468,14 @@
 
 
   /* reliability: tappable problems + fix popup */
+  .relsum b { font-size:15px; }
+  .rel.tap.relsum em.chev { background:none; padding:0 4px; font-size:16px; color:var(--dim); transition:transform .15s; }
+  .rel.tap.relsum em.chev.open { transform:rotate(180deg); }
+  .rel.tap.relsum.ok:hover b { color:inherit; }
+  .rellist .rel { padding-left:16px; }
+  .btndot { font-size:12px; font-weight:700; padding:4px 10px; border-radius:999px; color:var(--dim); background:var(--inset); }
+  .btndot.on { color:#fff; background:var(--acc); }
+  @media (max-width:720px) { .set.stack .sc select { flex:1; width:auto; } #btnCard .set.stack .sc { flex-wrap:nowrap; } #btnCard .set.stack .sc select + select { flex:0 0 36%; } }
   button.rel { width:100%; text-align:left; background:transparent; border:0; border-top:1px solid var(--line); border-radius:0; color:inherit; font:inherit; cursor:pointer; padding:9px 0; min-height:0; }
   .rel.tap { position:relative; }
   .rel.tap em { margin-left:auto; align-self:center; font-style:normal; font-size:12px; font-weight:700; white-space:nowrap; padding:4px 10px; border-radius:999px; color:var(--acc); background:color-mix(in srgb, var(--acc) 12%, transparent); }
@@ -704,8 +712,9 @@
     <div class="set"><div class="sl"><b>Update from</b><span>Online needs internet; File uses a downloaded update</span></div><div class="sc"><div class="seg" id="updMode"><button data-v="online">Online</button><button data-v="offline">File</button></div></div></div>
     <div id="updOnline">
     <div class="set"><div class="sl"><b>Check for updates</b><span id="ghMsg">Checking internet connection…</span></div><div class="sc"><button id="ghCheck" disabled>Check</button></div></div>
-    <div class="set"><div class="sl"><b>Install</b><span>Grayed out until a newer version is found</span></div><div class="sc"><button id="ghInstall" class="on" disabled>Install update</button></div></div>
-    <div class="set"><div class="sl"><b>Choose a version</b><span id="verNote">Upgrade, or go back to an earlier version</span></div><div class="sc"><select id="verPick" disabled><option>Check for updates first</option></select><button id="verGo" disabled>Install</button></div></div>
+    <div class="set"><div class="sl"><b>Version to install</b><span id="verNote">The newest release</span></div><div class="sc"><div class="seg" id="verMode"><button data-v="latest">Latest</button><button data-v="other">Other version</button></div></div></div>
+    <div class="set" id="verLatestRow"><div class="sl"><b>Install</b><span id="verLatestNote">Grayed out until a newer version is found</span></div><div class="sc"><button id="ghInstall" class="on" disabled>Install update</button></div></div>
+    <div class="set stack hide" id="verOtherRow"><div class="sl"><b>Choose a version</b><span>Upgrade, or go back to an earlier version</span></div><div class="sc"><select id="verPick" disabled><option>Check for updates first</option></select><button id="verGo" disabled>Install</button></div></div>
     </div>
     <div id="updOffline" class="hide">
     <div class="set"><div class="sl"><b>Update file</b><span id="updName">livepi-build-N.zip from GitHub Releases</span></div><div class="sc"><input id="updFile" type="file" accept=".zip" class="hide"><button id="updPick">Choose…</button></div></div>
@@ -715,8 +724,7 @@
     <div class="set"><div class="sl"><b>Restart LivePi</b><span>Audio stops for a few seconds</span></div><div class="sc"><button id="sysRestart">Restart</button></div></div>
   </div>
   <div class="card">
-    <h2>Reliability</h2>
-    <div class="set"><div class="sl"><b>How well this Pi is set up for live audio</b><span>Everything should show a green tick before a service. LivePi checks this all the time.</span></div><div class="sc"><button id="relRefresh">Refresh</button></div></div>
+    <div class="ch"><h2>Reliability</h2><button id="relRefresh" class="sm" title="Check again now (LivePi also checks every few seconds)">Refresh</button></div>
     <div id="relRows"></div>
     <div id="relFix" class="note hide"></div>
   </div>
@@ -746,6 +754,10 @@
     <div class="set"><div class="sl"><b>Plugins open in</b><span>What tapping a plugin name opens (this device)</span></div><div class="sc"><div class="seg" id="pvDefSeg"><button data-v="controls">Controls</button><button data-v="window">Plugin</button></div></div></div>
     <div class="set"><div class="sl"><b>PAFL mode</b><span>PFL before the fader, AFL after it</span></div><div class="sc"><div class="seg" id="paflSeg"><button data-v="0">PFL</button><button data-v="2">AFL</button><button data-v="1">Input</button></div></div></div>
     <div class="set"><div class="sl"><b>Listen delay</b><span>Lower = less delay, more risk of crackles</span></div><div class="sc"><div class="seg" id="leadSeg"><button data-v="40">Lowest</button><button data-v="80">Low</button><button data-v="200">Safe</button></div></div></div>
+  </div>
+  <div class="card" id="btnCard">
+    <h2>Pisound button</h2>
+    <div id="btnBody"><div class="note">Loading…</div></div>
   </div>
   <div class="card">
     <h2>Password</h2>
@@ -2061,24 +2073,38 @@ function relItems(r) {
         text: r.safeMode ? 'Safe mode is on: plugins were not loaded after failed starts (see the banner).' : 'On. After two failed starts in a row LivePi starts without plugins, so the audio keeps passing through.', fix: null });
   return items;
 }
+let REL_OPEN = false;
 async function relLoad() {
   const r = await api('/api/reliability', undefined, true);
   if (!r || r.realtime === undefined) return null;
   REL = r;
   const items = relItems(r);
   const root = $('relRows'); root.innerHTML = '';
-  for (const it of items) {
-    const problem = it.lvl === 'warn' || it.lvl === 'bad' || (it.lvl === 'dim' && it.fix);
+  const isProblem = it => it.lvl === 'warn' || it.lvl === 'bad' || (it.lvl === 'dim' && it.fix);
+  const row = it => {
+    const problem = isProblem(it);
     const d = el(problem ? 'button' : 'div', 'rel ' + it.lvl + (problem ? ' tap' : ''));
     const i = el('i', '', it.lvl === 'ok' ? '✓' : it.lvl === 'dim' ? '?' : '!'), c = el('div');
     c.append(el('b', '', it.title), el('span', '', it.text));
     d.append(i, c);
     if (problem) { d.append(el('em', '', it.fix === 'reboot' ? 'Reboot' : it.fix ? 'Fix' : 'How to fix')); d.onclick = () => issueOpen(it.id); }
-    root.append(d);
-  }
-  const n = items.filter(x => x.lvl === 'warn' || x.lvl === 'bad').length;
-  const f = $('relFix'); f.className = 'note';
-  f.textContent = n ? `${n} ${n === 1 ? 'item needs' : 'items need'} attention. Tap ${n === 1 ? 'it' : 'one'} to see what is wrong and fix it.` : 'All good for a service.';
+    return d;
+  };
+  const problems = items.filter(isProblem), rest = items.filter(x => !isProblem(x));
+  const bad = problems.some(x => x.lvl === 'bad'), n = problems.length;
+  // One line: a green tick when everything is fine; tap it to see every check
+  const sum = el('button', 'rel tap relsum ' + (n ? (bad ? 'bad' : 'warn') : 'ok'));
+  const c = el('div');
+  c.append(el('b', '', n ? `${n} ${n === 1 ? 'item needs' : 'items need'} attention` : 'Ready for a service'),
+           el('span', '', n ? `Tap ${n === 1 ? 'it' : 'one'} below to fix it. ${rest.length} other checks are fine.` : `All ${items.length} checks passed. Tap to see them.`));
+  sum.append(el('i', '', n ? '!' : '✓'), c, el('em', 'chev' + (REL_OPEN ? ' open' : ''), '▾'));
+  sum.onclick = () => { REL_OPEN = !REL_OPEN; list.classList.toggle('hide', !REL_OPEN); sum.querySelector('.chev').classList.toggle('open', REL_OPEN); };
+  root.append(sum);
+  problems.forEach(it => root.append(row(it)));
+  const list = el('div', 'rellist' + (REL_OPEN ? '' : ' hide'));
+  rest.forEach(it => list.append(row(it)));
+  root.append(list);
+  $('relFix').classList.add('hide');
   return r;
 }
 function copyText(t) {
@@ -2158,6 +2184,98 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('fixDlg
 $('status').addEventListener('click', e => { const c = e.target.closest('[data-issue]'); if (c) issueOpen(c.dataset.issue); });
 $('relRefresh').onclick = relLoad;
 setInterval(() => { if (!$('tab-setup').classList.contains('hide') && !document.querySelector('[data-pane="system"]').classList.contains('hide') && !document.hidden) relLoad(); }, 5000);
+
+/* ---------- Pisound button (Settings > Pisound button) ---------- */
+let BTN = null, btnKey = '';
+const GESTURE_NOTE = { click1: 'Press once', click2: 'Press twice quickly', click3: 'Press three times quickly', hold: 'Hold 2 to 5 seconds, then let go', longHold: 'Hold until the LED flashes again (5 seconds)' };
+function btnPaneOpen() { return !document.hidden && !$('tab-setup').classList.contains('hide') && !document.querySelector('[data-pane="settings"]').classList.contains('hide'); }
+async function btnLoad(force) {
+  if (!force && !btnPaneOpen()) return;
+  const b = await api('/api/button', undefined, true);
+  if (!b || b.status === undefined) return;
+  BTN = b;
+  const chans = (S && S.chains || []).map(c => c.name).join('|');
+  const key = JSON.stringify([b.present, b.status, b.blokas, b.enabled, b.fixAvailable, b.gestures.map(g => [g.action, g.channel]), chans]);
+  if (key !== btnKey || force) { btnKey = key; btnRender(); }
+  btnLive();
+}
+function btnFixButton(label) {
+  const f = el('button', 'on', label);
+  f.onclick = async () => {
+    if (!BTN.fixAvailable) { toast('Run the installer once more to let the page change this (Settings > System > Reliability shows how).'); return; }
+    f.disabled = true; f.textContent = 'Fixing…';
+    const r = await api('/api/reliability/fix', { item: 'button' });
+    if (r.error === 'setup') toast('Run the installer once more to let the page change this (Settings > System > Reliability shows how).');
+    else if (!r.ok) toast(r.error || 'The fix did not finish');
+    setTimeout(() => btnLoad(true), 3500);                 // LivePi picks the button up within a few seconds
+  };
+  return f;
+}
+function btnRender() {
+  const b = BTN, root = $('btnBody'); root.innerHTML = '';
+  if (!b.present) {
+    root.append(el('div', 'note', 'No Pisound found. With a Pisound fitted, its button can mute a channel, change presets and more.'));
+    return;
+  }
+  const set = (title, note, ...ctl) => {
+    const d = el('div', 'set'), l = el('div', 'sl'), c = el('div', 'sc');
+    l.append(el('b', '', title)); if (note !== null) { const sp = el('span', '', note); l.append(sp); }
+    ctl.forEach(x => c.append(x)); d.append(l, c); root.append(d); return d;
+  };
+  // Status
+  const dot = el('span', 'btndot', 'Released'); dot.id = 'btnDot';
+  let st = 'Working. Press it to try: the last press shows below.';
+  if (b.status === 'denied') st = 'LivePi is not allowed to read the button yet.';
+  else if (b.status === 'failed') st = 'LivePi could not read the button' + (b.error ? ' (' + b.error + ')' : '') + '.';
+  const sr = set('Button', st, dot);
+  if (b.status !== 'ok') sr.querySelector('span').classList.add('bad');
+  if (b.status === 'denied' || b.status === 'failed') set('Fix it', 'Gives LivePi access to the button and LED', btnFixButton('Fix it'));
+  if (b.blokas) {
+    const w = set('Blokas’ button program is running', 'pisound-btn acts on the same presses (a 5-second hold shuts the Pi down). Turn it off so only LivePi responds.', btnFixButton('Turn it off'));
+    w.querySelector('b').classList.add('bad');
+  }
+  // On / off
+  const seg = el('div', 'seg');
+  [['on', 'On'], ['off', 'Off']].forEach(([v, t]) => {
+    const x = el('button', (b.enabled ? 'on' : 'off') === v ? 'on' : '', t);
+    x.onclick = async () => { await api('/api/button', { enabled: v === 'on' }); btnLoad(true); };
+    seg.append(x);
+  });
+  set('Use the button', b.enabled ? 'Presses do what is set below' : 'Off: presses do nothing', seg);
+  // One row per gesture
+  const chs = (S && S.chains) || [];
+  for (const g of b.gestures) {
+    const sel = el('select'), ch = el('select');
+    b.actions.filter(a => a.gestures.includes(g.id)).forEach(a => { const o = el('option', '', a.name); o.value = a.id; sel.append(o); });
+    sel.value = g.action;
+    (chs.length ? chs : [{ name: 'Ch 1' }]).forEach((c, i) => { const o = el('option', '', c.name || 'Ch ' + (i + 1)); o.value = i; ch.append(o); });
+    if (g.channel >= ch.options.length) { const o = el('option', '', 'Ch ' + (g.channel + 1)); o.value = g.channel; ch.append(o); }
+    ch.value = g.channel;
+    const needCh = () => (b.actions.find(a => a.id === sel.value) || {}).channel;
+    ch.classList.toggle('hide', !needCh());
+    const save = async () => {
+      ch.classList.toggle('hide', !needCh());
+      const r = await api('/api/button', { actions: { [g.id]: { action: sel.value, channel: +ch.value } } });
+      if (r.ok) { g.action = sel.value; g.channel = +ch.value; toast(g.name + ': ' + sel.options[sel.selectedIndex].text + (needCh() ? ' (' + ch.options[ch.selectedIndex].text + ')' : '')); }
+      else btnLoad(true);
+    };
+    sel.onchange = save; ch.onchange = save;
+    const row = set(g.name, GESTURE_NOTE[g.id] || '', sel, ch);
+    row.classList.add('stack');
+  }
+  const last = set('Last press', '');
+  last.querySelector('span').id = 'btnLast';
+  root.append(el('div', 'note', 'While you hold the button the LED flashes once at 2 seconds and again at 5 seconds, so you know when to let go.'
+    + (b.led ? '' : ' (The LED can’t be flashed yet: use Fix it above, or run the installer again.)')));
+}
+function btnLive() {
+  const b = BTN; if (!b) return;
+  const d = $('btnDot'); if (d) { d.textContent = b.down ? 'Pressed' : 'Released'; d.classList.toggle('on', !!b.down); }
+  const l = $('btnLast');
+  if (l) l.textContent = b.last ? b.last + (b.lastAgo >= 0 ? ' · ' + (b.lastAgo < 60 ? b.lastAgo + ' s ago' : Math.round(b.lastAgo / 60) + ' min ago') : '') : 'Nothing yet';
+}
+setInterval(() => btnLoad(false), 700);
+document.querySelector('button[data-sub="settings"]').addEventListener('click', () => btnLoad(true));
 
 /* ---------- network settings (Settings > Network) ---------- */
 let NETCFG = null;
@@ -3014,6 +3132,9 @@ async function updRefresh() {
   check.disabled = !u.online || busy;
   inst.disabled = !u.online || busy || !u.available;
   inst.title = u.available ? '' : 'Grayed out until a newer version is found';
+  const lv = u.latestVersion || u.latest, cv = u.currentVersion || u.current;
+  $('verLatestNote').textContent = !u.online ? 'Needs internet' : u.available ? (lv + ' is ready to install (you have ' + cv + ')') : ('You have the latest version' + (cv ? ' (' + cv + ')' : ''));
+  inst.textContent = u.available || !u.online ? 'Install update' : 'Up to date';
   if (u.known && !updModeChosen) setUpdMode(u.online ? 'online' : 'offline', false);
   if (u.state === 'ok' && !ghRestarted) { ghRestarted = true; waitForRestart(); }
   verRender(u, busy);
@@ -3047,6 +3168,15 @@ function verButton(off) {
   b.disabled = !!off;
 }
 $('verPick').addEventListener('change', () => verButton(false));
+function setVerMode(m, remember) {
+  if (remember) { try { localStorage.setItem('lh.verMode', m); } catch (e) {} }
+  document.querySelectorAll('#verMode button').forEach(b => b.classList.toggle('on', b.dataset.v === m));
+  $('verLatestRow').classList.toggle('hide', m !== 'latest');
+  $('verOtherRow').classList.toggle('hide', m !== 'other');
+  $('verNote').textContent = m === 'latest' ? 'The newest release' : 'Pick any release: upgrade, reinstall or go back';
+}
+document.querySelectorAll('#verMode button').forEach(b => b.onclick = () => setVerMode(b.dataset.v, true));
+{ let m = 'latest'; try { m = localStorage.getItem('lh.verMode') || 'latest'; } catch (e) {} setVerMode(m === 'other' ? 'other' : 'latest', false); }
 $('verGo').onclick = async () => {
   const r = VERS.find(x => String(x.build) === $('verPick').value); if (!r) return;
   const cur = parseInt(VERCUR, 10), down = !isNaN(cur) && r.build < cur;

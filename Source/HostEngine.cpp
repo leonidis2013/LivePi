@@ -1,3 +1,4 @@
+#include <cstring>
 #include "HostEngine.h"
 #include "HwMixer.h"
 #include <cstdlib>
@@ -218,6 +219,10 @@ void HostEngine::start()
         // What you changed while in safe mode (faders, names...) is in last-safe.json; last.json keeps the plugins
         auto safeSession = JSON::parse (appDir().getChildFile ("last-safe.json"));
         deserialise (safeSession.isObject() ? withoutPlugins (safeSession) : withoutPlugins (session));
+        const bool asked = dataDir().getChildFile ("safe-mode").loadFileAsString().startsWith ("button");
+        if (asked)
+            addNotice ("safe", "Safe mode: you asked for it with the Pisound button, so LivePi is running without plugins. The audio passes through unprocessed. Your plugins are kept.", "bad");
+        else
         addNotice ("safe", String ("Safe mode: ") + (kills >= 3 ? "a plugin froze the audio several times" : "LivePi stopped unexpectedly while starting")
                            + ", so it is running without plugins. The audio passes through unprocessed. Your plugins are kept.", "bad");
     }
@@ -228,6 +233,14 @@ void HostEngine::start()
 
     rebuildConnections();
     startDone = true;
+
+    // The Pisound button: its own thread; each press is handled on the message thread
+    buttonCfg = JSON::parse (dataDir().getChildFile ("button.json"));
+    button.onGesture = [this, flag = alive] (int g)
+    {
+        MessageManager::callAsync ([this, flag, g] { if (flag->load()) runButton (g); });
+    };
+    button.start();
 
     auto flag = alive;
     // Loading plugins while the audio already runs can cause a few dropouts: don't count those
@@ -293,6 +306,7 @@ void HostEngine::shutdown()
     *alive = false;
     sd.send ("STOPPING=1");
     watchdogStop = true;                 // first, so closing the device below is not taken for a failure
+    button.stop();
     if (watchdog.joinable())
         watchdog.join();
     reconnectTimer.reset();
@@ -418,6 +432,209 @@ var HostEngine::voiceCopy (int from, int to)
     b->setStateInformation (mb.getData(), (int) mb.getSize());
     markDirty();
     return ok();
+}
+
+// ---------------------------------------------------------------- Pisound button
+
+namespace
+{
+    const char* const gestureIds[] = { "click1", "click2", "click3", "hold", "longHold" };
+    const char* const gestureNames[] = { "1 click", "2 clicks", "3 clicks", "Hold 2 s", "Hold 5 s" };
+    struct ButtonAction { const char* id; const char* name; bool channel; int gestures; };   // gestures: bit mask
+    constexpr int anyGesture = 0x1f, holds = 0x18, longOnly = 0x10;
+    const ButtonAction buttonActions[] = {
+        { "none",          "Nothing",                              false, anyGesture },
+        { "mute",          "Mute / unmute a channel",              true,  anyGesture },
+        { "muteAll",       "Mute / unmute every channel",          false, anyGesture },
+        { "bypass",        "Bypass a channel's effects",          true, anyGesture },
+        { "nextPreset",    "Next saved preset",                    false, anyGesture },
+        { "prevPreset",    "Previous saved preset",                false, anyGesture },
+        { "clearFeedback", "Clear learned feedback (mixer mode)",  true,  anyGesture },
+        { "monMute",       "Mute / unmute the monitor mix",        false, anyGesture },
+        { "safeRestart",   "Restart LivePi in safe mode",          false, holds },
+        { "shutdown",      "Shut down the Pi",                     false, longOnly },
+    };
+    const ButtonAction* findButtonAction (const String& id)
+    {
+        for (auto& a : buttonActions) if (id == a.id) return &a;
+        return nullptr;
+    }
+}
+
+var HostEngine::getButton()
+{
+    auto* o = new DynamicObject();
+    const bool present = PisoundButton::present();
+    const int st = button.status.load();
+    o->setProperty ("present", present);
+    o->setProperty ("status", st == PisoundButton::ok ? "ok" : st == PisoundButton::denied ? "denied" : st == PisoundButton::failed ? "failed" : "absent");
+    o->setProperty ("error", button.lastErrno.load() != 0 ? String (std::strerror (button.lastErrno.load())) : String());
+    o->setProperty ("down", button.down.load());
+    o->setProperty ("led", PisoundButton::ledWritable());
+    o->setProperty ("blokas", present && PisoundButton::blokasProgramRunning());
+    o->setProperty ("fixAvailable", File ("/usr/local/sbin/livepi-tune").existsAsFile());
+    o->setProperty ("enabled", (bool) buttonCfg.getProperty ("enabled", true));
+    o->setProperty ("last", lastPress);
+    o->setProperty ("lastAgo", lastPressAt > 0 ? (int) ((Time::currentTimeMillis() - lastPressAt) / 1000) : -1);
+
+    Array<var> gs, as;
+    auto* cur = buttonCfg.getProperty ("actions", {}).getDynamicObject();
+    for (int g = 0; g < PisoundButton::numGestures; ++g)
+    {
+        auto* go = new DynamicObject();
+        go->setProperty ("id", gestureIds[g]);
+        go->setProperty ("name", gestureNames[g]);
+        var a = cur != nullptr ? cur->getProperty (gestureIds[g]) : var();
+        go->setProperty ("action", a.getProperty ("action", "none"));
+        go->setProperty ("channel", a.getProperty ("channel", 0));
+        gs.add (var (go));
+    }
+    for (auto& a : buttonActions)
+    {
+        auto* ao = new DynamicObject();
+        ao->setProperty ("id", a.id);
+        ao->setProperty ("name", a.name);
+        ao->setProperty ("channel", a.channel);
+        Array<var> allowed;
+        for (int g = 0; g < PisoundButton::numGestures; ++g) if (a.gestures & (1 << g)) allowed.add (gestureIds[g]);
+        ao->setProperty ("gestures", allowed);
+        as.add (var (ao));
+    }
+    o->setProperty ("gestures", gs);
+    o->setProperty ("actions", as);
+    return var (o);
+}
+
+var HostEngine::setButton (const var& body)
+{
+    auto* cfg = new DynamicObject();
+    cfg->setProperty ("enabled", (bool) body.getProperty ("enabled", buttonCfg.getProperty ("enabled", true)));
+    auto* acts = new DynamicObject();
+    auto* in = body.getProperty ("actions", {}).getDynamicObject();
+    auto* old = buttonCfg.getProperty ("actions", {}).getDynamicObject();
+    for (int g = 0; g < PisoundButton::numGestures; ++g)
+    {
+        var a = in != nullptr && in->hasProperty (gestureIds[g]) ? in->getProperty (gestureIds[g])
+              : old != nullptr ? old->getProperty (gestureIds[g]) : var();
+        const auto id = a.getProperty ("action", "none").toString();
+        auto* def = findButtonAction (id);
+        if (def == nullptr) return err ("Unknown action: " + id);
+        if ((def->gestures & (1 << g)) == 0) return err (String (def->name) + " can't be used for " + gestureNames[g]);
+        auto* ao = new DynamicObject();
+        ao->setProperty ("action", id);
+        ao->setProperty ("channel", jlimit (0, 15, (int) a.getProperty ("channel", 0)));
+        acts->setProperty (gestureIds[g], var (ao));
+    }
+    cfg->setProperty ("actions", var (acts));
+    buttonCfg = var (cfg);
+    if (! dataDir().getChildFile ("button.json").replaceWithText (JSON::toString (buttonCfg, true)))
+        return err ("Could not save the button settings");
+    return ok();
+}
+
+void HostEngine::runButton (int g)
+{
+    if (g < 0 || g >= PisoundButton::numGestures) return;
+    lastPressAt = Time::currentTimeMillis();
+    if (! (bool) buttonCfg.getProperty ("enabled", true))
+    {
+        lastPress = String (gestureNames[g]) + ": the button is turned off in Settings";
+        return;
+    }
+    var a = buttonCfg.getProperty ("actions", {}).getProperty (gestureIds[g], {});
+    const auto id = a.getProperty ("action", "none").toString();
+    auto* def = findButtonAction (id);
+    const String what = def == nullptr || id == "none" ? String ("nothing set") : buttonAction (id, (int) a.getProperty ("channel", 0));
+    lastPress = String (gestureNames[g]) + ": " + what;
+    Logger::writeToLog ("Pisound button: " + lastPress);
+}
+
+String HostEngine::buttonAction (const String& id, int ch)
+{
+    auto chName = [this] (int i) { return i >= 0 && i < (int) chains.size() ? chains[(size_t) i].name : "Ch " + String (i + 1); };
+    auto done = [] (const String& s) { PisoundButton::flashLed (1); return s; };
+
+    if (id == "mute")
+    {
+        if (ch >= (int) chains.size()) return chName (ch) + " does not exist";
+        auto& c = chains[(size_t) ch];
+        c.mute = ! c.mute; applyMix (c); markDirty();
+        return done (chName (ch) + (c.mute ? " muted" : " unmuted"));
+    }
+    if (id == "muteAll")
+    {
+        const bool any = std::any_of (chains.begin(), chains.end(), [] (const Chain& c) { return ! c.mute; });
+        for (auto& c : chains) { c.mute = any; applyMix (c); }
+        markDirty();
+        return done (any ? "every channel muted" : "every channel unmuted");
+    }
+    if (id == "monMute")
+    {
+        monBus.mute = ! monBus.mute; applyMix (monBus); markDirty();
+        return done (monBus.mute ? "monitor mix muted" : "monitor mix unmuted");
+    }
+    if (id == "bypass")
+    {
+        if (ch >= (int) chains.size()) return chName (ch) + " does not exist";
+        if (auto* vc = voiceOf (ch))
+        {
+            const bool on = vc->apvts.getRawParameterValue ("bypass")->load() < 0.5f;
+            vc->setParam ("bypass", on ? 1.0 : 0.0);
+            markDirty();
+            return done (chName (ch) + (on ? " bypassed" : " back on"));
+        }
+        auto& c = chains[(size_t) ch];
+        if (c.slots.empty()) return chName (ch) + " has no plugins";
+        const bool on = std::any_of (c.slots.begin(), c.slots.end(), [] (const Slot& s) { return ! s.bypassed; });
+        for (auto& sl : c.slots) sl.bypassed = on;
+        rebuildConnections();
+        saveLast();
+        return done (chName (ch) + (on ? " plugins bypassed" : " plugins back on"));
+    }
+    if (id == "nextPreset" || id == "prevPreset")
+    {
+        StringArray names;
+        for (auto& f : appDir().getChildFile ("presets").findChildFiles (File::findFiles, false, "*.json"))
+            names.add (f.getFileNameWithoutExtension());
+        names.sortNatural();
+        if (names.isEmpty()) return "no saved presets";
+        int i = names.indexOf (currentPreset);
+        i = i < 0 ? (id == "nextPreset" ? 0 : names.size() - 1)
+                  : (i + (id == "nextPreset" ? 1 : names.size() - 1)) % names.size();
+        auto r = loadPreset (names[i]);
+        if (r.hasProperty ("error")) return "could not load " + names[i];
+        return done ("loaded preset " + names[i]);
+    }
+    if (id == "clearFeedback")
+    {
+        auto* vc = voiceOf (ch);
+        if (vc == nullptr) return chName (ch) + " is not a mixer channel";
+        vc->notchCommand ("clearFloating", 0);
+        markDirty();
+        return done (chName (ch) + ": learned feedback notches cleared");
+    }
+    if (id == "safeRestart")
+    {
+        saveLast();
+        appDir().getChildFile ("last-safe.json").deleteFile();
+        dataDir().getChildFile ("safe-mode").replaceWithText ("button " + Time::getCurrentTime().toISO8601 (true));
+        PisoundButton::flashLed (5);
+        Timer::callAfterDelay (600, [] { JUCEApplicationBase::quit(); });
+        return "restarting in safe mode";
+    }
+    if (id == "shutdown")
+    {
+        saveLast();
+        PisoundButton::flashLed (10);
+        Timer::callAfterDelay (800, []
+        {
+            ChildProcess p;
+            if (p.start (StringArray { "sudo", "-n", "/usr/bin/systemctl", "poweroff" }))
+                p.waitForProcessToFinish (5000);
+        });
+        return "shutting down";
+    }
+    return "nothing set";
 }
 
 // ---------------------------------------------------------------- reliability
@@ -1912,6 +2129,7 @@ var HostEngine::savePreset (const String& name)
         return err ("name required");
     if (! presetFile (name).replaceWithText (JSON::toString (serialise(), true)))
         return err ("could not write preset");
+    currentPreset = name;
     return ok();
 }
 
@@ -1932,5 +2150,6 @@ var HostEngine::loadPreset (const String& name)
         return err ("no such preset");
     auto r = deserialise (JSON::parse (f));
     saveLast();
+    currentPreset = name;
     return r;
 }
