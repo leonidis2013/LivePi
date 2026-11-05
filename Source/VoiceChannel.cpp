@@ -914,6 +914,50 @@ var VoiceChannel::notchCommand (const String& cmd, int slot, double freq, double
     return var (true);
 }
 
+void VoiceChannel::getPresetState (MemoryBlock& dest)
+{
+    auto state = apvts.copyState();
+    std::unique_ptr<XmlElement> xml (state.createXml());
+    StringArray ord;
+    for (int m : getOrder()) ord.add (moduleId (m));
+    xml->createNewChildElement ("LivePi")->setAttribute ("order", ord.joinIntoString (","));
+    copyXmlToBinary (*xml, dest);
+}
+
+bool VoiceChannel::loadUserPreset (const void* data, int size, const String& name)
+{
+    std::unique_ptr<XmlElement> xml (getXmlFromBinary (data, size));
+    if (xml == nullptr || ! xml->hasTagName (apvts.state.getType()))
+        return false;
+    // what a preset never changes
+    std::vector<std::pair<RangedAudioParameter*, float>> keep;
+    for (auto* id : { "inGain", "outGain", "bypass", "fbLearn", "fbFreeze" })
+        if (auto* rp = apvts.getParameter (id)) keep.emplace_back (rp, rp->getValue());
+    if (auto* lp = xml->getChildByName ("LivePi"))
+    {
+        std::vector<int> o;
+        for (auto& id : StringArray::fromTokens (lp->getStringAttribute ("order"), ",", "")) o.push_back (moduleFromId (id.trim()));
+        setOrder (o);
+    }
+    for (auto* tag : { "FixedNotches", "UiState", "LivePi" })
+        xml->deleteAllChildElementsWithTagName (tag);
+    for (int i = xml->getNumChildElements(); --i >= 0;)
+        if (auto* e = xml->getChildElement (i); e != nullptr && e->hasTagName ("PARAM") && ! std::isfinite (e->getDoubleAttribute ("value", 0.0)))
+            xml->removeChildElement (e, true);
+    // set every parameter (one that the preset doesn't have goes to its default)
+    for (auto* ap : getParameters())
+        if (auto* rp = dynamic_cast<RangedAudioParameter*> (ap))
+        {
+            float norm = rp->getDefaultValue();
+            for (auto* e : xml->getChildWithTagNameIterator ("PARAM"))
+                if (e->getStringAttribute ("id") == rp->getParameterID()) { norm = rp->convertTo0to1 ((float) e->getDoubleAttribute ("value")); break; }
+            rp->setValueNotifyingHost (norm);
+        }
+    for (auto& [rp, v] : keep) rp->setValueNotifyingHost (v);
+    presets.setCurrentName (name);
+    return true;
+}
+
 // ---- LivePi's own voice presets, after LiveVoice's
 static const char* const livePiPresets[] { "Lapel / Lavalier Mic (Speech)" };
 
@@ -951,6 +995,7 @@ var VoiceChannel::loadFactoryPreset (int index)
             if (auto* rp = apvts.getParameter (id))
                 rp->setValueNotifyingHost (rp->convertTo0to1 ((float) jlimit ((double) rp->getNormalisableRange().start, (double) rp->getNormalisableRange().end, val)));
         presets.setCurrentName (livePiPresets[index - lv]);
+        applyStartingPoint();
         return var (true);
     }
 
@@ -963,7 +1008,44 @@ var VoiceChannel::loadFactoryPreset (int index)
                 keep.emplace_back (rp, rp->getValue());
     const bool ok = presets.loadFactory (index);
     for (auto& [rp, v] : keep) rp->setValueNotifyingHost (v);
+    if (ok) applyStartingPoint();
     return var (ok);
+}
+
+// A voice preset is a starting point for the whole channel: every module it sets is switched on,
+// and when the Parametric EQ is in the flow the preset's tone curve goes there (the Dynamic EQ
+// keeps only its dynamic bands, so the curve is never applied twice).
+void VoiceChannel::applyStartingPoint()
+{
+    auto set = [this] (const String& id, double v)
+    {
+        if (auto* rp = apvts.getParameter (id))
+            rp->setValueNotifyingHost (rp->convertTo0to1 ((float) jlimit ((double) rp->getNormalisableRange().start, (double) rp->getNormalisableRange().end, v)));
+    };
+    auto get = [this] (const String& id) { auto* a = apvts.getRawParameterValue (id); return a != nullptr ? (double) a->load() : 0.0; };
+    using namespace params;
+    set (eqOn, 1);
+    if (! inFlow (peq)) return;
+    set ("peqOn", 1);
+    for (int b = 0; b < numEqBands; ++b)
+    {
+        const auto n = "peq" + String (b + 1) + "_";
+        const bool on = get (bOn (b)) > 0.5;
+        const auto shape = bandShapeFromChoice (b, (b == 0 || b == numEqBands - 1) ? (int) get (bType (b)) : 0);
+        const int type = shape.type == BandType::lowShelf ? 1 : shape.type == BandType::highShelf ? 2
+                       : shape.type == BandType::highPass ? 3 : shape.type == BandType::lowPass ? 4 : 0;
+        set (n + "on", on ? 1 : 0);
+        set (n + "type", type);
+        set (n + "freq", get (bFreq (b)));
+        set (n + "gain", get (bGain (b)));
+        set (n + "q", get (bQ (b)));
+        if (inFlow (eq))
+        {
+            set (bGain (b), 0);                       // the Dynamic EQ keeps the dynamic part only
+            if (get (bDyn (b)) < 0.5) set (bOn (b), 0);
+            if (b == numEqBands - 1 && type == 4) set (bType (b), 0);
+        }
+    }
 }
 
 // RTA of the channel's input or output (1/12 octave, 20 Hz .. 20 kHz), the selected module's curve,

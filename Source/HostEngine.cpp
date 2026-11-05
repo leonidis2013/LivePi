@@ -372,7 +372,65 @@ var HostEngine::voiceView (int channel, bool full)
 {
     auto* vc = voiceOf (channel);
     if (vc == nullptr) return err ("not a mixer channel");
-    return vc->getView (full);
+    auto v = vc->getView (full);
+    if (auto* o = v.getDynamicObject())
+    {
+        Array<var> mine;
+        for (auto& n : voiceUserPresetNames()) mine.add (n);
+        o->setProperty ("userPresets", mine);
+    }
+    return v;
+}
+
+// ---- your own voice presets: ~/.livepi/voice-presets/<name>.voice
+static File voicePresetDir() { return HostEngine::dataDir().getChildFile ("voice-presets"); }
+static File voicePresetFile (const String& name)
+{
+    const auto clean = File::createLegalFileName (name.trim()).substring (0, 60);
+    return clean.isEmpty() ? File() : voicePresetDir().getChildFile (clean + ".voice");
+}
+
+StringArray HostEngine::voiceUserPresetNames()
+{
+    StringArray n;
+    for (auto& f : voicePresetDir().findChildFiles (File::findFiles, false, "*.voice")) n.add (f.getFileNameWithoutExtension());
+    n.sortNatural();
+    return n;
+}
+
+var HostEngine::voicePresetSave (int channel, const String& name)
+{
+    auto* vc = voiceOf (channel);
+    if (vc == nullptr) return err ("not a mixer channel");
+    auto f = voicePresetFile (name);
+    if (f == File()) return err ("Give the preset a name");
+    voicePresetDir().createDirectory();
+    MemoryBlock mb;
+    vc->getPresetState (mb);
+    if (! f.replaceWithData (mb.getData(), mb.getSize())) return err ("Could not save the preset");
+    vc->loadUserPreset (mb.getData(), (int) mb.getSize(), f.getFileNameWithoutExtension());   // its name shows as the current preset
+    markDirty();
+    return ok();
+}
+
+var HostEngine::voicePresetLoadUser (int channel, const String& name)
+{
+    auto* vc = voiceOf (channel);
+    if (vc == nullptr) return err ("not a mixer channel");
+    auto f = voicePresetFile (name);
+    MemoryBlock mb;
+    if (f == File() || ! f.loadFileAsData (mb) || ! vc->loadUserPreset (mb.getData(), (int) mb.getSize(), f.getFileNameWithoutExtension()))
+        return err ("No such preset");
+    markDirty();
+    return ok();
+}
+
+var HostEngine::voicePresetDelete (const String& name)
+{
+    auto f = voicePresetFile (name);
+    if (f == File() || ! f.existsAsFile()) return err ("No such preset");
+    if (! f.deleteFile()) return err ("Could not delete the preset");
+    return ok();
 }
 
 var HostEngine::voiceSpectrum (int channel, bool output, const String& module)

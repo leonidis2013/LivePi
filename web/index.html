@@ -2973,10 +2973,17 @@ function cvRender() {
   if (document.activeElement !== $('cvTitle')) $('cvTitle').value = chain ? chain.name : 'Ch ' + (ch + 1);
   // voice presets (LiveVoice's factory presets)
   const ps = $('cvPreset');
-  if (ps._k !== (v.presets || []).join('|') + v.preset) {
-    ps._k = (v.presets || []).join('|') + v.preset; ps.innerHTML = '';
+  const pk = (v.presets || []).join('|') + '/' + (v.userPresets || []).join('|') + v.preset;
+  if (ps._k !== pk) {
+    ps._k = pk; ps.innerHTML = '';
     const cur = el('option', '', v.preset || 'Default'); cur.value = ''; ps.append(cur);
-    (v.presets || []).forEach((n, i) => { const o = el('option', '', 'Load: ' + n); o.value = i; ps.append(o); });
+    const mine = v.userPresets || [];
+    if (mine.length) { const g = el('optgroup'); g.label = 'My presets'; mine.forEach(n => { const o = el('option', '', n); o.value = 'u:' + n; g.append(o); }); ps.append(g); }
+    const g2 = el('optgroup'); g2.label = 'Starting points'; (v.presets || []).forEach((n, i) => { const o = el('option', '', n); o.value = 'f:' + i; g2.append(o); }); ps.append(g2);
+    const g3 = el('optgroup'); g3.label = 'Manage';
+    const sv = el('option', '', 'Save as a preset…'); sv.value = 'save'; g3.append(sv);
+    if (mine.length) { const dl = el('option', '', 'Delete a preset…'); dl.value = 'del'; g3.append(dl); }
+    ps.append(g3);
     ps.value = '';
   }
   const cp = $('cvCopy');
@@ -3000,10 +3007,35 @@ $('cvTitle').addEventListener('change', async () => {
 });
 $('cvTitle').addEventListener('keydown', e => { if (e.key === 'Enter') $('cvTitle').blur(); });
 $('cvPreset').onchange = async () => {
-  const i = $('cvPreset').value; if (i === '') return;
-  const name = CV.view.presets[+i];
-  if (!confirm('Load the voice preset "' + name + '" on this channel? It replaces the module settings (not the input/output gain).')) { $('cvPreset').value = ''; return; }
-  await api('/api/voice/preset', { channel: CV.ch, index: +i }); CV.key = ''; $('cvPreset')._k = ''; await cvLoad(true); toast('Loaded ' + name);
+  const val = $('cvPreset').value; $('cvPreset').value = ''; if (val === '') return;
+  const v = CV.view, done = msg => { CV.key = ''; $('cvPreset')._k = ''; toast(msg); return cvLoad(true); };
+  if (val === 'save') {
+    const name = (prompt('Save this channel as a preset. Name:', (v.preset || '').replace(/ \(edited\)$/, '')) || '').trim(); if (!name) return;
+    if ((v.userPresets || []).includes(name) && !confirm('Replace your preset "' + name + '"?')) return;
+    const r = await api('/api/voice/preset/save', { channel: CV.ch, name });
+    if (r.error) return toast(r.error);
+    return done('Saved "' + name + '": every module, its settings and the order. Load it on any mixer channel.');
+  }
+  if (val === 'del') {
+    const list = v.userPresets || [];
+    const name = (prompt('Delete which preset? Type its name:\n\n' + list.join('\n')) || '').trim(); if (!name) return;
+    if (!list.includes(name)) return toast('No preset called ' + name);
+    if (!confirm('Delete your preset "' + name + '"? Channels using it keep their settings.')) return;
+    const r = await api('/api/voice/preset/delete', { name }); if (r.error) return toast(r.error);
+    return done('Deleted ' + name);
+  }
+  if (val.startsWith('u:')) {
+    const name = val.slice(2);
+    if (!confirm('Load your preset "' + name + '" on this channel? It replaces the modules, their settings and the order (not the input gain, output trim or the feedback notches).')) return;
+    const r = await api('/api/voice/preset/user', { channel: CV.ch, name }); if (r.error) return toast(r.error);
+    return done('Loaded ' + name);
+  }
+  if (val.startsWith('f:')) {
+    const i = +val.slice(2), name = v.presets[i];
+    if (!confirm('Load the starting point "' + name + '"? It sets the high-pass, EQ, de-esser, compressor and feedback for this kind of mic (not the input gain or output trim). With the Parametric EQ in the flow, its tone curve goes there.')) return;
+    const r = await api('/api/voice/preset', { channel: CV.ch, index: i }); if (r.error) return toast(r.error);
+    return done('Loaded ' + name);
+  }
 };
 $('cvCopy').onchange = async () => {
   const to = $('cvCopy').value; if (to === '') return;

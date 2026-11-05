@@ -61,6 +61,10 @@ public:
     // setNotch (slot, freq, depth): move or deepen a notch (it becomes fixed)
     juce::var notchCommand (const juce::String& cmd, int slot, double freq = 0.0, double depthDb = -6.0);
     juce::var loadFactoryPreset (int index);
+    // Your own presets: the modules, their settings and the flow. Not the input gain, output trim,
+    // bypass or the room's fixed feedback notches (those stay as they are when one loads).
+    void getPresetState (juce::MemoryBlock& dest);
+    bool loadUserPreset (const void* data, int size, const juce::String& name);
     juce::StringArray factoryPresetNames() const;   // LiveVoice's, then LivePi's own (Lapel)
     juce::String getPresetName() const { return presets.getCurrentName(); }
     bool isModuleOn (int m) const;
@@ -125,6 +129,7 @@ private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
     void resetChain() noexcept;
     void resetModule (int m) noexcept;
+    void applyStartingPoint();
     float getNotchQ() const noexcept;
     void sendNotch (const dsp::FeedbackSuppressor::Command& c);
 

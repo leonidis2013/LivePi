@@ -2,7 +2,7 @@
 
 <img src="images/logo.svg" width="72" alt="LivePi logo">
 
-**LivePi v0.23.3** · Copyright © Jerod Ulicki
+**LivePi v0.24.0** · Copyright © Jerod Ulicki
 
 LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Audio goes in through the Pi's sound card, through your plugins (for example LiveVoice), and back out with very little delay. You control everything from a web page on a phone, tablet or computer. The Pi needs no screen, keyboard or mouse.
 
@@ -257,7 +257,7 @@ On the mixer, each channel shows its voice preset and its modules in flow order 
 | **Flow** | **Input** (gain and polarity) is always first and can't be removed. Then the modules, numbered in signal order: a list on a computer, a grid of tiles on a phone or tablet. Each shows a status (gain reduction, notch count, open/closed) and its **power** button. **Tap a module** to open its controls. **Drag the ⋮⋮ grip** to move it (computer); the **↑ ↓** buttons at the top of the panel move it one place (everywhere). **Remove** (top of the panel) takes a module out of the flow: it isn't processed at all, and its settings are kept. **+ Add module** puts one back, after the module that is open, or adds **another one** of a kind already in the flow: up to 2 high-pass filters, 2 dynamic EQs, 3 compressors and 4 parametric EQs, each with its own settings ("Compressor 2"). The Input tile has a small level meter. |
 | **Panel** | The selected module, large: its graph or meters, and all its controls as big touch knobs (on a phone: wide sliders), switches and lists. Double-tap a knob or slider for its default. |
 | **Right: Output** | Output **trim**, the channel **fader** with the OUT meter (after the fader), **Mute** and **PAFL**. Always on the right. |
-| **Top bar** | The channel's **name**: tap it (✎) to rename the channel. **Voice**: load a voice preset (Pastor, Spoken Word, Male, Female, Worship Leader, and **Lapel / Lavalier Mic** for clip-on mics: more gain before feedback, the chest resonance around 750 Hz cut, presence and air added back, no proximity control, leveler on); it replaces the module settings, not the gains. **Copy to…** copies this channel's settings and order to another channel. **Bypass** switches every module off at once. |
+| **Top bar** | The channel's **name**: tap it (✎) to rename the channel. **Voice**: **My presets** are your own: **Save as a preset…** keeps every module, its settings and the order, to load on any mixer channel; **Delete a preset…** removes one. Loading one never changes the input gain, the output trim or the room's feedback notches. **Starting points** set the high-pass, EQ, de-esser, compressor and feedback for a kind of mic and switch those modules on; when the Parametric EQ is in the flow the tone curve goes there (and the Dynamic EQ keeps only its dynamic bands, so the curve isn't applied twice). Starting points: load a voice preset (Pastor, Spoken Word, Male, Female, Worship Leader, and **Lapel / Lavalier Mic** for clip-on mics: more gain before feedback, the chest resonance around 750 Hz cut, presence and air added back, no proximity control, leveler on); it replaces the module settings, not the gains. **Copy to…** copies this channel's settings and order to another channel. **Bypass** switches every module off at once. |
 
 **The modules**
 

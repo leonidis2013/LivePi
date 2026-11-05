@@ -850,6 +850,24 @@ void WebServer::setupRoutes()
         reply (res, onMT ([this, b] { return engine.voicePreset ((int) b["channel"], (int) b["index"]); }));
     });
 
+    svr.Post ("/api/voice/preset/save", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto b = body (req);
+        reply (res, onMT ([this, b] { return engine.voicePresetSave ((int) b["channel"], b["name"].toString()); }));
+    });
+
+    svr.Post ("/api/voice/preset/user", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto b = body (req);
+        reply (res, onMT ([this, b] { return engine.voicePresetLoadUser ((int) b["channel"], b["name"].toString()); }));
+    });
+
+    svr.Post ("/api/voice/preset/delete", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto b = body (req);
+        reply (res, onMT ([this, b] { return engine.voicePresetDelete (b["name"].toString()); }));
+    });
+
     svr.Post ("/api/voice/notch", [this] (const httplib::Request& req, httplib::Response& res)
     {
         auto b = body (req);

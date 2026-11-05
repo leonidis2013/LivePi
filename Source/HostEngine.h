@@ -39,6 +39,10 @@ public:
     juce::var voiceParam (int channel, const juce::String& id, double value, bool normalised = false);
     juce::var voiceOrder (int channel, const juce::var& order);
     juce::var voicePreset (int channel, int index);
+    juce::StringArray voiceUserPresetNames();
+    juce::var voicePresetSave (int channel, const juce::String& name);
+    juce::var voicePresetLoadUser (int channel, const juce::String& name);
+    juce::var voicePresetDelete (const juce::String& name);
     juce::var voiceNotch (int channel, const juce::String& cmd, int slot, double freq = 0.0, double depthDb = -6.0);
     juce::var voiceCopy (int from, int to);
     juce::var getReliability();        // the checklist on the System page
