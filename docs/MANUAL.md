@@ -2,7 +2,7 @@
 
 <img src="images/logo.svg" width="72" alt="LivePi logo">
 
-**LivePi v0.23.0** · Copyright © Jerod Ulicki
+**LivePi v0.23.1** · Copyright © Jerod Ulicki
 
 LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Audio goes in through the Pi's sound card, through your plugins (for example LiveVoice), and back out with very little delay. You control everything from a web page on a phone, tablet or computer. The Pi needs no screen, keyboard or mouse.
 
@@ -149,6 +149,8 @@ If the connection to the Pi is lost, the whole page grays out with **"Connection
 
 ## 5. The rack
 
+**Faders, graphs and sliders are relative:** touching one never moves it. Slide your finger and it moves by that much from where it is, so a stray tap can't make a sudden jump. Double-tap a fader for 0 dB.
+
 In **VST rack** mode each channel is one row of the rack, with the signal flowing left to right: the **IN** meter, the plugins in order, then the **OUT** meter. (In **Mixer** mode the channels are mixer strips instead: see [Mixer mode](#mixer-mode-built-in-livevoice-channels).)
 
 | Part | What it does |
@@ -265,12 +267,12 @@ On the mixer, each channel shows its voice preset and its modules in flow order 
 | **High-pass** | RTA with the filter curve: **drag sideways on the graph** to move the cut-off. Frequency and slope. |
 | **PSE** | Primary source expander: a history of the voice level (green while open, grey while closed), how far it turned down (orange line) and the range; **drag up/down on it** for the threshold. **Threshold** and **Range** are the two big sliders under the graph. Voice level against the threshold, open/closed, and how much it turns down; threshold, range, attack, hold, release, sidechain filters. |
 | **Feedback** | RTA with the notches; **Ring-out learn** and **Freeze notches**; **Set by hand**: type a frequency, pick a depth and **Add notch**, or tap the graph where you hear the ring; the list of notches, where you can change a notch's frequency and depth, **Make fixed** and **Remove**; **Clear floating** and **Clear all**; mode, sensitivity, depth, width, limits. |
-| **Dynamic EQ** | RTA with the EQ curve and the six band dots: **touch a dot and drag** to change its frequency (left/right) and gain (up/down); the panel switches to that band when you let go. Band buttons pick the band whose controls are shown, including its dynamic settings. |
+| **Dynamic EQ** | RTA with the EQ curve and the six band dots: **touch a dot and slide** to change its frequency (left/right) and gain (up/down); the panel switches to that band when you let go. **Flatten** puts every band back to 0 dB (and turns the dynamics off), keeping the frequencies. Band buttons pick the band whose controls are shown, including its dynamic settings. |
 | **De-esser** | RTA with the live cut, gain reduction; S and SH bands, mode, threshold, range, follow, relative detection. |
 | **Proximity** | How much low end it takes out when the singer gets close; maximum cut. |
 | **Leveler** | A history of the level against the target and the gain it adds or takes away (drag up/down on it for the target); the **Target** slider; level and gain meters (it holds while feedback is being caught). |
 | **Warmth** | Amount (off at 0 %). |
-| **Parametric EQ** | Not in the flow at first: add it with **+ Add module**. A clean, zero-latency 6-band EQ in the style of a modern studio parametric: every band can be a **Bell**, **Low Shelf**, **High Shelf**, **Low Cut**, **High Cut** (6 to 48 dB/oct) or **Notch**, from 20 Hz to 20 kHz, ±18 dB, Q 0.1 to 18. **Proportional Q** narrows a bell as you boost or cut it more, like a console EQ. **EQ Output** trims its level. Each band is a numbered dot on the graph: drag it as with the Dynamic EQ. Voice presets leave it as it is. |
+| **Parametric EQ** | Not in the flow at first: add it with **+ Add module**. A clean, zero-latency 6-band EQ in the style of a modern studio parametric: every band can be a **Bell**, **Low Shelf**, **High Shelf**, **Low Cut**, **High Cut** (6 to 48 dB/oct) or **Notch**, from 20 Hz to 20 kHz, ±18 dB, Q 0.1 to 18. **Proportional Q** narrows a bell as you boost or cut it more, like a console EQ. **EQ Output** trims its level. Each band is a numbered dot on the graph: slide it as with the Dynamic EQ. **Flatten** puts every band back to 0 dB (cut and notch bands off). Voice presets leave it as it is. |
 | **Compressor** | The **curve** (input across, output up, with a dot for the live level) and the **history** (input, output and gain reduction over the last 25 seconds). Drag sideways on the curve, or up and down on the history, to set the **threshold**. Input level against the threshold, gain reduction and makeup; threshold, ratio, knee, attack, release, auto release, makeup, mix, sidechain HP, auto gain. |
 
 The high-pass filters in the flow are drawn faintly (dashed) behind the other modules' curves. The analyser behind the curves shows the channel's output, or its input: choose in **⚙ → Settings → Mode → RTA shows**.
@@ -330,7 +332,7 @@ If no sound card is found at start-up, LivePi falls back to the virtual card for
 | **Update from: Online / File** | Online checks GitHub; File installs a downloaded update. |
 | **Check for updates** | Looks for a newer release (needs internet). |
 | **Version to install** | **Latest**: the newest release. **Install update** is grayed out (*Up to date*) until a newer version is found. **Other version**: pick any released version from the list, newer or older, and press **Upgrade**, **Downgrade** or **Reinstall**. Older versions don't have the features added since then; presets, plugins and settings are kept, and you can upgrade again at any time. |
-| **Restart LivePi** | Restarts the program. Audio stops for a few seconds. |
+| **Restart LivePi** (Danger zone) | Restarts the program. Audio stops for a few seconds. |
 | **Reliability** | One line with a green tick (*Ready for a service*) when everything is fine; tap it to open the full checklist of everything that protects the audio: real-time priority, the reserved CPU core, memory lock, power supply, temperature, CPU speed, automatic OS updates, the watchdog and crash protection. See [Reliability and latency](#11-reliability-and-latency). |
 | **Operating system** | Checks for and installs Raspberry Pi OS updates. Needs internet. Don't run it right before a service: it can cause dropouts and may need a reboot. |
 | **Danger zone → Reboot Pi** | Restarts the whole Pi, which takes about 30 seconds. |

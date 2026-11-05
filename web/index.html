@@ -765,6 +765,8 @@
 
   /* in the assistant, Next applies: the cards' own Apply / Set buttons are not needed */
   .wz .set:has(#devApply), .wz #chApply, .wz .netapply { display:none; }
+
+  .cvflat { order:99; flex:1 1 100%; border:1px dashed var(--line); background:transparent; color:var(--dim); }
 </style>
 </head>
 <body>
@@ -875,7 +877,6 @@
     <div class="set"><div class="sl"><b>Install</b><span>Grayed out until a file is chosen</span></div><div class="sc"><button id="updGo" class="on" disabled>Install update</button></div></div>
     </div>
     <div id="updStat" class="note"></div>
-    <div class="set"><div class="sl"><b>Restart LivePi</b><span>Audio stops for a few seconds</span></div><div class="sc"><button id="sysRestart">Restart</button></div></div>
   </div>
   <div class="card">
     <div class="ch"><h2>Reliability</h2><button id="relRefresh" class="sm" title="Check again now (LivePi also checks every few seconds)">Refresh</button></div>
@@ -890,6 +891,7 @@
   </div>
   <div class="card dz">
     <h2>Danger zone</h2>
+    <div class="set"><div class="sl"><b>Restart LivePi</b><span>Audio stops for a few seconds</span></div><div class="sc"><button id="sysRestart" class="danger">Restart</button></div></div>
     <div class="set"><div class="sl"><b>Reboot Pi</b><span>Audio stops until the Pi is back, about 30 seconds</span></div><div class="sc"><button id="sysReboot" class="danger">Reboot</button></div></div>
   </div>
   </div>
@@ -1341,15 +1343,18 @@ function makeFader(onChange) {
   const f = el('div', 'fader');
   f.append(el('div', 'fill'), el('div', 'zero'), el('div', 'knob'));
   f.querySelector('.zero').style.bottom = (posFromDb(0) * 100) + '%';
-  let drag = false;
+  // Relative: touching does nothing; sliding moves it from where it is (no jumps by accident)
+  let drag = false, y0 = 0, p0 = 0, moved = false;
   const upd = e => {
     const r = f.getBoundingClientRect();
-    const p = Math.max(0, Math.min(1, 1 - (e.clientY - r.top) / r.height));
+    if (!moved && Math.abs(e.clientY - y0) < 3) return;
+    moved = true;
+    const p = Math.max(0, Math.min(1, p0 - (e.clientY - y0) / r.height));
     const db = dbFromPos(p);
     paintFader(f, db); onChange(db);
   };
   let lastTap = 0;
-  f.addEventListener('pointerdown', e => { const now = Date.now(); if (now - lastTap < 320) { lastTap = 0; paintFader(f, 0); onChange(0); return; } lastTap = now; drag = true; f.dataset.drag = 1; f.setPointerCapture(e.pointerId); upd(e); });
+  f.addEventListener('pointerdown', e => { const now = Date.now(); if (now - lastTap < 320) { lastTap = 0; paintFader(f, 0); onChange(0); return; } lastTap = now; drag = true; moved = false; y0 = e.clientY; p0 = posFromDb(f._db ?? 0); f.dataset.drag = 1; f.setPointerCapture(e.pointerId); });
   f.addEventListener('pointermove', e => { if (drag) upd(e); });
   const end = () => { drag = false; delete f.dataset.drag; };
   f.addEventListener('pointerup', end); f.addEventListener('pointercancel', end);
@@ -3162,7 +3167,7 @@ function cvPanelBody(v, id, m, P) {
   if (SPEC_MODS.includes(T)) {
     const viz = el('div', 'cvviz'); const cnv = el('canvas'); viz.append(cnv); P.append(viz);
     if (T === 'eq' || T === 'peq') cvEqDrag(cnv, T);
-    if (T === 'hpf') { cvHpfDrag(cnv); viz.append(el('span', 'cvhint', 'Drag sideways to set the cut-off')); }
+    if (T === 'hpf') { cvHpfDrag(cnv); viz.append(el('span', 'cvhint', 'Slide sideways to move the cut-off')); }
     if (T === 'feedback') cvNotchTap(cnv);
   }
   if (T === 'comp') {
@@ -3188,7 +3193,10 @@ function cvPanelBody(v, id, m, P) {
     cvThrDrag(c2, 'pseThr', 'y');
   }
   if (T === 'eq' || T === 'peq') {
+    const fl = el('button', 'cvflat', 'Flatten'); fl.title = 'Every band back to 0 dB: a flat EQ';
+    fl.onclick = () => cvFlatten(id, T);
     const bs = el('div', 'cvbands'), bp = T === 'peq' ? 'peq' : 'b';
+    bs.append(fl);
     for (let b = 0; b < 6; b++) {
       const on = (cvP(bp + (b + 1) + '_on') || {}).norm >= 0.5;
       const ty = T === 'peq' ? (cvP('peq' + (b + 1) + '_type') || {}).text : '';
@@ -3393,10 +3401,12 @@ function cvLvlDraw(target, range) {
 }
 // High-pass: drag anywhere on the graph sideways to move the cut-off
 function cvHpfDrag(cnv) {
-  let on = false;
+  let on = false, x0 = 0, f0 = 100, moved = false;
   const set = e => {
     const r = cnv.getBoundingClientRect();
-    const f = Math.round(Math.max(20, Math.min(1000, 20 * Math.pow(1000, (e.clientX - r.left) / r.width))));
+    if (!moved && Math.abs(e.clientX - x0) < 3) return;
+    moved = true;
+    const f = Math.round(Math.max(20, Math.min(1000, f0 * Math.pow(1000, (e.clientX - x0) / r.width))));
     const p = cvP('hpfFreq'); if (!p) return;
     p.value = f;
     throttled('hpfd', async () => {
@@ -3406,20 +3416,42 @@ function cvHpfDrag(cnv) {
     }, 60);
     cvDraw();
   };
-  cnv.addEventListener('pointerdown', e => { on = true; cnv.setPointerCapture(e.pointerId); CV.quietUntil = Date.now() + 60000; set(e); });
+  cnv.addEventListener('pointerdown', e => { const p = cvP('hpfFreq'); on = true; moved = false; x0 = e.clientX; f0 = (p && p.value) || 100; cnv.setPointerCapture(e.pointerId); CV.quietUntil = Date.now() + 60000; });
   cnv.addEventListener('pointermove', e => { if (on) set(e); });
   const end = () => { on = false; CV.quietUntil = Date.now() + 1500; };
   cnv.addEventListener('pointerup', end); cnv.addEventListener('pointercancel', end);
 }
 
+// Flatten an EQ: every band to 0 dB. Dynamic EQ: dynamics off, cut filters back to bell/shelf;
+// parametric EQ: cut and notch bands switched off. The frequencies and Qs stay, ready to use again.
+async function cvFlatten(id, T) {
+  if (!confirm('Flatten ' + CV.view.modules[id].name + '? Every band goes back to 0 dB.')) return;
+  const sets = [];
+  for (let b = 1; b <= 6; b++) {
+    if (T === 'peq') {
+      const ty = (cvP('peq' + b + '_type', id) || {}).index || 0;
+      sets.push([cvPid('peq' + b + '_gain', id), 0]);
+      if (ty >= 3) sets.push([cvPid('peq' + b + '_on', id), 0]);
+    } else {
+      sets.push([cvPid('b' + b + '_gain', id), 0], [cvPid('b' + b + '_dyn', id), 0]);
+      const tp = cvP('b' + b + '_type', id);
+      if (tp && (tp.index || 0) >= 2) sets.push([tp.id, 1]);   // a low-pass cut on band 6 -> high shelf
+    }
+  }
+  if (T === 'peq') sets.push([cvPid('peqOut', id), 0]);
+  await Promise.all(sets.map(([pid, value]) => api('/api/voice/param', { channel: CV.ch, id: pid, value })));
+  CV.key = ''; await cvLoad(true); toast(CV.view.modules[id].name + ' is flat');
+}
 // Threshold on a graph: drag anywhere (sideways on the curve, up and down on the history)
 function cvThrDrag(cnv, pid, axis) {
-  let on = false;
+  let on = false, x0 = 0, y0 = 0, v0 = 0, moved = false;
   cnv.style.touchAction = 'none';
   const set = e => {
     const r = cnv.getBoundingClientRect(), p = cvParam(pid); if (!p) return;
-    const frac = axis === 'x' ? (e.clientX - r.left) / r.width : 1 - (e.clientY - r.top) / r.height;
-    p.value = Math.round(Math.max(p.min ?? -60, Math.min(p.max ?? 0, -60 + 60 * frac)) * 2) / 2;
+    const d = axis === 'x' ? (e.clientX - x0) / r.width : -(e.clientY - y0) / r.height;
+    if (!moved && Math.abs(axis === 'x' ? e.clientX - x0 : e.clientY - y0) < 3) return;
+    moved = true;
+    p.value = Math.round(Math.max(p.min ?? -60, Math.min(p.max ?? 0, v0 + 60 * d)) * 2) / 2;
     throttled('thr' + pid, async () => {
       const res = await api('/api/voice/param', { channel: CV.ch, id: pid, value: p.value });
       if (res && res.text) Object.assign(cvParam(pid), res);
@@ -3427,7 +3459,7 @@ function cvThrDrag(cnv, pid, axis) {
     }, 60);
     cvGraphs();
   };
-  cnv.addEventListener('pointerdown', e => { on = true; cnv.setPointerCapture(e.pointerId); CV.quietUntil = Date.now() + 60000; set(e); });
+  cnv.addEventListener('pointerdown', e => { const p = cvParam(pid); if (!p) return; on = true; moved = false; x0 = e.clientX; y0 = e.clientY; v0 = p.value; cnv.setPointerCapture(e.pointerId); CV.quietUntil = Date.now() + 60000; });
   cnv.addEventListener('pointermove', e => { if (on) set(e); });
   const end = () => { on = false; CV.quietUntil = Date.now() + 1500; };
   cnv.addEventListener('pointerup', end); cnv.addEventListener('pointercancel', end);
@@ -3497,7 +3529,7 @@ function cvDraw() {
 }
 // EQ: drag a band's dot on the graph (left/right = frequency, up/down = gain)
 function cvEqDrag(cnv, T) {
-  let drag = -1;
+  let drag = -1, x0 = 0, y0 = 0, f0 = 1000, g0 = 0, moved = false;
   const bp = T === 'peq' ? 'peq' : 'b';
   const pos = e => { const r = cnv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top, r.width, r.height]; };
   cnv.addEventListener('pointerdown', e => {
@@ -3510,13 +3542,18 @@ function cvEqDrag(cnv, T) {
     }
     if (best < 0) return;
     // grab the nearest dot and move it straight away; the panel switches to that band when you let go
+    // relative: the dot moves by as much as the finger slides, from where it is
     drag = best; cnv.setPointerCapture(e.pointerId); CV.quietUntil = Date.now() + 60000;
+    x0 = e.clientX; y0 = e.clientY; moved = false;
+    f0 = (cvP(bp + (best + 1) + '_freq') || {}).value || 1000; g0 = (cvP(bp + (best + 1) + '_gain') || {}).value || 0;
     if (CV.band !== best) { CV.band = best; CV.bandChanged = true; cvDraw(); }
   });
   cnv.addEventListener('pointermove', e => {
     if (drag < 0) return;
-    const [x, y, W, H] = pos(e), [c0, c1] = cvRange('eq');
-    const f = Math.max(20, Math.min(20000, 20 * Math.pow(1000, x / W))), gn = Math.max(-18, Math.min(18, c0 + (H - y) / H * (c1 - c0)));
+    const [, , W, H] = pos(e), [c0, c1] = cvRange('eq');
+    if (!moved && Math.hypot(e.clientX - x0, e.clientY - y0) < 3) return;
+    moved = true;
+    const f = Math.max(20, Math.min(20000, f0 * Math.pow(1000, (e.clientX - x0) / W))), gn = Math.max(-18, Math.min(18, g0 - (e.clientY - y0) / H * (c1 - c0)));
     const pf = cvP(bp + (drag + 1) + '_freq'), pg = cvP(bp + (drag + 1) + '_gain');
     pf.value = f; pg.value = Math.round(gn * 10) / 10;
     throttled('eqd', async () => {
