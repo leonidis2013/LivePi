@@ -106,7 +106,7 @@ int main()
         check (b.getOrder() == o, "state keeps the module order");
         check (std::abs (b.apvts.getRawParameterValue ("compThr")->load() + 33.0f) < 0.01f, "state keeps the settings");
         check (b.loadFactoryPreset (1), "factory preset loads");
-        check (! b.setOrder ({ 1, 1 }) && ! b.setOrder ({}) && ! b.setOrder ({ 12 }), "bad flows refused");
+        check (! b.setOrder ({ 1, 1 }) && ! b.setOrder ({}) && ! b.setOrder ({ 40 }), "bad flows refused");
         b.setParam ("peq3_gain", 6.0);
         b.loadFactoryPreset (0);
         check (std::abs (b.apvts.getRawParameterValue ("peq3_gain")->load() - 6.0f) < 0.01f, "voice preset keeps the parametric EQ");
