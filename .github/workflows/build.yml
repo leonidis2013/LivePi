@@ -56,6 +56,12 @@ jobs:
           ccache -s | head -5 || true
           exit $rc
 
+      - name: Mixer mode checks (zero latency, no NaN, CPU per channel)
+        run: |
+          T=$(find build -name LivePiVoiceTest -type f -perm -u+x | head -n1)
+          "$T" | tee voice-test.txt
+          echo "::notice title=Mixer mode checks::$(sed -e 's/%/%25/g' voice-test.txt | awk 'BEGIN{ORS="%0A"}{print}')"
+
       - name: Read version from CMakeLists.txt
         run: echo "LIVEPI_VERSION=$(sed -n 's/^project(LivePi VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)" >> "$GITHUB_ENV"
 

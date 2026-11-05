@@ -24,7 +24,14 @@ FetchContent_Declare(httplib
 set(HTTPLIB_USE_OPENSSL_IF_AVAILABLE OFF CACHE BOOL "" FORCE)
 set(HTTPLIB_USE_ZLIB_IF_AVAILABLE OFF CACHE BOOL "" FORCE)
 set(HTTPLIB_USE_BROTLI_IF_AVAILABLE OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(JUCE httplib)
+# Mixer mode uses LiveVoice's own DSP code (same author, AGPL-3.0). Pinned to a commit, so a LiveVoice
+# change only reaches LivePi when this line is updated on purpose. Only its sources are used
+# (SOURCE_SUBDIR points nowhere, so LiveVoice's own build is not added).
+FetchContent_Declare(livevoice
+  GIT_REPOSITORY https://github.com/leonidis2013/LiveVoice.git
+  GIT_TAG 41eda8d6dfbeb23ce381fccb5f97c4dfc878f854
+  SOURCE_SUBDIR do-not-build)
+FetchContent_MakeAvailable(JUCE httplib livevoice)
 
 find_package(Threads REQUIRED)
 
@@ -39,7 +46,13 @@ target_sources(LivePi PRIVATE
   Source/HostEngine.cpp
   Source/WebServer.cpp
   Source/LiveView.cpp
-  Source/HwMixer.cpp)
+  Source/HwMixer.cpp
+  Source/VoiceChannel.cpp
+  ${livevoice_SOURCE_DIR}/Source/dsp/FeedbackDetector.cpp
+  ${livevoice_SOURCE_DIR}/Source/dsp/FeedbackSuppressor.cpp
+  ${livevoice_SOURCE_DIR}/Source/PresetManager.cpp)
+
+target_include_directories(LivePi PRIVATE ${livevoice_SOURCE_DIR}/Source)
 
 
 target_compile_definitions(LivePi PRIVATE
@@ -60,6 +73,7 @@ target_link_libraries(LivePi PRIVATE
   juce::juce_audio_utils
   juce::juce_audio_devices
   juce::juce_audio_processors
+  juce::juce_dsp
   juce::juce_cryptography
   juce::juce_gui_basics
   juce::juce_events
@@ -90,3 +104,16 @@ add_custom_command(TARGET LivePi POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_directory
           ${CMAKE_SOURCE_DIR}/web
           $<TARGET_FILE_DIR:LivePi>/web)
+
+# Offline checks for mixer mode (zero latency, no NaN, CPU per channel); CI runs it on ARM64
+juce_add_console_app(LivePiVoiceTest PRODUCT_NAME "LivePiVoiceTest")
+target_sources(LivePiVoiceTest PRIVATE
+  Tests/VoiceTest.cpp
+  Source/VoiceChannel.cpp
+  ${livevoice_SOURCE_DIR}/Source/dsp/FeedbackDetector.cpp
+  ${livevoice_SOURCE_DIR}/Source/dsp/FeedbackSuppressor.cpp
+  ${livevoice_SOURCE_DIR}/Source/PresetManager.cpp)
+target_include_directories(LivePiVoiceTest PRIVATE ${livevoice_SOURCE_DIR}/Source)
+target_compile_definitions(LivePiVoiceTest PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_STANDALONE_APPLICATION=1)
+target_link_libraries(LivePiVoiceTest PRIVATE juce::juce_audio_processors juce::juce_dsp juce::juce_recommended_config_flags)
+

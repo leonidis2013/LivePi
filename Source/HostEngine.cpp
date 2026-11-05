@@ -178,6 +178,7 @@ void HostEngine::start()
     const int kills = recentWatchdogRestarts();
     const bool wasSafe = dataDir().getChildFile ("safe-mode").existsAsFile();
     safeMode = wasSafe || unstable >= 2 || kills >= 3;
+    dryChannels = safeMode;              // mixer mode: in safe mode the channels pass the audio unprocessed
 
     // The watchdog runs from here on, so a plugin that hangs while loading is caught too
     health = std::make_unique<Reliability::PiHealth>();
@@ -326,6 +327,99 @@ void HostEngine::deviceChanged()
     lastDeviceChangeMs = Time::getMillisecondCounterHiRes();
 }
 
+// ---------------------------------------------------------------- mixer mode
+
+VoiceChannel* HostEngine::voiceOf (int channel)
+{
+    if (! isPositiveAndBelow (channel, (int) chains.size())) return nullptr;
+    auto& c = chains[(size_t) channel];
+    return c.voice != nullptr ? dynamic_cast<VoiceChannel*> (c.voice->getProcessor()) : nullptr;
+}
+
+var HostEngine::setMode (const String& mode)
+{
+    if (mode != "vst" && mode != "mixer")
+        return err ("Mode must be vst or mixer");
+    if ((mode == "mixer") == mixerMode)
+        return ok();
+    // Everything is kept: the session is saved, the mode flipped, and it is loaded again. Each
+    // channel keeps both its VST plugins and its mixer settings; the unused ones wait untouched.
+    auto session = serialise();
+    if (auto* o = session.getDynamicObject()) o->setProperty ("mode", mode);
+    editors.clear();
+    auto r = deserialise (session);
+    settleAll();
+    saveLast();
+    Logger::writeToLog ("Mode: " + mode);
+    return r;
+}
+
+var HostEngine::voiceView (int channel)
+{
+    auto* vc = voiceOf (channel);
+    if (vc == nullptr) return err ("not a mixer channel");
+    return vc->getView();
+}
+
+var HostEngine::voiceSpectrum (int channel, bool output, const String& module)
+{
+    auto* vc = voiceOf (channel);
+    if (vc == nullptr) return err ("not a mixer channel");
+    return vc->getSpectrum (output, VoiceChannel::moduleFromId (module));
+}
+
+var HostEngine::voiceParam (int channel, const String& id, double value)
+{
+    auto* vc = voiceOf (channel);
+    if (vc == nullptr) return err ("not a mixer channel");
+    auto r = vc->setParam (id, value);
+    if (r.isVoid()) return err ("unknown setting");
+    markDirty();
+    return r;
+}
+
+var HostEngine::voiceOrder (int channel, const var& order)
+{
+    auto* vc = voiceOf (channel);
+    auto* a = order.getArray();
+    if (vc == nullptr || a == nullptr || a->size() != VoiceChannel::numModules) return err ("bad order");
+    std::array<int, VoiceChannel::numModules> o {};
+    for (int i = 0; i < VoiceChannel::numModules; ++i) o[(size_t) i] = VoiceChannel::moduleFromId ((*a)[i].toString());
+    if (! vc->setOrder (o)) return err ("bad order");
+    markDirty();
+    return ok();
+}
+
+var HostEngine::voicePreset (int channel, int index)
+{
+    auto* vc = voiceOf (channel);
+    if (vc == nullptr) return err ("not a mixer channel");
+    if (! (bool) vc->loadFactoryPreset (index)) return err ("no such preset");
+    markDirty();
+    return ok();
+}
+
+var HostEngine::voiceNotch (int channel, const String& cmd, int slot)
+{
+    auto* vc = voiceOf (channel);
+    if (vc == nullptr) return err ("not a mixer channel");
+    if (! (bool) vc->notchCommand (cmd, slot)) return err ("unknown command");
+    markDirty();
+    return ok();
+}
+
+var HostEngine::voiceCopy (int from, int to)
+{
+    auto* a = voiceOf (from);
+    auto* b = voiceOf (to);
+    if (a == nullptr || b == nullptr || from == to) return err ("bad channel");
+    MemoryBlock mb;
+    a->getStateInformation (mb);
+    b->setStateInformation (mb.getData(), (int) mb.getSize());
+    markDirty();
+    return ok();
+}
+
 // ---------------------------------------------------------------- reliability
 
 void HostEngine::addNotice (const String& id, const String& text, const String& level)
@@ -356,6 +450,7 @@ var HostEngine::restoreSession()
     if (! v.isObject())
         return err ("There is no saved session to load.");
     safeMode = false;
+    dryChannels = false;
     dataDir().getChildFile ("safe-mode").deleteFile();
     appDir().getChildFile ("last-safe.json").deleteFile();
     notices.erase (std::remove_if (notices.begin(), notices.end(), [] (const Notice& n) { return n.id == "safe"; }), notices.end());
@@ -590,6 +685,8 @@ HostEngine::Chain HostEngine::makeChain (int index)
         c.send = graph.addNode (std::make_unique<ChannelStrip> (nullptr, false));
         stripOf (c.send)->setGainDb (c.sendDb);
     }
+    if (index != kMonBus && mixerMode && ! dryChannels)
+        c.voice = graph.addNode (std::make_unique<VoiceChannel>());
     stripOf (c.tap)->setRing (&monitorRing);
     stripOf (c.strip)->setRing (&monitorRing);
     if (index == monitorChannel)
@@ -612,6 +709,8 @@ void HostEngine::clearSlots (Chain& c)
 void HostEngine::removeChain (Chain& c)
 {
     clearSlots (c);
+    if (c.voice != nullptr)
+        graph.removeNode (c.voice->nodeID);
     graph.removeNode (c.tap->nodeID);
     graph.removeNode (c.strip->nodeID);
     if (c.send != nullptr)
@@ -682,7 +781,14 @@ void HostEngine::rebuildConnections()
         auto& chain = chains[(size_t) ch];
 
         graph.addConnection (Conn { NC { inputNode->nodeID, ch }, NC { chain.tap->nodeID, 0 } }, UK::none);
-        NC src = connectSlots (chain, NC { chain.tap->nodeID, 0 });
+        NC src { chain.tap->nodeID, 0 };
+        if (chain.voice != nullptr)
+        {
+            graph.addConnection (Conn { src, NC { chain.voice->nodeID, 0 } }, UK::none);
+            src = NC { chain.voice->nodeID, 0 };
+        }
+        else
+            src = connectSlots (chain, src);
 
         // Send to the monitor mix: PFL (after the plugins, before the fader), the raw input, or AFL (after the fader)
         const NC sendFrom = chain.sendTap == 1 ? NC { chain.tap->nodeID, 0 }
@@ -823,6 +929,8 @@ var HostEngine::setNumChannels (int n)
 
 var HostEngine::addPlugin (int channel, const String& pluginId)
 {
+    if (mixerMode && channel != kMonBus)
+        return err ("This Pi is in mixer mode: its channels have the LiveVoice modules built in. Switch to VST mode (Settings > Mode) to load plugins.");
     auto* chain = chainFor (channel);
     if (chain == nullptr)
         return err ("bad channel");
@@ -1566,6 +1674,8 @@ var HostEngine::getState()
     }
 
     o->setProperty ("safeMode", safeMode);
+    o->setProperty ("mode", mixerMode ? "mixer" : "vst");
+    o->setProperty ("dryChannels", dryChannels && mixerMode);
     o->setProperty ("realtime", player.rtOk.load());
     o->setProperty ("throttled", health != nullptr ? health->throttled.load() : -1);
     {
@@ -1589,6 +1699,23 @@ var HostEngine::getState()
         co->setProperty ("sendDb", c.sendDb);
         co->setProperty ("sendTap", c.sendTap);
         co->setProperty ("slots", slotsState (c));
+        if (auto* vc = c.voice != nullptr ? dynamic_cast<VoiceChannel*> (c.voice->getProcessor()) : nullptr)
+        {
+            auto* vo = new DynamicObject();
+            Array<var> mods;
+            for (int m : vc->getOrder())
+            {
+                auto* mo = new DynamicObject();
+                mo->setProperty ("id", String (VoiceChannel::moduleId (m)));
+                mo->setProperty ("name", VoiceChannel::moduleName (m));
+                mo->setProperty ("on", vc->isModuleOn (m));
+                mods.add (var (mo));
+            }
+            vo->setProperty ("modules", mods);
+            vo->setProperty ("preset", vc->getPresetName());
+            vo->setProperty ("bypass", vc->apvts.getRawParameterValue ("bypass")->load() > 0.5f);
+            co->setProperty ("voice", var (vo));
+        }
         chainArr.add (var (co));
     }
     o->setProperty ("chains", chainArr);
@@ -1637,6 +1764,7 @@ var HostEngine::serialise()
     auto* root = new DynamicObject();
     root->setProperty ("numChannels", (int) chains.size());
     root->setProperty ("paflMode", paflMode);
+    root->setProperty ("mode", mixerMode ? "mixer" : "vst");
 
     Array<var> chainArr;
     for (auto& c : chains)
@@ -1647,7 +1775,15 @@ var HostEngine::serialise()
         co->setProperty ("mute", c.mute);
         co->setProperty ("sendDb", c.sendDb);
         co->setProperty ("sendTap", c.sendTap);
-        co->setProperty ("slots", slotsSerialised (c));
+        co->setProperty ("slots", mixerMode ? c.stashSlots : slotsSerialised (c));
+        if (c.voice != nullptr)
+        {
+            MemoryBlock mb;
+            c.voice->getProcessor()->getStateInformation (mb);
+            co->setProperty ("voice", mb.toBase64Encoding());
+        }
+        else if (! c.stashVoice.isVoid())
+            co->setProperty ("voice", c.stashVoice);
         chainArr.add (var (co));
     }
     {
@@ -1680,6 +1816,7 @@ var HostEngine::deserialise (const var& v)
             pm = (*ca)[0].hasProperty ("sendTap") ? (int) (*ca)[0]["sendTap"] : ((bool) (*ca)[0].getProperty ("sendPre", false) ? 1 : 0);
         paflMode = jlimit (0, 2, pm);
     }
+    mixerMode = v.getProperty ("mode", "vst").toString() == "mixer";
     for (int i = 0; i < n; ++i)
         chains.push_back (makeChain (i));
 
@@ -1700,7 +1837,20 @@ var HostEngine::deserialise (const var& v)
             chain.sendDb = (float) (double) cv.getProperty ("sendDb", -100.0);
             chain.sendTap = paflMode;
             applyMix (chain);
-            loadSlots (chain, cv.getProperty ("slots", {}), errors);
+            chain.stashVoice = cv.getProperty ("voice", var());
+            if (mixerMode)
+            {
+                chain.stashSlots = cv.getProperty ("slots", var());     // kept for when VST mode comes back
+                if (auto* vc = chain.voice != nullptr ? dynamic_cast<VoiceChannel*> (chain.voice->getProcessor()) : nullptr)
+                {
+                    MemoryBlock mb;
+                    if (mb.fromBase64Encoding (chain.stashVoice.toString()) && mb.getSize() > 0)
+                        vc->setStateInformation (mb.getData(), (int) mb.getSize());
+                    chain.stashVoice = var();
+                }
+            }
+            else
+                loadSlots (chain, cv.getProperty ("slots", {}), errors);
         }
     }
 

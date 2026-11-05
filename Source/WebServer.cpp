@@ -781,6 +781,57 @@ void WebServer::setupRoutes()
         reply (res, var (o));
     });
 
+    // ---- Mixer mode: the built-in LiveVoice channels
+    svr.Post ("/api/mode", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto b = body (req);
+        reply (res, onMT ([this, b] { return engine.setMode (b["mode"].toString()); }, 60000));
+    });
+
+    svr.Get ("/api/voice", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        const int ch = qs (req, "channel").getIntValue();
+        reply (res, onMT ([this, ch] { return engine.voiceView (ch); }));
+    });
+
+    svr.Get ("/api/voice/spectrum", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        const int ch = qs (req, "channel").getIntValue();
+        const bool out = qs (req, "out") == "1";
+        const auto module = qs (req, "module");
+        reply (res, onMT ([this, ch, out, module] { return engine.voiceSpectrum (ch, out, module); }));
+    });
+
+    svr.Post ("/api/voice/param", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto b = body (req);
+        reply (res, onMT ([this, b] { return engine.voiceParam ((int) b["channel"], b["id"].toString(), (double) b["value"]); }));
+    });
+
+    svr.Post ("/api/voice/order", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto b = body (req);
+        reply (res, onMT ([this, b] { return engine.voiceOrder ((int) b["channel"], b["order"]); }));
+    });
+
+    svr.Post ("/api/voice/preset", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto b = body (req);
+        reply (res, onMT ([this, b] { return engine.voicePreset ((int) b["channel"], (int) b["index"]); }));
+    });
+
+    svr.Post ("/api/voice/notch", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto b = body (req);
+        reply (res, onMT ([this, b] { return engine.voiceNotch ((int) b["channel"], b["cmd"].toString(), (int) b.getProperty ("slot", -1)); }));
+    });
+
+    svr.Post ("/api/voice/copy", [this] (const httplib::Request& req, httplib::Response& res)
+    {
+        auto b = body (req);
+        reply (res, onMT ([this, b] { return engine.voiceCopy ((int) b["from"], (int) b["to"]); }));
+    });
+
     svr.Post ("/api/notice/dismiss", [this] (const httplib::Request& req, httplib::Response& res)
     {
         auto b = body (req);

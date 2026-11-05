@@ -10,6 +10,7 @@
 #include "CpuBench.h"
 #include "MonitorRing.h"
 #include "Reliability.h"
+#include "VoiceChannel.h"
 #include "VirtualAudio.h"
 
 class EditorWindow;
@@ -28,6 +29,17 @@ public:
     static juce::File dataDir();   // ~/.livepi
     juce::StringArray deviceNames();   // the audio device in use (message thread)
     juce::var resetXruns();            // start the dropout count again from 0
+
+    // ---- mixer mode (built-in LiveVoice channels) ----
+    bool isMixerMode() const { return mixerMode; }
+    juce::var setMode (const juce::String& mode);   // "vst" or "mixer"
+    juce::var voiceView (int channel);
+    juce::var voiceSpectrum (int channel, bool output, const juce::String& module);
+    juce::var voiceParam (int channel, const juce::String& id, double value);
+    juce::var voiceOrder (int channel, const juce::var& order);
+    juce::var voicePreset (int channel, int index);
+    juce::var voiceNotch (int channel, const juce::String& cmd, int slot);
+    juce::var voiceCopy (int from, int to);
     juce::var getReliability();        // the checklist on the System page
     juce::var restoreSession();        // leave safe mode: load the session with its plugins again
     juce::var dismissNotice (const juce::String& id);
@@ -96,6 +108,8 @@ private:
         float gainDb = 0.0f;
         bool mute = false;
         float sendDb = -100.0f;                // level sent to the monitor mix (pre-fader); -100 = off
+        juce::AudioProcessorGraph::Node::Ptr voice; // mixer mode: the built-in LiveVoice channel
+        juce::var stashSlots, stashVoice;      // the other mode's settings, kept untouched while unused
         int sendTap = 0;                       // monitor tap point: 0 = PFL (after plugins, pre-fader), 1 = input (before plugins), 2 = AFL (after fader)
     };
 
@@ -163,6 +177,9 @@ private:
     int reconnectFailures = 0;
     double reconnectNotBeforeMs = 0.0;
     bool safeMode = false;
+    bool mixerMode = false;
+    bool dryChannels = false;            // safe mode in mixer mode: channels without processing
+    VoiceChannel* voiceOf (int channel);
     std::unique_ptr<juce::Timer> reconnectTimer;
     struct Notice { juce::String id, text, level; };
     std::vector<Notice> notices;                         // shown as banners on the page (message thread)
