@@ -804,6 +804,20 @@
   .fb .dot.lvl.peak { background:#ff4d4d; box-shadow:0 0 8px #ff4d4d; }
   /* 4. high-pass: a shorter graph, so its panel fits without scrolling */
   @media (max-width:720px) { .cvviz.short { height:140px; } }
+
+  /* channel screen: vital signs on top */
+  .cvstat { flex:1 1 100%; order:9; display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; font-variant-numeric:tabular-nums; }
+  .cvstat::-webkit-scrollbar { display:none; }
+  .cvstat .st { font-size:11px; padding:2px 8px; }
+  .cvstat .st b { color:var(--fg); font-weight:600; }
+  @media (max-width:720px) { .cvbar .cvstat { order:4; } }
+  /* the output Trim as a small vertical slider */
+  .ctl.vsl { display:flex; flex-direction:column; align-items:center; gap:4px; width:100%; }
+  .vslbar { position:relative; width:14px; height:84px; border-radius:7px; background:var(--inset); touch-action:none; cursor:ns-resize; }
+  .vslbar i { position:absolute; left:0; right:0; bottom:0; border-radius:7px; background:var(--acc); opacity:.75; }
+  .vslbar b { position:absolute; left:50%; width:30px; height:16px; margin:0 0 -8px -15px; border-radius:5px; background:var(--knob); border:1px solid var(--faint); box-shadow:0 1px 3px var(--shadow); }
+  .ctl.vsl .cl { font-size:11px; color:var(--dim); }
+  .ctl.vsl .cv { font-size:11px; }
 </style>
 </head>
 <body>
@@ -1009,6 +1023,7 @@
     <select id="cvCopy" title="Copy this channel's settings to another channel"></select>
     <button id="cvBypass" title="Bypass every module of this channel">Bypass</button>
     <button id="cvClose" class="ico" title="Close">✕</button>
+    <div id="cvStat" class="cvstat" title="The Pi's audio right now"></div>
   </div>
   <div class="cvbody">
     <div class="cvside cvin" id="cvIn"></div>
@@ -2962,6 +2977,27 @@ function detent(p, v) {
   if (p.zero === undefined || !/gain|out$|_out|trim|makeup/i.test(p.id || p.name || '')) return v;
   return Math.abs(v - p.zero) < 0.02 ? p.zero : v;
 }
+// A small vertical slider (the output Trim): slide up/down, relative; double-tap for the default
+function buildVSlider(p, label, send) {
+  const c = el('div', 'ctl vsl'); c.dataset.name = p.name.toLowerCase();
+  const bar = el('div', 'vslbar'), fill = el('i'), thumb = el('b'), txt = el('span', 'cv', p.text);
+  bar.append(fill, thumb);
+  c.append(el('span', 'cl', label), bar, txt);
+  c._set = v => { const y = Math.max(0, Math.min(1, v)) * 100; fill.style.height = y + '%'; thumb.style.bottom = y + '%'; };
+  c._text = t => { txt.textContent = t; };
+  let y0 = 0, v0 = 0, h = 1, lastTap = 0, moved = false;
+  const put = v => { v = detent(p, Math.max(0, Math.min(1, v))); c._set(v); send(p, v, c); };
+  bar.addEventListener('pointerdown', e => {
+    const now = Date.now();
+    if (now - lastTap < 320) { lastTap = 0; put(p.default); return; }
+    lastTap = now; bar.setPointerCapture(e.pointerId); y0 = e.clientY; v0 = p.value; h = bar.getBoundingClientRect().height || 1; c._drag = true; moved = false;
+  });
+  bar.addEventListener('pointermove', e => { if (!c._drag) return; if (Math.abs(e.clientY - y0) > 3) moved = true; if (moved) put(v0 - (e.clientY - y0) / (h * 2)); });
+  const end = () => { c._drag = false; };
+  bar.addEventListener('pointerup', end); bar.addEventListener('pointercancel', end);
+  c._set(p.value);
+  return c;
+}
 function buildSlider(p, label, send) {
   const c = el('div', 'ctl sld'); c.dataset.name = p.name.toLowerCase();
   const top = el('div', 'sldt'), txt = el('span', 'cv', p.text);
@@ -2992,8 +3028,9 @@ function buildSlider(p, label, send) {
 function cvCtl(p, label, knob, wide) {
   const q = { name: p.name, value: p.norm, default: p.def, text: p.text, type: p.type, choices: p.choices, id: p.id, zero: p.zero };
   const send = (pp, v, ctl) => { pp.value = v; cvSend(p.id, v, ctl); };
-  const slider = (PHONE.matches || wide) && !knob && q.type !== 'bool' && q.type !== 'choice';
-  const c = slider ? buildSlider(q, label || cvLabel(p.name), send) : buildCtl(q, label || cvLabel(p.name), send);
+  const slider = (PHONE.matches || wide || /^inGain/.test(p.id)) && !knob && q.type !== 'bool' && q.type !== 'choice';
+  const c = knob === 'v' ? buildVSlider(q, label || cvLabel(p.name), send)
+          : slider ? buildSlider(q, label || cvLabel(p.name), send) : buildCtl(q, label || cvLabel(p.name), send);
   CV.ctls[p.id] = { c, q };
   return c;
 }
@@ -3094,7 +3131,7 @@ function cvSides() {
   // right: output trim, the channel fader with the OUT meter, Mute, PAFL
   const R = $('cvOut'); R.innerHTML = ''; R.className = 'cvside cvout strip'; R.dataset.ch = ch;
   R.append(el('h4', '', 'Output'));
-  if (v.outGain) R.append(cvCtl(v.outGain, 'Trim', true));
+  if (v.outGain) R.append(cvCtl(v.outGain, 'Trim', 'v'));
   const fm = el('div', 'fm');
   const fader = makeFader(db => throttled('g' + ch, () => api('/api/mixer', { channel: ch, gainDb: db })));
   fm.append(fader, cvMeter('vout', 'OUT'));
@@ -3464,17 +3501,36 @@ function cvGraphs() {
     const thr = pv('compThr') ?? -20, ratio = pv('compRatio') ?? 3, knee = pv('compKnee') ?? 10, mk = C.makeup || 0;
     const A = cvCanvas('cmpT');
     if (A) {
-      const { g, W, H } = A, { line, dim } = cvColors(), col = MOD_COLOR.comp, lo = -60;
-      const sx = x => (x - lo) / -lo * W, sy = y => H - (y - lo) / -lo * H;
+      // Solid curve: the compression itself (threshold, ratio, knee), against the dashed 1:1 line.
+      // Makeup is not baked in: it shows as a separate arrow at the right edge.
+      const { g, W, H } = A, { line, dim } = cvColors(), col = MOD_COLOR.comp, lo = -60, pad = 18;
+      const PW = W - pad, sx = x => (x - lo) / -lo * PW, sy = y => H - (y - lo) / -lo * H;
       g.strokeStyle = line; g.lineWidth = 1; g.font = '10px system-ui, sans-serif'; g.fillStyle = dim;
-      for (const d of [-48, -36, -24, -12]) { g.beginPath(); g.moveTo(sx(d) + .5, 0); g.lineTo(sx(d) + .5, H); g.moveTo(0, sy(d) + .5); g.lineTo(W, sy(d) + .5); g.stroke(); g.fillText(d, sx(d) + 2, H - 3); }
-      g.setLineDash([4, 4]); g.beginPath(); g.moveTo(0, H); g.lineTo(W, 0); g.stroke(); g.setLineDash([]);
+      for (const d of [-48, -36, -24, -12]) { g.beginPath(); g.moveTo(sx(d) + .5, 0); g.lineTo(sx(d) + .5, H); g.moveTo(0, sy(d) + .5); g.lineTo(PW, sy(d) + .5); g.stroke(); g.fillText(d, sx(d) + 2, H - 3); }
+      g.setLineDash([4, 4]); g.beginPath(); g.moveTo(0, H); g.lineTo(PW, 0); g.stroke(); g.setLineDash([]);
+      // threshold marker
+      const tx = sx(thr); g.strokeStyle = col; g.globalAlpha = .35; g.beginPath(); g.moveTo(tx + .5, 0); g.lineTo(tx + .5, H); g.stroke(); g.globalAlpha = 1;
+      g.fillStyle = col; g.fillText('thr ' + thr.toFixed(0), Math.min(PW - 40, tx + 4), 12);
+      // the curve
       g.beginPath();
-      for (let k = 0; k <= 120; k++) { const x = lo + k / 2, yv = x - compGr(x, thr, ratio, knee) + mk; k ? g.lineTo(sx(x), sy(yv)) : g.moveTo(sx(x), sy(yv)); }
+      for (let k = 0; k <= 120; k++) { const x = lo + k / 2, yv = x - compGr(x, thr, ratio, knee); k ? g.lineTo(sx(x), sy(yv)) : g.moveTo(sx(x), sy(yv)); }
       g.strokeStyle = col; g.lineWidth = 2.5; g.stroke();
+      // live dot on the curve, and how far it is pulled down
       const xi = C.in ?? -100;
-      if (xi > lo) { const yo = xi - (C.gr || 0) + mk; g.beginPath(); g.arc(sx(xi), sy(Math.max(lo, yo)), 6, 0, Math.PI * 2); g.fillStyle = '#fff'; g.fill(); g.strokeStyle = col; g.lineWidth = 2; g.stroke(); }
-      g.fillStyle = dim; g.fillText('in →', W - 26, H - 14); g.fillText('out ↑', 3, 24);
+      if (xi > lo) {
+        const gr = C.gr || 0, yo = xi - gr;
+        if (gr > 0.2) { g.strokeStyle = '#ef4c4c'; g.lineWidth = 2; g.beginPath(); g.moveTo(sx(xi), sy(xi)); g.lineTo(sx(xi), sy(yo)); g.stroke(); }
+        g.beginPath(); g.arc(sx(xi), sy(Math.max(lo, yo)), 6, 0, Math.PI * 2); g.fillStyle = '#fff'; g.fill(); g.strokeStyle = col; g.lineWidth = 2; g.stroke();
+      }
+      // makeup: an arrow in its own lane on the right, 0..+24 dB over the height
+      g.fillStyle = 'rgba(255,255,255,0.05)'; g.fillRect(PW, 0, pad, H);
+      if (mk > 0.05) {
+        const top = H - Math.min(1, mk / 24) * H;
+        g.fillStyle = col; g.globalAlpha = .75; g.fillRect(PW + 6, top, 6, H - top); g.globalAlpha = 1;
+        g.beginPath(); g.moveTo(PW + 3, top + 6); g.lineTo(PW + 9, top - 1); g.lineTo(PW + 15, top + 6); g.fill();
+      }
+      g.save(); g.translate(W - 4, H - 6); g.rotate(-Math.PI / 2); g.fillStyle = dim; g.fillText('makeup +' + mk.toFixed(1), 0, 0); g.restore();
+      g.fillStyle = dim; g.fillText('in →', PW - 28, H - 14); g.fillText('out ↑', 3, 24);
     }
     const c = h => (h.cs && h.cs[ci]) || { i: -100, g: 0, o: -100 };
     cvHistDraw('cmpH', h => c(h).i, h => c(h).o, h => c(h).g, 24, thr);
@@ -4140,6 +4196,8 @@ async function refresh() {
     + chip(esc(devShort(st.deviceName)), false, 'dev');
   { const x = $('status').querySelector('.st.xr'); if (x) x.title = 'Audio dropouts since the last reset. Tap to reset.'; }
   { const d = $('status').querySelector('.st.dev'); if (d) d.title = 'Audio interface in use: ' + (st.deviceName || 'none') + '. Change it in Setup > Audio.'; }
+  // the channel screen keeps the vital signs in view (rate, buffer, latency, CPU, dropouts, temperature)
+  if ($('cvStat')) $('cvStat').innerHTML = $('status').innerHTML;
   if (document.activeElement !== $('chCount')) $('chCount').value = st.numChannels;
   const pl = $('presetList'), prev = pl.value; fill(pl, st.presets || [], prev); $('tbPresetName').textContent = pl.value || '';
   noticesRender(st.notices || []);
