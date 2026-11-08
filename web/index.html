@@ -818,6 +818,9 @@
   .vslbar b { position:absolute; left:50%; width:30px; height:16px; margin:0 0 -8px -15px; border-radius:5px; background:var(--knob); border:1px solid var(--faint); box-shadow:0 1px 3px var(--shadow); }
   .ctl.vsl .cl { font-size:11px; color:var(--dim); }
   .ctl.vsl .cv { font-size:11px; }
+
+  .cvhw { display:flex; flex-direction:column; gap:10px; margin-top:4px; padding-top:10px; border-top:1px solid var(--line); }
+  .cvhw h4 { margin:0; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--dim); }
 </style>
 </head>
 <body>
@@ -2295,7 +2298,10 @@ function hwRender(force) {
       continue;
     }
     if (!card.controls.length) { note('This interface has no level controls that software can reach. Set its levels with its own knobs and use the input check below.'); continue; }
+    const mixIn = isMixer() && card.inUse && card.controls.some(c => c.kind === 'capture' && c.volume);
+    if (mixIn) note('Mixer mode: the interface\'s input gain is on each channel\'s <b>Input</b> module (Open channel \u2192 Input).');
     for (const c of card.controls) {
+      if (mixIn && c.kind === 'capture' && c.volume) continue;
       const side = c.kind === 'capture' ? 'Input' : c.kind === 'playback' ? 'Output' : '';
       const row = el('div', c.volume ? 'set hwvol' : 'set'), sl = el('div', 'sl'), sc = el('div', 'sc');
       sl.append(el('b', '', c.control + (c.index ? ' ' + (c.index + 1) : '')));
@@ -3377,7 +3383,35 @@ function cvPanelBody(v, id, m, P) {
   if (big.length) { const bg = el('div', 'cvbig'); for (const pid of big) { const p = cvParam(pid); if (p) bg.append(cvCtl(p, cvLabel(p.name), false, true)); } P.append(bg); }
   for (const pid of ids) { const p = cvParam(pid); if (p) grid.append(cvCtl(p, T === 'eq' ? cvLabel(p.name).replace(/^On$/, 'Band on') : T === 'peq' ? p.name.replace(/^Band \d+ /, '').replace(/^On$/, 'Band on') : cvLabel(p.name))); }
   P.append(grid);
+  if (T === 'input') cvHwInput(P);
   cvMeters();
+}
+// The audio interface's own input gain (ALSA capture controls), on the Input module
+async function cvHwInput(P) {
+  const box = el('div', 'cvhw'); box.append(el('h4', '', 'Interface input gain')); P.append(box);
+  const r = await api('/api/hwmixer', undefined, true);
+  if (!r || !r.cards) { box.append(el('div', 'note', 'Could not read the interface.')); return; }
+  HW = r;
+  const cards = r.cards.filter(c => c.inUse);
+  if (!cards.length) { box.append(el('div', 'note', 'No hardware interface in use (Setup \u2192 Audio).')); return; }
+  for (const card of cards) {
+    const caps = card.controls.filter(c => c.kind === 'capture' && c.volume);
+    if (card.pisound && !caps.length) {
+      box.append(el('div', 'note', 'Pisound: the input gain is the GAIN knob on the board. It is analog, so set it by hand while you watch the level dot on the Input tile: green when the person talks normally, never red. Then fine-tune with Input Gain above.'));
+      continue;
+    }
+    if (!caps.length) { box.append(el('div', 'note', card.name + ': no input gain that software can reach. Use the interface\'s own knob.')); continue; }
+    for (const c of caps) {
+      const vol = c.volume, span = Math.max(1, vol.max - vol.min);
+      const q = { id: 'hw:' + c.control, name: c.control, value: (vol.value - vol.min) / span, default: (vol.value - vol.min) / span, text: hwFmt(c), type: 'float' };
+      let t = null;
+      const sl = buildSlider(q, (cards.length > 1 ? card.name + ' \u00b7 ' : '') + c.control + (c.index ? ' ' + (c.index + 1) : ''), (pp, v, ctl) => {
+        pp.value = v; const raw = Math.round(vol.min + v * span); ctl._text(hwFmt(c, raw));
+        clearTimeout(t); t = setTimeout(() => hwSet(card.card, c, { value: raw }), 60);
+      });
+      box.append(sl);
+    }
+  }
 }
 function hmRow(label, frac, text, opts = {}) {
   const r = el('div', 'hm'), bar = el('div', 'bar'), i = el('i'); if (opts.gr) i.className = 'gr';
