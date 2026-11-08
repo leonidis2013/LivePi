@@ -802,6 +802,23 @@ var VoiceChannel::getView (bool full)
         }
         mods->setProperty ("input", var (mo));
     }
+    // the output trim: always last, can't be removed
+    {
+        auto* mo = new DynamicObject();
+        mo->setProperty ("name", "Output trim");
+        mo->setProperty ("type", "output");
+        mo->setProperty ("instance", 1);
+        mo->setProperty ("on", true);
+        mo->setProperty ("onParam", "");
+        mo->setProperty ("fixed", true);
+        if (full)
+        {
+            Array<var> ps;
+            if (auto* rp = apvts.getParameter ("outGain")) ps.add (paramVar (rp));
+            mo->setProperty ("params", ps);
+        }
+        mods->setProperty ("output", var (mo));
+    }
     o->setProperty ("modules", var (mods));
     for (auto* id : { "inGain", "outGain", "bypass" })
         if (auto* rp = apvts.getParameter (id)) o->setProperty (id, paramVar (rp));

@@ -2922,10 +2922,10 @@ awakeStart();
 /* ---------- mixer mode: the built-in LiveVoice channel ----------
    Left: input gain + fader (+ mute, PAFL). Middle: the flow of modules (tap one, drag the grip to
    reorder) and the big panel of the selected module. Right: output trim + output meter. */
-const MOD_COLOR = { input: '#9aa5b1', peq: '#5aa9ff', hpf: '#7ea9cc', pse: '#8bd450', feedback: '#ff8a3d', eq: '#2ec4b6', deess: '#a78bfa', prox: '#4cc9f0', leveler: '#80ed99', warmth: '#f4978e', comp: '#f6c453' };
+const MOD_COLOR = { input: '#9aa5b1', output: '#9aa5b1', peq: '#5aa9ff', hpf: '#7ea9cc', pse: '#8bd450', feedback: '#ff8a3d', eq: '#2ec4b6', deess: '#a78bfa', prox: '#4cc9f0', leveler: '#80ed99', warmth: '#f4978e', comp: '#f6c453' };
 const BAND_COLOR = ['#2ec4b6', '#4cc9f0', '#7bdff2', '#80ed99', '#f7d070', '#f4978e'];
 const SPEC_MODS = ['hpf', 'eq', 'peq', 'feedback', 'deess'];
-const MOD_SHORT = { input: 'Input', peq: 'Para EQ', eq: 'Dyn EQ', hpf: 'HPF', pse: 'PSE', feedback: 'Feedback', deess: 'De-ess', prox: 'Proximity', leveler: 'Leveler', warmth: 'Warmth', comp: 'Comp' };
+const MOD_SHORT = { input: 'Input', output: 'Trim', peq: 'Para EQ', eq: 'Dyn EQ', hpf: 'HPF', pse: 'PSE', feedback: 'Feedback', deess: 'De-ess', prox: 'Proximity', leveler: 'Leveler', warmth: 'Warmth', comp: 'Comp' };
 const PHONE = window.matchMedia('(max-width:720px)');
 const CV = { ch: -1, view: null, live: null, spec: null, sel: 'eq', band: 0, out: true, timers: [], key: '', ctls: {}, hold: null, warmthLast: 30, quietUntil: 0 };
 function isMixer() { return !!(S && S.mode === 'mixer'); }
@@ -3034,7 +3034,7 @@ function buildSlider(p, label, send) {
 function cvCtl(p, label, knob, wide) {
   const q = { name: p.name, value: p.norm, default: p.def, text: p.text, type: p.type, choices: p.choices, id: p.id, zero: p.zero };
   const send = (pp, v, ctl) => { pp.value = v; cvSend(p.id, v, ctl); };
-  const slider = (PHONE.matches || wide || /^inGain/.test(p.id)) && !knob && q.type !== 'bool' && q.type !== 'choice';
+  const slider = (PHONE.matches || wide || /^(inGain|outGain)$/.test(p.id)) && !knob && q.type !== 'bool' && q.type !== 'choice';
   const c = knob === 'v' ? buildVSlider(q, label || cvLabel(p.name), send)
           : slider ? buildSlider(q, label || cvLabel(p.name), send) : buildCtl(q, label || cvLabel(p.name), send);
   CV.ctls[p.id] = { c, q };
@@ -3049,7 +3049,7 @@ function cvSyncCtls() {
 }
 function cvRender() {
   const v = CV.view, ch = CV.ch;
-  if (!v.modules[CV.sel] || (CV.sel !== 'input' && !v.order.includes(CV.sel))) CV.sel = v.order[0] || 'input';
+  if (!v.modules[CV.sel] || (CV.sel !== 'input' && CV.sel !== 'output' && !v.order.includes(CV.sel))) CV.sel = v.order[0] || 'input';
   const key = [ch, CV.sel, CV.band, v.order.join(','), (v.presets || []).join('|')].join('/');
   const chain = S && S.chains ? S.chains[ch] : null;
   if (document.activeElement !== $('cvTitle')) $('cvTitle').value = chain ? chain.name : 'Ch ' + (ch + 1);
@@ -3137,7 +3137,6 @@ function cvSides() {
   // right: output trim, the channel fader with the OUT meter, Mute, PAFL
   const R = $('cvOut'); R.innerHTML = ''; R.className = 'cvside cvout strip'; R.dataset.ch = ch;
   R.append(el('h4', '', 'Output'));
-  if (v.outGain) R.append(cvCtl(v.outGain, 'Trim', 'v'));
   const fm = el('div', 'fm');
   const fader = makeFader(db => throttled('g' + ch, () => api('/api/mixer', { channel: ch, gainDb: db })));
   fm.append(fader, cvMeter('vout', 'OUT'));
@@ -3159,9 +3158,9 @@ function cvSetMeter(kind, db) {
 // ---- the flow ----
 function cvFlow() {
   const v = CV.view, F = $('cvFlow'); F.innerHTML = '';
-  ['input', ...v.order].forEach((id, i) => {
+  ['input', ...v.order, 'output'].forEach((id, i) => {
     const m = v.modules[id]; if (!m) return;
-    const fixed = id === 'input';
+    const fixed = id === 'input' || id === 'output';
     const T = cvType(id), sn = (MOD_SHORT[T] || m.name) + (cvInst(id) > 1 ? ' ' + cvInst(id) : '');
     const b = el('div', 'fb' + (fixed ? ' fixed' : ' mov') + (id === CV.sel ? ' sel' : '') + (m.on ? '' : ' off')); b.dataset.id = id; b.style.setProperty('--mc', MOD_COLOR[T]);
     const grip = el('div', 'grip');
@@ -3173,20 +3172,21 @@ function cvFlow() {
     pw.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg>';
     pw.onclick = e => { e.stopPropagation(); cvToggle(id); };
     if (fixed) pw.classList.add('hide');
-    b.append(grip, el('span', 'fbi', fixed ? 'IN' : String(i)), el('span', 'dot' + (m.on ? ' on' : '')), el('span', 'fbn', m.name), el('span', 'fbs', sn), el('span', 'fbm', ''), pw);
+    b.append(grip, el('span', 'fbi', id === 'input' ? 'IN' : id === 'output' ? 'OUT' : String(i)), el('span', 'dot' + (m.on ? ' on' : '')), el('span', 'fbn', m.name), el('span', 'fbs', sn), el('span', 'fbm', ''), pw);
 
     b.onclick = () => { CV.sel = id; try { localStorage.setItem('lh.cvsel', id); } catch (e) {} cvRender(); };
     if (!fixed) cvDrag(grip, b);
     F.append(b);
   });
-  const missing = Object.keys(v.modules).filter(id => id !== 'input' && !v.order.includes(id));
+  const missing = Object.keys(v.modules).filter(id => id !== 'input' && id !== 'output' && !v.order.includes(id));
   // one entry per kind of module: the next free instance (a second compressor, a third EQ...)
   const seen = new Set(); const offer = [];
   missing.sort((a, b) => cvInst(a) - cvInst(b)).forEach(id => { const T = cvType(id); if (!seen.has(T)) { seen.add(T); offer.push(id); } });
   if (offer.length) {
     const add = el('button', 'fb fbadd', '+ Add module'); add.title = 'Put a module into the flow';
     add.onclick = () => cvAddMenu(offer);
-    F.append(add);
+    const outTile = F.querySelector('.fb[data-id="output"]');
+    if (outTile) F.insertBefore(add, outTile); else F.append(add);   // the output trim stays last
   }
   F.append(el('div', 'fbflowhint', PHONE.matches ? 'Tap a module to open it. ↑ ↓ at the top of its panel move it; Remove takes it out.' : 'Top to bottom is the signal flow. Drag ⋮⋮ to change the order.'));
   cvFlowSync();
@@ -3233,6 +3233,7 @@ function cvFlowSync() {
   const v = CV.view, L = CV.live || {};
   document.querySelectorAll('#cvFlow .fb[data-id]').forEach(b => {
     const id = b.dataset.id, m = v.modules[id]; if (!m) return;
+    if (id === 'output') { const op = cvParam('outGain'); b.querySelector('.fbm').textContent = op ? op.text : ''; return; }
     if (id === 'input') {
       const ip = L.inPeak ?? -100; b.querySelector('.fbm').textContent = ip <= -99 ? '' : ip.toFixed(0) + ' dB';
       // level dot: blue = low, green = good, yellow = loud, red = peaking
@@ -3287,9 +3288,9 @@ async function cvSetOrder(order) {
 function cvPanel() {
   const v = CV.view, id = CV.sel, m = v.modules[id], P = $('cvPanel'); P.innerHTML = '';
   P.style.setProperty('--mc', MOD_COLOR[cvType(id)]);
-  const pos = v.order.indexOf(id), fixed = id === 'input';
+  const pos = v.order.indexOf(id), fixed = id === 'input' || id === 'output';
   const h = el('div', 'cvph');
-  const t = el('h3', '', m.name); t.append(el('small', '', fixed ? 'always first' : `${pos + 2} of ${v.order.length + 1} in the flow`)); h.append(t);
+  const t = el('h3', '', m.name); t.append(el('small', '', id === 'input' ? 'always first' : id === 'output' ? 'always last' : `${pos + 2} of ${v.order.length + 2} in the flow`)); h.append(t);
   if (fixed) { P.append(h); cvPanelBody(v, id, m, P); return; }
   const up = el('button', 'ico mv', '↑'); up.title = 'Move this module earlier in the flow'; up.disabled = pos === 0;
   const dn = el('button', 'ico mv', '↓'); dn.title = 'Move this module later in the flow'; dn.disabled = pos === v.order.length - 1;
@@ -3423,7 +3424,10 @@ function cvMeters() {
   const box = $('cvMeters'); if (!box) return;
   const L = CV.live || {}, id = CV.sel, T = cvType(id), rows = [];
   const pv = x => (cvP(x) || {}).value;
-  if (T === 'input') {
+  if (T === 'output') {
+    const op = L.outPeak ?? -100;
+    rows.push(hmRow('Output level', (op + 60) / 60, op <= -99 ? '-inf' : op.toFixed(1) + ' dB', { mark: (-6 + 60) / 60 }));
+  } else if (T === 'input') {
     const ip = L.inPeak ?? -100;
     rows.push(hmRow('Input level', (ip + 60) / 60, ip <= -99 ? '-inf' : ip.toFixed(1) + ' dB', { mark: (-12 + 60) / 60 }));
   } else if (T === 'comp') {

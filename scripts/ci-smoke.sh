@@ -102,7 +102,7 @@ run_case() {
   check "$label: voice preset loads" "post /api/voice/preset '{\"channel\":0,\"index\":1}' | jq -e .ok >/dev/null"
   check "$label: channel settings copy" "post /api/voice/copy '{\"from\":0,\"to\":1}' | jq -e .ok >/dev/null && api '/api/voice?channel=1&live=1' | jq -e '.order[0]==\"comp\"' >/dev/null"
   check "$label: plugins refused in mixer mode" "post /api/chain/add '{\"channel\":0,\"id\":\"x\"}' | jq -e '.error | test(\"mixer mode\")' >/dev/null"
-  check "$label: mixer has the Input module and the parametric EQ" "api '/api/voice?channel=0' | jq -e '.modules.input.fixed==true and (.modules.peq.params|length)==39 and .modules.peq.inFlow==false' >/dev/null"
+  check "$label: mixer has the Input module and the parametric EQ" "api '/api/voice?channel=0' | jq -e '.modules.input.fixed==true and .modules.output.fixed==true and (.modules.output.params[0].id==\"outGain\") and (.modules.peq.params|length)==39 and .modules.peq.inFlow==false' >/dev/null"
   check "$label: modules can be taken out and added" "post /api/voice/order '{\"channel\":0,\"order\":[\"comp\",\"peq\",\"hpf\",\"pse\"]}' | jq -e .ok >/dev/null && api '/api/voice?channel=0&live=1' | jq -e '(.order|length)==4 and .order[1]==\"peq\"' >/dev/null"
   check "$label: parametric EQ curve" "post /api/voice/param '{\"channel\":0,\"id\":\"peq3_gain\",\"value\":6}' | jq -e .ok==null >/dev/null; api '/api/voice/spectrum?channel=0&module=peq&out=1' | jq -e '([.curve[]]|max) > 4' >/dev/null"
   post /api/voice/order '{"channel":0,"order":["comp","peq","hpf","pse","feedback"]}' >/dev/null   # notches need the feedback module in the flow
