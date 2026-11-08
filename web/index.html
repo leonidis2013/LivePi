@@ -523,7 +523,7 @@
   @media (max-width:720px) { .sc input.ipf { width:150px; font-size:15px; } .set.stack { flex-wrap:wrap; } .set.stack .sl { flex-basis:100%; } .set.stack .sc { flex:1 1 100%; justify-content:flex-start; } }
   /* ---------- mixer mode: channel screen ---------- */
   .chview { position:fixed; inset:0; z-index:30; background:var(--bg); display:flex; flex-direction:column; }
-  .cvbar { display:flex; align-items:center; gap:8px; padding:10px 14px; padding-top:calc(10px + env(safe-area-inset-top)); background:var(--card); border-bottom:1px solid var(--line); }
+  .cvbar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:10px 14px; padding-top:calc(10px + env(safe-area-inset-top)); background:var(--card); border-bottom:1px solid var(--line); }
   .cvbar b { font-size:15px; letter-spacing:.1em; text-transform:uppercase; }
   .cvpre { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--dim); }
   .cvpre select { max-width:240px; }
@@ -806,6 +806,7 @@
   @media (max-width:720px) { .cvviz.short { height:140px; } }
 
   /* channel screen: vital signs on top */
+  .cvbar #cvClose { order:8; margin-left:auto; flex:0 0 auto; }
   .cvstat { flex:1 1 100%; order:9; display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; font-variant-numeric:tabular-nums; }
   .cvstat::-webkit-scrollbar { display:none; }
   .cvstat .st { font-size:11px; padding:2px 8px; }
@@ -821,6 +822,9 @@
 
   .cvhw { display:flex; flex-direction:column; gap:10px; margin-top:4px; padding-top:10px; border-top:1px solid var(--line); }
   .cvhw h4 { margin:0; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--dim); }
+
+  /* phones: name and close on the first row (after the general .cvbar rules) */
+  @media (max-width:720px) { .cvbar #cvClose { order:1; margin-left:0; } .cvbar .cvname { order:0; } }
 </style>
 </head>
 <body>

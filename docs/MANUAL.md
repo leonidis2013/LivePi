@@ -2,7 +2,7 @@
 
 <img src="images/logo.svg" width="72" alt="LivePi logo">
 
-**LivePi v0.24.4** · Copyright © Jerod Ulicki
+**LivePi v0.24.5** · Copyright © Jerod Ulicki
 
 LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Audio goes in through the Pi's sound card, through your plugins (for example LiveVoice), and back out with very little delay. You control everything from a web page on a phone, tablet or computer. The Pi needs no screen, keyboard or mouse.
 
