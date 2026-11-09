@@ -4086,13 +4086,36 @@ $('upGo').onclick = () => {
 };
 
 async function sys(what, msg) { if (!confirm(msg)) return; const r = await api('/api/system/' + what, {}); if (r.ok) toast('Command sent. Wait about 30 seconds.'); }
+// After an update: wait until the Pi answers with a different version (the old LivePi can still answer
+// for a few seconds before it restarts), then load the new page fresh, past the browser's cache.
+function freshLoad(ver) {
+  const q = new URLSearchParams(location.search); q.set('v', ver || String(Date.now()));
+  try { sessionStorage.setItem('lh.reloaded', ver || ''); } catch (e) {}
+  location.replace(location.pathname + '?' + q + location.hash);
+}
 function waitForRestart() {
+  const was = String($('ver').textContent || '').split(' ')[0], t0 = Date.now();
   setTimeout(function poll() {
     fetch('/api/info', { cache: 'no-store' })
-      .then(r => { if (r.ok) location.reload(); else setTimeout(poll, 2000); })
+      .then(r => r.ok ? r.json() : null)
+      .then(i => {
+        const v = i ? String(i.version || '').split(' ')[0] : '';
+        if (v && (v !== was || Date.now() - t0 > 90000)) freshLoad(v);
+        else setTimeout(poll, 2000);
+      })
       .catch(() => setTimeout(poll, 2000));
-  }, 6000);
+  }, 4000);
 }
+// Any open page (another phone or tablet too): reload itself once the Pi runs a different version
+setInterval(() => {
+  const pageVer = '__PAGE_VERSION__';
+  if (!/^v\d/.test(pageVer)) return;
+  fetch('/api/info', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(i => {
+    const v = i ? String(i.version || '').split(' ')[0] : '';
+    let tried = false; try { tried = sessionStorage.getItem('lh.reloaded') === v; } catch (e) {}
+    if (/^v\d/.test(v) && v !== pageVer && !tried) freshLoad(v);
+  }).catch(() => {});
+}, 15000);
 $('updGo').onclick = () => {
   const f = $('updFile').files[0];
   if (!f) return toast('Choose the update .zip first');

@@ -2,7 +2,7 @@
 
 <img src="images/logo.svg" width="72" alt="LivePi logo">
 
-**LivePi v0.25.1** · Copyright © Jerod Ulicki
+**LivePi v0.25.2** · Copyright © Jerod Ulicki
 
 LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Audio goes in through the Pi's sound card, through your plugins (for example LiveVoice), and back out with very little delay. You control everything from a web page on a phone, tablet or computer. The Pi needs no screen, keyboard or mouse.
 
@@ -419,6 +419,8 @@ A new version appears on the [Releases page](https://github.com/leonidis2013/Liv
 
 - **Online:** ⚙ → System → **Update from: Online** → **Check**, then **Version to install: Latest** → **Install update**, or **Other version** to pick any release.
 - **Offline:** download `livepi-build-N.zip` from the Releases page, then use ⚙ → System → **Update from: File** → **Choose…** → **Install update**.
+
+After an update the page reloads itself with the new version once LivePi is back, so you never keep an old page from the browser's cache. Other phones and tablets that have LivePi open reload too, within about 15 seconds.
 
 Presets, plugins, password and settings are kept. If a new version fails to start three times in a row, LivePi puts the previous version back by itself and shows a notice. Some releases need the newer installer; the update tells you if so. In that case run the installer again (section 2.2).
 
