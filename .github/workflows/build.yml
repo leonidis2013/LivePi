@@ -93,7 +93,7 @@ jobs:
       # A release (what Pis update to) only when the version in CMakeLists.txt is new.
       # Pushes without a version change are built and tested, but not published.
       - name: Publish release (new version only)
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
