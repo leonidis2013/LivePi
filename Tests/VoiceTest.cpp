@@ -8,6 +8,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <random>
 #include <cstdio>
+#include <cmath>
 
 static int failures = 0;
 static void check (bool ok, const char* what) { std::printf ("%s  %s\n", ok ? "PASS" : "FAIL", what); if (! ok) ++failures; }
@@ -28,6 +29,35 @@ static void allOn (VoiceChannel& v)
     for (int m = 0; m < VoiceChannel::numModules; ++m) all.push_back (m);
     v.setOrder (all);                      // every module, the parametric EQ too
 }
+
+
+// Steady-state gain (dB) of the channel for a sine at f: 0.6 s of tone, RMS of the last 0.2 s
+static double gainAt (VoiceChannel& v, double sr, double f, int block)
+{
+    juce::AudioBuffer<float> buf (1, block);
+    juce::MidiBuffer midi;
+    const int total = (int) (0.6 * sr), tail = (int) (0.2 * sr);
+    double ph = 0.0, inSq = 0.0, outSq = 0.0;
+    const double dph = juce::MathConstants<double>::twoPi * f / sr;
+    for (int done = 0; done < total; done += block)
+    {
+        for (int i = 0; i < block; ++i) { buf.setSample (0, i, (float) (0.25 * std::sin (ph))); ph += dph; }
+        juce::AudioBuffer<float> in; in.makeCopyOf (buf);
+        v.processBlock (buf, midi);
+        if (done >= total - tail)
+            for (int i = 0; i < block; ++i) { inSq += in.getSample (0, i) * in.getSample (0, i); outSq += buf.getSample (0, i) * buf.getSample (0, i); }
+    }
+    return 10.0 * std::log10 ((outSq + 1e-30) / (inSq + 1e-30));
+}
+
+// Only the tone-shaping modules: the dynamics (expander, compressor, leveler, de-esser, feedback
+// finder) are switched off so a steady test tone measures the frequency response alone
+static void tonalOnly (VoiceChannel& v)
+{
+    for (auto id : { "pseOn", "compOn", "compOn_2", "compOn_3", "lvlOn", "dsOn", "fbOn" }) v.setParam (id, 0.0);
+}
+
+static const double testFreqs[] { 20, 30, 50, 80, 100, 150, 200, 300, 500, 1000, 2000, 4000, 8000, 12000, 16000, 20000 };
 
 int main()
 {
@@ -115,6 +145,58 @@ int main()
         check (b.moduleFromId ("peq4") == VoiceChannel::peq4 && b.moduleName (VoiceChannel::comp3) == "Compressor 3", "extra instances are named");
     }
 
+
+    // ---- frequency response: the full range passes ----
+    for (double fs : { 48000.0, 96000.0 })
+    {
+        // 1. every module off: the channel must be a straight wire, 20 Hz .. 20 kHz
+        {
+            VoiceChannel v;
+            for (int m = 0; m < VoiceChannel::numModules; ++m)
+                if (auto on = VoiceChannel::moduleOnParam (m); on.isNotEmpty()) v.setParam (on, 0.0);
+            v.setParam ("warmth", 0.0);
+            v.prepareToPlay (fs, block);
+            double worst = 0.0;
+            for (double f : testFreqs) worst = std::max (worst, std::abs (gainAt (v, fs, f, block)));
+            std::printf ("INFO  %.0f kHz, every module off: largest deviation %.3f dB (20 Hz - 20 kHz)\n", fs / 1000.0, worst);
+            check (worst < 0.1, fs > 50000 ? "96 kHz: modules off = flat 20 Hz - 20 kHz" : "48 kHz: modules off = flat 20 Hz - 20 kHz");
+        }
+        // 2. a new channel as LivePi makes it (tone modules at their defaults)
+        {
+            VoiceChannel v;
+            tonalOnly (v);
+            v.prepareToPlay (fs, block);
+            juce::String line;
+            const double ref = gainAt (v, fs, 1000.0, block);
+            for (double f : testFreqs) line << juce::String (f >= 1000 ? juce::String (f / 1000.0) + "k" : juce::String ((int) f)) << ":" << juce::String (gainAt (v, fs, f, block) - ref, 1) << " ";
+            std::printf ("INFO  %.0f kHz, new channel (HPF %g Hz): %s\n", fs / 1000.0, v.apvts.getRawParameterValue ("hpfFreq")->load(), line.toRawUTF8());
+            const double g100 = gainAt (v, fs, 150.0, block) - ref, g10k = gainAt (v, fs, 10000.0, block) - ref;
+            check (std::abs (g100) < 1.5 && std::abs (g10k) < 1.5, "new channel: 150 Hz and 10 kHz within 1.5 dB of 1 kHz");
+        }
+        // 3. each starting point: print its tonal curve; nothing above the high-pass may be cut hard
+        {
+            VoiceChannel probe;
+            const auto names = probe.factoryPresetNames();
+            for (int i = 0; i < names.size(); ++i)
+            {
+                VoiceChannel v;
+                v.loadFactoryPreset (i);
+                tonalOnly (v);
+                v.prepareToPlay (fs, block);
+                const double hp = v.apvts.getRawParameterValue ("hpfFreq")->load();
+                const double ref = gainAt (v, fs, 1000.0, block);
+                juce::String line; double worstAbove = 0.0;
+                for (double f : testFreqs)
+                {
+                    const double g = gainAt (v, fs, f, block) - ref;
+                    line << juce::String (f >= 1000 ? juce::String (f / 1000.0) + "k" : juce::String ((int) f)) << ":" << juce::String (g, 1) << " ";
+                    if (f >= hp * 2.0 && f <= 16000.0) worstAbove = std::min (worstAbove, g);
+                }
+                std::printf ("INFO  %.0f kHz, %s (HPF %g Hz): %s\n", fs / 1000.0, names[i].toRawUTF8(), hp, line.toRawUTF8());
+                check (worstAbove > -6.0, "starting point keeps the range above its high-pass (no cut deeper than 6 dB)");
+            }
+        }
+    }
     std::printf ("%s\n", failures == 0 ? "ALL PASSED" : "SOME FAILED");
     return failures == 0 ? 0 : 1;
 }
