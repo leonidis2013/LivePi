@@ -827,44 +827,47 @@
   @media (max-width:720px) { .cvbar #cvClose { order:1; margin-left:0; } .cvbar .cvname { order:0; } }
 
   /* ---- phone held sideways: short screen, so everything gets compact and scrolls in place ---- */
-  @media (orientation:landscape) and (max-height:500px) {
-    header { padding:4px 12px; padding-top:max(4px, env(safe-area-inset-top)); padding-left:max(12px, env(safe-area-inset-left)); padding-right:max(12px, env(safe-area-inset-right)); gap:8px; flex-wrap:nowrap; }
-    header .brand small, header .tag { display:none; }
-    header #status { flex:1; min-width:0; }
-    main, .wrap, #strips { padding-left:max(10px, env(safe-area-inset-left)); padding-right:max(10px, env(safe-area-inset-right)); }
-    .cvbar { flex-wrap:nowrap; padding:4px 10px; padding-top:max(4px, env(safe-area-inset-top)); padding-left:max(10px, env(safe-area-inset-left)); padding-right:max(10px, env(safe-area-inset-right)); gap:6px; }
-    .cvbar .cvname { order:0; flex:0 1 150px; min-width:90px; }
-    .cvbar .cvstat { order:1; flex:1 1 auto; min-width:0; }
-    .cvbar .cvpre { order:2; flex:0 1 200px; min-width:120px; }
-    .cvbar .cvpre > span { display:none; }
-    .cvbar #cvCopy { display:none; }
-    .cvbar #cvBypass { order:3; }
-    .cvbar #cvClose { order:4; margin-left:0; }
-    .cvbar button, .cvbar select { min-height:34px; height:34px; padding-top:0; padding-bottom:0; }
-    .cvbody { display:flex !important; padding:6px; gap:6px; padding-left:max(6px, env(safe-area-inset-left)); padding-right:max(6px, env(safe-area-inset-right)); padding-bottom:max(6px, env(safe-area-inset-bottom)); }
-    .cvmain { display:flex !important; flex-direction:row !important; gap:6px; }
-    .cvflow { display:flex !important; flex-direction:column; flex:0 0 150px !important; overflow-y:auto; gap:4px; }
-    .fb { min-height:34px; padding:4px 6px; gap:5px; }
-    .fb .grip { display:none; }
-    .fbflowhint { display:none; }
-    .fbadd { min-height:34px; font-size:13px; }
-    .cvpanel { padding:8px; gap:8px; }
-    .cvph h3 { font-size:15px; }
-    .cvviz, .cvgt { height:140px !important; }
-    .cvgt.sq { flex:0 0 140px; }
-    .cvgraphs { flex-direction:row !important; }
-    .cvside, .cvside.strip { flex:0 0 70px !important; padding:6px 4px; gap:6px; }
-    .cvside h4 { display:none; }
-    .cvside .fm { min-height:70px; }
-    .cvside .keys button { min-height:32px; height:32px; font-size:11px; }
-    .cvside .monbtn { width:100%; height:32px; }
-    .sldb { flex-basis:34px; width:34px; height:34px; min-height:34px; }
-    .sldbar { height:34px; }
-    .strip:not(.cvside) .fm { height:clamp(110px, calc(100svh - 250px), 220px); }
-    .strip { gap:6px; padding:8px; }
-    .strip .nm { font-size:13px; }
-    .vbox { padding:6px; }
-  }
+  /* phone held sideways (body.land is set by script from the window size, so it works whatever Safari reports) */
+  body.land header { padding:4px 12px; padding-top:max(4px, env(safe-area-inset-top)); padding-left:max(12px, env(safe-area-inset-left)); padding-right:max(12px, env(safe-area-inset-right)); gap:8px; flex-wrap:nowrap; }
+  body.land header .brand small, body.land header .tag { display:none; }
+  body.land header #status { flex:1; min-width:0; }
+  body.land main, body.land .wrap, body.land #strips { padding-left:max(10px, env(safe-area-inset-left)); padding-right:max(10px, env(safe-area-inset-right)); }
+  body.land .cvbar { flex-wrap:nowrap; padding:4px 10px; padding-top:max(4px, env(safe-area-inset-top)); padding-left:max(10px, env(safe-area-inset-left)); padding-right:max(10px, env(safe-area-inset-right)); gap:6px; }
+  body.land .cvbar .cvname { order:0; flex:0 1 150px; min-width:90px; }
+  body.land .cvbar .cvstat { order:1; flex:1 1 auto; min-width:0; }
+  body.land .cvbar .cvpre { order:2; flex:0 1 200px; min-width:120px; }
+  body.land .cvbar .cvpre > span { display:none; }
+  body.land .cvbar #cvCopy { display:none; }
+  body.land .cvbar #cvBypass { order:3; }
+  body.land .cvbar #cvClose { order:4; margin-left:0; }
+  body.land .cvbar button, body.land .cvbar select { min-height:34px; height:34px; padding-top:0; padding-bottom:0; }
+  body.land .cvbody { display:flex !important; padding:6px; gap:6px; padding-left:max(6px, env(safe-area-inset-left)); padding-right:max(6px, env(safe-area-inset-right)); padding-bottom:max(6px, env(safe-area-inset-bottom)); }
+  body.land .cvmain { display:flex !important; flex-direction:row !important; gap:6px; }
+  body.land .cvflow { display:flex !important; flex-direction:column; flex:0 0 150px !important; overflow-y:auto; gap:4px; }
+  body.land .fb { min-height:34px; padding:4px 6px; gap:5px; }
+  body.land .fb .grip { display:none; }
+  body.land .fbflowhint { display:none; }
+  body.land .fbadd { min-height:34px; font-size:13px; }
+  body.land .cvpanel { padding:8px; gap:8px; }
+  body.land .cvph h3 { font-size:15px; }
+  body.land .cvviz, body.land .cvgt { height:clamp(96px, calc(100svh - 200px), 150px) !important; }
+  body.land .cvbands { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; }
+  body.land .cvbands button { flex:0 0 auto; min-width:0; min-height:32px; padding:4px 10px; font-size:12px; }
+  body.land .cvph { gap:6px; }
+  body.land .cvph button { min-height:32px; height:32px; padding-top:0; padding-bottom:0; }
+  body.land .cvgt.sq { flex:0 0 clamp(96px, calc(100svh - 200px), 150px); }
+  body.land .cvgraphs { flex-direction:row !important; }
+  body.land .cvside, body.land .cvside.strip { flex:0 0 70px !important; padding:6px 4px; gap:6px; }
+  body.land .cvside h4 { display:none; }
+  body.land .cvside .fm { min-height:70px; }
+  body.land .cvside .keys button { min-height:32px; height:32px; font-size:11px; }
+  body.land .cvside .monbtn { width:100%; height:32px; }
+  body.land .sldb { flex-basis:34px; width:34px; height:34px; min-height:34px; }
+  body.land .sldbar { height:34px; }
+  body.land .strip:not(.cvside) .fm { height:clamp(110px, calc(100svh - 250px), 220px); }
+  body.land .strip { gap:6px; padding:8px; }
+  body.land .strip .nm { font-size:13px; }
+
 </style>
 </head>
 <body>
@@ -2971,6 +2974,9 @@ const BAND_COLOR = ['#2ec4b6', '#4cc9f0', '#7bdff2', '#80ed99', '#f7d070', '#f49
 const SPEC_MODS = ['hpf', 'eq', 'peq', 'feedback', 'deess', 'output'];
 const MOD_SHORT = { input: 'Input', output: 'Trim', peq: 'Para EQ', eq: 'Dyn EQ', hpf: 'HPF', pse: 'PSE', feedback: 'Feedback', deess: 'De-ess', prox: 'Proximity', leveler: 'Leveler', warmth: 'Warmth', comp: 'Comp' };
 const PHONE = window.matchMedia('(max-width:720px)');
+// Phone held sideways: a short, wide window. Decided from the window size itself.
+function setLand() { const l = innerWidth > innerHeight && innerHeight <= 560; if (document.body.classList.contains('land') !== l) { document.body.classList.toggle('land', l); try { if (CV.ch >= 0 && CV.view) cvRender(); } catch (e) {} } }
+addEventListener('resize', setLand); addEventListener('orientationchange', () => setTimeout(setLand, 200)); setLand();
 const CV = { ch: -1, view: null, live: null, spec: null, sel: 'eq', band: 0, out: true, timers: [], key: '', ctls: {}, hold: null, warmthLast: 30, quietUntil: 0 };
 function isMixer() { return !!(S && S.mode === 'mixer'); }
 function cvLabel(name) {
