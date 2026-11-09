@@ -137,9 +137,11 @@ int main()
         check (std::abs (b.apvts.getRawParameterValue ("compThr")->load() + 33.0f) < 0.01f, "state keeps the settings");
         check (b.loadFactoryPreset (1), "factory preset loads");
         check (! b.setOrder ({ 1, 1 }) && ! b.setOrder ({}) && ! b.setOrder ({ 40 }), "bad flows refused");
-        b.setParam ("peq3_gain", 6.0);
+        b.setParam ("peqOut", 4.0);
+        b.setParam ("peq3_gain_2", 6.0);
         b.loadFactoryPreset (0);
-        check (std::abs (b.apvts.getRawParameterValue ("peq3_gain")->load() - 6.0f) < 0.01f, "voice preset keeps the parametric EQ");
+        check (std::abs (b.apvts.getRawParameterValue ("peqOut")->load() - 4.0f) < 0.01f
+               && std::abs (b.apvts.getRawParameterValue ("peq3_gain_2")->load() - 6.0f) < 0.01f, "voice preset keeps the EQ output and the other parametric EQs");
         b.setParam ("compRatio_2", 7.0);
         check (b.apvts.getParameter ("compRatio_2") != nullptr && std::abs (b.apvts.getRawParameterValue ("compRatio_2")->load() - 7.0f) < 0.05f, "second compressor has its own settings");
         check (b.moduleFromId ("peq4") == VoiceChannel::peq4 && b.moduleName (VoiceChannel::comp3) == "Compressor 3", "extra instances are named");

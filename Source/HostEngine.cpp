@@ -437,7 +437,7 @@ var HostEngine::voiceSpectrum (int channel, bool output, const String& module)
 {
     auto* vc = voiceOf (channel);
     if (vc == nullptr) return err ("not a mixer channel");
-    return vc->getSpectrum (output, VoiceChannel::moduleFromId (module));
+    return vc->getSpectrum (output, module == "total" || module == "output" ? -2 : VoiceChannel::moduleFromId (module));
 }
 
 var HostEngine::voiceParam (int channel, const String& id, double value, bool normalised)

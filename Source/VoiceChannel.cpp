@@ -1071,6 +1071,30 @@ void VoiceChannel::applyStartingPoint()
 // and (for the other graphs) the high-pass filters in the flow, drawn faintly behind
 var VoiceChannel::getSpectrum (bool output, int module)
 {
+    // module -2: the overall tone of the channel: every filter-type module in the flow, added up
+    if (module == -2)
+    {
+        std::vector<double> sum;
+        var base;
+        for (int m : getOrder())
+        {
+            const int t = typeOf (m);
+            if (t != tHpf && t != tEq && t != tPeq && t != tFeedback && t != tDeess) continue;
+            auto sub = getSpectrum (output, m);
+            if (base.isVoid()) base = sub;
+            if (auto* c = sub["curve"].getArray())
+            {
+                sum.resize ((size_t) c->size(), 0.0);
+                for (int i = 0; i < c->size(); ++i) sum[(size_t) i] += (double) (*c)[i];
+            }
+        }
+        if (base.isVoid()) base = getSpectrum (output, -1);
+        Array<var> total;
+        for (auto d : sum) total.add (jlimit (-60.0, 30.0, d));
+        if (auto* o = base.getDynamicObject()) { o->setProperty ("curve", total); o->setProperty ("hpf", Array<var>()); }
+        return base;
+    }
+
     constexpr int order = 12, size = 1 << order, points = 120;
     static const std::vector<float> freqs = []
     {

@@ -2966,9 +2966,9 @@ awakeStart();
 /* ---------- mixer mode: the built-in LiveVoice channel ----------
    Left: input gain + fader (+ mute, PAFL). Middle: the flow of modules (tap one, drag the grip to
    reorder) and the big panel of the selected module. Right: output trim + output meter. */
-const MOD_COLOR = { input: '#9aa5b1', output: '#9aa5b1', peq: '#5aa9ff', hpf: '#7ea9cc', pse: '#8bd450', feedback: '#ff8a3d', eq: '#2ec4b6', deess: '#a78bfa', prox: '#4cc9f0', leveler: '#80ed99', warmth: '#f4978e', comp: '#f6c453' };
+const MOD_COLOR = { input: '#9aa5b1', output: '#f0a35a', peq: '#5aa9ff', hpf: '#7ea9cc', pse: '#8bd450', feedback: '#ff8a3d', eq: '#2ec4b6', deess: '#a78bfa', prox: '#4cc9f0', leveler: '#80ed99', warmth: '#f4978e', comp: '#f6c453' };
 const BAND_COLOR = ['#2ec4b6', '#4cc9f0', '#7bdff2', '#80ed99', '#f7d070', '#f4978e'];
-const SPEC_MODS = ['hpf', 'eq', 'peq', 'feedback', 'deess'];
+const SPEC_MODS = ['hpf', 'eq', 'peq', 'feedback', 'deess', 'output'];
 const MOD_SHORT = { input: 'Input', output: 'Trim', peq: 'Para EQ', eq: 'Dyn EQ', hpf: 'HPF', pse: 'PSE', feedback: 'Feedback', deess: 'De-ess', prox: 'Proximity', leveler: 'Leveler', warmth: 'Warmth', comp: 'Comp' };
 const PHONE = window.matchMedia('(max-width:720px)');
 const CV = { ch: -1, view: null, live: null, spec: null, sel: 'eq', band: 0, out: true, timers: [], key: '', ctls: {}, hold: null, warmthLast: 30, quietUntil: 0 };
@@ -3360,6 +3360,7 @@ function cvPanelBody(v, id, m, P) {
     if (T === 'eq' || T === 'peq') cvEqDrag(cnv, T);
     if (T === 'hpf') { cvHpfDrag(cnv); viz.append(el('span', 'cvhint', 'Slide sideways to move the cut-off')); }
     if (T === 'feedback') cvNotchTap(cnv);
+    if (T === 'output') viz.append(el('span', 'cvhint', 'Overall tone: every filter, EQ, notch and de-esser in the flow, added up'));
   }
   if (T === 'comp') {
     const viz = el('div', 'cvgraphs');
@@ -3723,8 +3724,7 @@ async function cvSpec() {
   for (let i = 0; i < s.rta.length; i++) CV.hold[i] = Math.max(s.rta[i], CV.hold[i] - 1.5);
   CV.spec = s; cvDraw();
 }
-// RTA + curve: x is log frequency (20 Hz .. 20 kHz); RTA -90..0 dBFS; curve in its own range
-function cvRange(id) { id = cvType(id); return id === 'eq' || id === 'peq' ? [-18, 18] : id === 'hpf' ? [-48, 6] : [-30, 6]; }
+function cvRange(id) { id = cvType(id); return id === 'output' ? [-24, 12] : id === 'eq' || id === 'peq' ? [-18, 18] : id === 'hpf' ? [-48, 6] : [-30, 6]; }
 function cvDraw() {
   const cnv = document.querySelector('#cvPanel canvas'); if (!cnv || !CV.spec) return;
   const dpr = window.devicePixelRatio || 1, W = cnv.clientWidth, H = cnv.clientHeight;

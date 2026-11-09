@@ -2,7 +2,7 @@
 
 <img src="images/logo.svg" width="72" alt="LivePi logo">
 
-**LivePi v0.24.6** · Copyright © Jerod Ulicki
+**LivePi v0.25.0** · Copyright © Jerod Ulicki
 
 LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Audio goes in through the Pi's sound card, through your plugins (for example LiveVoice), and back out with very little delay. You control everything from a web page on a phone, tablet or computer. The Pi needs no screen, keyboard or mouse.
 
@@ -263,7 +263,7 @@ On the mixer, each channel shows its voice preset and its modules in flow order 
 
 | Module | On the panel |
 |---|---|
-| **Output trim** | Always last: the level after every module, before the fader (rarely needed: leave it at 0 dB and use the fader). Output level meter. |
+| **Output trim** | Always last: the **overall tone** of the channel (every filter, EQ, notch and de-esser in the flow, added up: the quickest way to see why a voice sounds thin or boomy), the output level, and the trim (rarely needed: leave it at 0 dB and use the fader). |
 | **Input** | **Interface input gain**: the sound card's own input gain, when software can set it (a Pisound's is the GAIN knob on the board; the panel says so). In mixer mode it lives here instead of in Setup → Audio. Input gain as a wide slider (digital, before everything; it stops at 0 dB on the way through, as do the other gains) and **Polarity invert**; the input level against −12 dB (also on the Input tile). |
 | **High-pass** | RTA with the filter curve: **drag sideways on the graph** to move the cut-off. Frequency and slope. |
 | **PSE** | Primary source expander: a history of the voice level (green while open, grey while closed), how far it turned down (orange line) and the range; **drag up/down on it** for the threshold. **Threshold** and **Range** are the two big sliders under the graph. Voice level against the threshold, open/closed, and how much it turns down; threshold, range, attack, hold, release, sidechain filters. |
