@@ -2,7 +2,7 @@
 
 <img src="images/logo.svg" width="72" alt="LivePi logo">
 
-**LivePi v0.25.2** · Copyright © Jerod Ulicki
+**LivePi v0.25.3** · Copyright © Jerod Ulicki
 
 LivePi turns a Raspberry Pi into a small, headless VST3 host for live voice. Audio goes in through the Pi's sound card, through your plugins (for example LiveVoice), and back out with very little delay. You control everything from a web page on a phone, tablet or computer. The Pi needs no screen, keyboard or mouse.
 
@@ -123,7 +123,7 @@ A device that closes the page, or leaves it in the background for about 12 secon
 
 - **Computer:** press the **⛶** button at the top right. Press it again or press Esc to leave.
 - **iPhone or iPad:** in Safari use **Share → Add to Home Screen**. LivePi gets its own icon and opens full screen like an app.
-- **Phone held sideways:** the channel screen switches to a compact layout: the modules in a narrow column on the left, the open module in the middle, the output fader on the right. It follows the phone as you turn it, also with Safari zoomed or Display Zoom on.
+- **Phone held sideways:** the channel screen switches to a compact layout: the modules in a narrow column on the left, the open module in the middle, the output fader on the right. It follows the phone as you turn it, also with Safari zoomed or Display Zoom on. On the mixer screen each channel's fader and meters run the full height, with the name, level, Mute, PAFL and the voice beside them.
 
 ---
 
